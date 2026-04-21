@@ -1552,10 +1552,29 @@ git commit -m "feat: add MCP server bootstrap with stdio transport"
 
 ---
 
-## Task 18: README + manual end-to-end verification
+## Task 18: README + publish-readiness + manual end-to-end verification
 
 **Files:**
+- Modify: `package.json` (add `prepublishOnly` and publish metadata)
 - Create: `README.md`
+
+Before testing, harden `package.json` for npm publish (deferred from Task 1 to keep that task focused on toolchain bootstrap):
+
+- [ ] **Step 0a: Add `prepublishOnly` and metadata to `package.json`**
+
+Add to `scripts`: `"prepublishOnly": "npm run build"` (ensures `dist/` is fresh on every publish).
+
+Add at the top level (alongside `description`):
+
+```json
+"keywords": ["mcp", "azure-devops", "model-context-protocol", "ado", "tfs"],
+"repository": { "type": "git", "url": "git+https://github.com/<your-github>/azure-devops-mcp.git" },
+"bugs": { "url": "https://github.com/<your-github>/azure-devops-mcp/issues" },
+"homepage": "https://github.com/<your-github>/azure-devops-mcp#readme",
+"author": "<your name>"
+```
+
+Verify with `npm pack --dry-run` to see what would be published. Commit as `chore: add npm publish metadata`.
 
 - [ ] **Step 1: Run the full unit test suite**
 
