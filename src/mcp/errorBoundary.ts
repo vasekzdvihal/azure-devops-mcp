@@ -1,12 +1,20 @@
+// Structural shape of the SDK's CallToolResult: content array + optional isError
+// plus arbitrary metadata (_meta, etc.). The index signature lets TS accept this
+// value wherever the SDK expects CallToolResult, without importing the SDK type here.
 export interface McpToolResult {
   content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
+  [x: string]: unknown;
 }
 
 type Handler = (args: Record<string, unknown>) => Promise<unknown>;
 
-export function toToolResult(handler: Handler): (args: Record<string, unknown>) => Promise<McpToolResult> {
-  return async (args) => {
+// Accept an optional `extra` arg so the returned function matches the SDK's
+// ToolCallback signature `(args, extra) => CallToolResult`. We don't use extra.
+export function toToolResult(
+  handler: Handler,
+): (args: Record<string, unknown>, extra?: unknown) => Promise<McpToolResult> {
+  return async (args, _extra) => {
     try {
       const value = await handler(args);
       return {

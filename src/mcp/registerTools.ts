@@ -14,6 +14,6 @@ export function registerAllTools(server: McpServer, client: AdoClient): void {
   const tools = [...buildIdentityTools(identityService)];
 
   for (const tool of tools) {
-    server.registerTool(tool.name, tool.config, toToolResult(tool.handler) as never);
+    server.registerTool(tool.name, tool.config, toToolResult(tool.handler));
   }
 }
