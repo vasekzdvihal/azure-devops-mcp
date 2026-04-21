@@ -912,7 +912,10 @@ export class SdkAdoClient implements AdoClient {
     const agent = buildHttpsAgent(opts.caBundlePath);
     if (agent) https.globalAgent = agent;
 
-    this.api = new azdev.WebApi(opts.baseUrl, handler);
+    // Default socket timeout in typed-rest-client is 3 minutes — way too long
+    // for a CLI tool when a firewall silently drops packets. 15s is plenty for
+    // any ADO API we call and surfaces a useful error fast.
+    this.api = new azdev.WebApi(opts.baseUrl, handler, { socketTimeout: 15_000 });
   }
 
   async whoami(): Promise<Identity> {
