@@ -686,7 +686,7 @@ export class AdoTlsError extends AdoError {
   constructor(detail?: string) {
     super(
       "TLS verification failed against Azure DevOps. " +
-        "If your server uses an internal CA, set caBundlePath in the config (re-run setup)." +
+        "If your server uses an internal CA, set the CA bundle path in the config (re-run setup)." +
         (detail ? ` Details: ${detail}` : ""),
     );
     this.name = "AdoTlsError";
