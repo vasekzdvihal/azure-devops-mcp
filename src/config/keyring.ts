@@ -18,27 +18,14 @@ export function setPat(account: string, pat: string): void {
 }
 
 export function getPat(account: string): string {
-  try {
-    const password = entryFor(account).getPassword();
-    if (password === null) {
-      throw new PatNotFoundError(account);
-    }
-    return password;
-  } catch (error) {
-    // Keyring throws when no entry exists or returns null; we normalize to our typed error.
-    if (error instanceof PatNotFoundError) {
-      throw error;
-    }
-    throw new PatNotFoundError(account);
-  }
+  const password = entryFor(account).getPassword();
+  if (password === null) throw new PatNotFoundError(account);
+  return password;
 }
 
 export function deletePat(account: string): void {
-  try {
-    entryFor(account).deletePassword();
-  } catch {
-    // Idempotent: deleting a missing entry is fine.
-  }
+  // Returns false when the entry didn't exist; we don't care.
+  entryFor(account).deletePassword();
 }
 
 /**

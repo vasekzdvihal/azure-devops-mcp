@@ -510,20 +510,15 @@ export function setPat(account: string, pat: string): void {
 }
 
 export function getPat(account: string): string {
-  try {
-    return entryFor(account).getPassword();
-  } catch {
-    // Keyring throws when no entry exists; we normalize to our typed error.
-    throw new PatNotFoundError(account);
-  }
+  // @napi-rs/keyring returns null when no entry exists (does NOT throw).
+  const password = entryFor(account).getPassword();
+  if (password === null) throw new PatNotFoundError(account);
+  return password;
 }
 
 export function deletePat(account: string): void {
-  try {
-    entryFor(account).deletePassword();
-  } catch {
-    // Idempotent: deleting a missing entry is fine.
-  }
+  // Returns false when the entry didn't exist; we don't care — idempotent by design.
+  entryFor(account).deletePassword();
 }
 
 /**
