@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import path from "node:path";
 import { ConfigSchema, type Config } from "./schema.js";
 import { configDir, configFilePath } from "./paths.js";
 
