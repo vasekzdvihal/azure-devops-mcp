@@ -124,7 +124,7 @@ coverage/
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.ts",
-    "setup": "tsx src/setup.ts",
+    "setup": "tsx src/index.ts setup",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -423,7 +423,6 @@ Expected: FAIL — module not found.
 ```ts
 // src/config/configFile.ts
 import fs from "node:fs/promises";
-import path from "node:path";
 import { ConfigSchema, type Config } from "./schema.js";
 import { configDir, configFilePath } from "./paths.js";
 
@@ -511,20 +510,15 @@ export function setPat(account: string, pat: string): void {
 }
 
 export function getPat(account: string): string {
-  try {
-    return entryFor(account).getPassword();
-  } catch {
-    // Keyring throws when no entry exists; we normalize to our typed error.
-    throw new PatNotFoundError(account);
-  }
+  // @napi-rs/keyring returns null when no entry exists (does NOT throw).
+  const password = entryFor(account).getPassword();
+  if (password === null) throw new PatNotFoundError(account);
+  return password;
 }
 
 export function deletePat(account: string): void {
-  try {
-    entryFor(account).deletePassword();
-  } catch {
-    // Idempotent: deleting a missing entry is fine.
-  }
+  // Returns false when the entry didn't exist; we don't care — idempotent by design.
+  entryFor(account).deletePassword();
 }
 
 /**
@@ -692,7 +686,7 @@ export class AdoTlsError extends AdoError {
   constructor(detail?: string) {
     super(
       "TLS verification failed against Azure DevOps. " +
-        "If your server uses an internal CA, set caBundlePath in the config (re-run setup)." +
+        "If your server uses an internal CA, set the CA bundle path in the config (re-run setup)." +
         (detail ? ` Details: ${detail}` : ""),
     );
     this.name = "AdoTlsError";
@@ -918,7 +912,10 @@ export class SdkAdoClient implements AdoClient {
     const agent = buildHttpsAgent(opts.caBundlePath);
     if (agent) https.globalAgent = agent;
 
-    this.api = new azdev.WebApi(opts.baseUrl, handler);
+    // Default socket timeout in typed-rest-client is 3 minutes — way too long
+    // for a CLI tool when a firewall silently drops packets. 15s is plenty for
+    // any ADO API we call and surfaces a useful error fast.
+    this.api = new azdev.WebApi(opts.baseUrl, handler, { socketTimeout: 15_000 });
   }
 
   async whoami(): Promise<Identity> {
@@ -1248,15 +1245,23 @@ Expected: FAIL — module not found.
 
 ```ts
 // src/mcp/errorBoundary.ts
+// Structural shape of the SDK's CallToolResult: content array + optional isError
+// plus arbitrary metadata. The index signature lets TS accept this value wherever
+// the SDK expects CallToolResult, without importing the SDK type here.
 export interface McpToolResult {
   content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
+  [x: string]: unknown;
 }
 
 type Handler = (args: Record<string, unknown>) => Promise<unknown>;
 
-export function toToolResult(handler: Handler): (args: Record<string, unknown>) => Promise<McpToolResult> {
-  return async (args) => {
+// Accept an optional `extra` arg so the returned function matches the SDK's
+// ToolCallback signature `(args, extra) => CallToolResult`. We don't use extra.
+export function toToolResult(
+  handler: Handler,
+): (args: Record<string, unknown>, extra?: unknown) => Promise<McpToolResult> {
+  return async (args, _extra) => {
     try {
       const value = await handler(args);
       return {
@@ -1552,10 +1557,29 @@ git commit -m "feat: add MCP server bootstrap with stdio transport"
 
 ---
 
-## Task 18: README + manual end-to-end verification
+## Task 18: README + publish-readiness + manual end-to-end verification
 
 **Files:**
+- Modify: `package.json` (add `prepublishOnly` and publish metadata)
 - Create: `README.md`
+
+Before testing, harden `package.json` for npm publish (deferred from Task 1 to keep that task focused on toolchain bootstrap):
+
+- [ ] **Step 0a: Add `prepublishOnly` and metadata to `package.json`**
+
+Add to `scripts`: `"prepublishOnly": "npm run build"` (ensures `dist/` is fresh on every publish).
+
+Add at the top level (alongside `description`):
+
+```json
+"keywords": ["mcp", "azure-devops", "model-context-protocol", "ado", "tfs"],
+"repository": { "type": "git", "url": "git+https://github.com/<your-github>/azure-devops-mcp.git" },
+"bugs": { "url": "https://github.com/<your-github>/azure-devops-mcp/issues" },
+"homepage": "https://github.com/<your-github>/azure-devops-mcp#readme",
+"author": "<your name>"
+```
+
+Verify with `npm pack --dry-run` to see what would be published. Commit as `chore: add npm publish metadata`.
 
 - [ ] **Step 1: Run the full unit test suite**
 

@@ -57,6 +57,8 @@ Distribution: published to the public npm registry as `@<scope-tbd>/azure-devops
 | TLS | Strict by default; opt-in CA bundle path in config | Safe default; clean escape hatch for on-prem internal CAs |
 | Cloud + on-prem | Both supported in v1 | SDK handles both; near-zero extra cost; bigger audience |
 | Validation | `zod` for tool inputs and config schema | Standard for TS, integrates with MCP tool schema generation |
+| Tool naming | Short, unprefixed names (`whoami`, `list_pull_requests`, …) | Matches modern MCP convention (GitHub, Linear, Filesystem MCP). Hosts already namespace as `mcp__<server>__<tool>`, so the in-server prefix is redundant. Discoverability lives in tool *descriptions*, not names. |
+| Read-only mode | Env var `AZURE_DEVOPS_READ_ONLY=true` skips registration of write tools | Lets users restrict the surface to read operations only — important for code-review use cases, for read-only PATs, and for "Claude can summarize but not post" team policies. No effect in v1 (all tools are reads); plumbing introduced in Phase 1, gates write tools when they land in Phase 2. |
 
 ## 5. Architecture
 
@@ -290,11 +292,32 @@ Built on the now-validated foundation.
 
 **End state:** full read-only PR review workflow available in Claude Code. v1 ready for npm publish.
 
+### Phase 0 checkpoint outcomes (2026-04-22)
+
+Phase 0 ran end-to-end against a real ADO Services instance and Claude Code. The walking skeleton worked on first try after two install gotchas were resolved (npm setup script bypassed `index.ts`; MCP servers must live in `~/.claude.json` rather than `~/.claude/settings.json`). Both fixes are committed in the Phase 0 branch.
+
+Decisions captured back into this spec from the checkpoint:
+
+- **Tool naming** — confirmed unprefixed (see decision row in §4). `list_projects` and `list_repositories` were briefly considered for `ado_*` prefixes to avoid collisions with Linear MCP / others, but the modern convention is to rely on host namespacing.
+- **Read-only mode** — added as a configurable contract via `AZURE_DEVOPS_READ_ONLY` env var (see decision row in §4). Phase 1 introduces the env-var plumbing as a no-op so the contract exists before write tools do.
+- **Response shape** — JSON for v1 confirmed; the user found the LLM's natural-language summarization of the JSON acceptable. Markdown formatting deferred indefinitely unless asked.
+- **`npm run setup` script** — must be `tsx src/index.ts setup`, not `tsx src/setup.ts`. The Phase 0 plan and `package.json` are corrected.
+- **Local-dev MCP wiring** — README should explicitly call out that for local dev users point Claude Code at the absolute path of `dist/index.js`, not at the un-published `npx -y @scope/...` snippet the wizard prints. (Wizard snippet is the post-publish path.)
+
 ## 11. Open questions
 
 These are deferred to implementation or to the post-Phase-0 checkpoint, not blockers for the design:
 
 - Final npm scope name (e.g., `@vasekzdvihal/`, `@az-mcp/`, unscoped). Must be settled before first publish.
-- Whether the response shaping in `domains/pullRequests/service.ts` should be JSON or markdown — likely JSON for v1, with markdown as a future opt-in via tool argument. Will be visible during Phase 0 review.
 - Exact defaults for `diffShaper` (`maxLinesPerFile`, `maxFiles`) — pick reasonable starting values, tune after Phase 1 use.
 - Whether to add an eslint boundary plugin to enforce `domains/*` independence — defer until the import-graph genuinely benefits.
+
+## 12. Phase 2 design notes (write operations)
+
+When write operations land (likely Phase 2: `create_pull_request`, `add_pull_request_comment`, `vote_on_pull_request`, etc.):
+
+- **Read-only gate.** Each write tool registration goes through a `if (!readOnly) registerTool(...)` check at composition root. The env var `AZURE_DEVOPS_READ_ONLY=true` (read by `index.ts` at startup, threaded into `registerAllTools`) suppresses every write tool from the MCP surface. Read tools are always registered.
+- **Naming for write tools.** Imperative verbs (`create_pull_request`, `add_pull_request_comment`, `complete_pull_request`). Same unprefixed convention as reads.
+- **Confirmation pattern.** Consider whether write tools should require an `confirm: true` parameter as a belt-and-suspenders against accidental calls. Open question — most MCP servers don't, on the grounds that the LLM should already be asking the user before calling. Decide at Phase 2 brainstorming.
+- **PAT scope drift.** Phase 2 expands required PAT scopes. The setup wizard should re-test scope at upgrade time; missing scope should produce a specific error rather than the generic auth failure.
+- **Error mapping additions.** 409 conflict (PR already abandoned, comment thread closed, etc.) should get its own `AdoConflictError` with a clear message.
