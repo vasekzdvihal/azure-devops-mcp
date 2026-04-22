@@ -102,8 +102,10 @@ The `diff` library (npm package `diff`, v8.x as of 2026) generates unified diffs
 - [ ] **Step 1: Install dependencies**
 
 ```bash
-npm install diff@^9 && npm install --save-dev @types/diff@^9
+npm install diff@^9
 ```
+
+(Note: `diff` v9 ships its own TypeScript declarations via the package's `exports` map, so no `@types/diff` is needed.)
 
 - [ ] **Step 2: Verify install**
 
