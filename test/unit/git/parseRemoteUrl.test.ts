@@ -84,4 +84,22 @@ describe("parseRemoteUrl", () => {
   it("returns null for malformed URL", () => {
     expect(parseRemoteUrl("not-a-url")).toBeNull();
   });
+
+  // Defense against the on-prem regex misclassifying GitHub-shaped URLs that
+  // happen to contain /_git/ — the host deny-list keeps us honest.
+  it("returns null even for github.com URLs that contain /_git/", () => {
+    expect(parseRemoteUrl("https://github.com/owner/proj/_git/repo")).toBeNull();
+  });
+
+  it("returns null for gitlab.com URLs that contain /_git/", () => {
+    expect(parseRemoteUrl("https://gitlab.com/owner/proj/_git/repo")).toBeNull();
+  });
+
+  // Trailing slash should be normalized away.
+  it("ignores a trailing slash on the URL", () => {
+    expect(parseRemoteUrl("https://dev.azure.com/myorg/MyProject/_git/MyRepo/")).toEqual({
+      project: "MyProject",
+      repo: "MyRepo",
+    });
+  });
 });
