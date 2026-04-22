@@ -124,7 +124,7 @@ coverage/
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.ts",
-    "setup": "tsx src/setup.ts",
+    "setup": "tsx src/index.ts setup",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
