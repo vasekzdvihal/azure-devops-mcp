@@ -64,6 +64,16 @@ const COMMENT_STATUS_FROM_ENUM: Record<number, string> = {
   6: "pending",
 };
 
+// PullRequestAsyncStatus — the merge processing state of a PR.
+const MERGE_STATUS_FROM_ENUM: Record<number, string> = {
+  0: "notSet",
+  1: "queued",
+  2: "conflicts",
+  3: "succeeded",
+  4: "rejectedByPolicy",
+  5: "failure",
+};
+
 export interface PrSummary {
   id: number;
   title: string;
@@ -195,6 +205,10 @@ export class PullRequestsService {
       repository,
       pullRequestId: args.pullRequestId,
     });
+    // ADO naming is counterintuitive: `lastMergeTargetCommit` is the tip of
+    // the *target* branch (= the BASE of the diff), and `lastMergeSourceCommit`
+    // is the tip of the *source* branch (= the new content / TARGET of the diff).
+    // Don't "fix" this mapping — swapping shows the diff inverted.
     const baseSha = pr.lastMergeTargetCommit?.commitId;
     const targetSha = pr.lastMergeSourceCommit?.commitId;
     if (!baseSha || !targetSha) {
@@ -261,7 +275,10 @@ function shapePrDetail(pr: GitPullRequest): PrDetail {
       name: r.displayName,
       vote: r.vote ?? 0,
     })),
-    mergeStatus: pr.mergeStatus !== undefined ? String(pr.mergeStatus) : undefined,
+    mergeStatus:
+      pr.mergeStatus !== undefined
+        ? (MERGE_STATUS_FROM_ENUM[pr.mergeStatus] ?? "unknown")
+        : undefined,
   };
 }
 
