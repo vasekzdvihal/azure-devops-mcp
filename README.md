@@ -1,10 +1,6 @@
 # Azure DevOps MCP
 
-Read-only Azure DevOps MCP server for Claude Code and other MCP hosts.
-
-**Phase 0** ships `whoami` only — a deliberate walking skeleton that proves the whole stack (config, OS keyring, TLS, MCP, ADO API) works end to end. **Phase 1** adds the read-only PR workflow: list PRs, get PR details, fetch diffs, read comments, list iterations, plus project/repo enumeration.
-
-Supports both **Azure DevOps Server** (on-prem) and **Azure DevOps Services** (cloud).
+Read-only Azure DevOps MCP server for Claude Code and other MCP hosts. v1 ships read-only PR review workflows for both **Azure DevOps Server** (on-prem) and **Azure DevOps Services** (cloud). Phase 2 will add write operations (create PR, comment, approve, etc.); read-only mode (see below) lets you opt out of those when they land.
 
 ## Setup
 
@@ -18,17 +14,11 @@ You'll be prompted for:
 - **Personal Access Token** — input is masked. Required scopes for v1: **Code (read)**, **Identity (read)**.
 - **CA bundle path** (optional) — path to a PEM file. Set this if your on-prem ADO uses an internal CA that isn't in your OS trust store. Leave blank otherwise.
 
-The wizard tests the connection before writing anything. If it fails, you'll see the error and be re-prompted — nothing lands on disk until the connection succeeds.
-
-On success:
-
-- Config is written to `~/.config/azure-devops-mcp/config.json` with mode `0600`.
-- PAT is stored in your OS keyring (service `azure-devops-mcp`, account = the host portion of your base URL — so multiple ADO instances can coexist).
-- A Claude Code MCP config snippet is printed for you to copy.
+The wizard tests the connection before writing anything. Config goes to `~/.config/azure-devops-mcp/config.json` (mode `0600`); PAT goes to your OS keyring.
 
 ## Use with Claude Code
 
-Add to your Claude Code MCP config (typically `~/.claude/settings.json`):
+Add to your `~/.claude.json` under `mcpServers`:
 
 ```json
 {
@@ -41,40 +31,65 @@ Add to your Claude Code MCP config (typically `~/.claude/settings.json`):
 }
 ```
 
-Restart Claude Code (or reload MCP servers). In a session, ask:
+### Read-only mode
 
-> use the azure-devops MCP to call whoami
+Set `AZURE_DEVOPS_READ_ONLY=true` in the `env` block to suppress write tools (when they land in Phase 2). Useful when:
+- Your PAT is read-only and you want clean error UX.
+- You want Claude to summarize PRs but never post on your behalf.
 
-You should see your Azure DevOps identity.
+```json
+{
+  "mcpServers": {
+    "azure-devops": {
+      "command": "npx",
+      "args": ["-y", "@vasekzdvihal/azure-devops-mcp"],
+      "env": { "AZURE_DEVOPS_READ_ONLY": "true" }
+    }
+  }
+}
+```
 
-## Available tools (Phase 0)
+(In Phase 1 this is a no-op since all tools are reads. The flag is in place so Phase 2's write tools have a clean gate.)
 
-| Tool      | Description                                                  |
-| --------- | ------------------------------------------------------------ |
-| `whoami`  | Returns the identity associated with the configured PAT.     |
+### Cwd auto-detect
 
-Phase 1 will add: `list_projects`, `list_repositories`, `list_pull_requests`, `get_pull_request`, `get_pull_request_diff`, `list_pull_request_comments`, `get_pull_request_iterations`.
+The pull-request tools auto-detect the current `project` and `repository` from your shell's `cwd` `.git/config remote.origin.url` when those args aren't passed. So `list_pull_requests` "just works" when Claude is run from inside an ADO checkout. Pass them explicitly to override.
+
+## Available tools
+
+| Tool                            | Description                                                                                              |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `whoami`                        | Returns the identity associated with the configured PAT.                                                 |
+| `list_projects`                 | Lists ADO projects in the configured collection / org.                                                   |
+| `list_repositories`             | Lists git repositories in a given project.                                                               |
+| `list_pull_requests`            | Lists PRs in a repo (default: active). Supports filters: status, creator, reviewer, target branch.       |
+| `get_pull_request`              | Full PR metadata: title, description, status, reviewers, branches, draft state, merge status.            |
+| `list_pull_request_changes`     | Lists files changed in a PR with change types (add/edit/delete/rename). Cheap; no diff content.          |
+| `get_pull_request_diff`         | Returns unified diff text for a single file in a PR (truncatable). Use after `list_pull_request_changes`. |
+| `list_pull_request_comments`    | Returns comment threads on a PR (with line anchors).                                                     |
+| `get_pull_request_iterations`   | Returns iteration history of a PR (each push = one iteration).                                           |
 
 ## Troubleshooting
 
-- **"Azure DevOps MCP config not found"** — run the setup command above.
+- **"Azure DevOps MCP config not found"** — run setup.
 - **"No PAT found in OS keyring"** — same fix; setup writes both.
-- **"Authentication failed against Azure DevOps. The PAT may be expired..."** — regenerate the PAT in ADO and re-run setup. The required scopes are **Code (read)** and **Identity (read)**.
-- **"TLS verification failed"** — your ADO Server is using a cert your machine doesn't trust. Re-run setup and provide the path to your organization's CA bundle (PEM file) when prompted.
-- **"Could not reach Azure DevOps"** — base URL or network issue. Confirm the URL is reachable from your machine (`curl -I <baseUrl>`).
+- **"Authentication failed against Azure DevOps. The PAT may be expired..."** — regenerate the PAT and re-run setup. Required scopes: **Code (read)**, **Identity (read)**.
+- **"TLS verification failed"** — your ADO Server uses a cert your machine doesn't trust. Re-run setup and provide the path to your organization's CA bundle (PEM file).
+- **"Could not reach Azure DevOps"** — base URL or network issue.
+- **"Could not resolve project + repository"** — you called a PR tool from outside an ADO checkout without passing `project`/`repository`. Either `cd` into the repo or pass the names.
 
 ## Development
 
 ```bash
 npm install
-npm test            # unit tests (26)
+npm test            # unit tests
 npm run typecheck   # TypeScript check
 npm run build       # compile to dist/
 npm run dev         # run server from source via tsx
 npm run setup       # run setup wizard from source
 ```
 
-Architecture, design rationale, and phase breakdown live in `docs/superpowers/specs/2026-04-21-azure-devops-mcp-design.md`. The Phase 0 implementation plan is in `docs/superpowers/plans/2026-04-21-azure-devops-mcp-phase-0.md`.
+Architecture and design decisions live in `docs/superpowers/specs/2026-04-21-azure-devops-mcp-design.md`. Phase 1 implementation plan in `docs/superpowers/plans/2026-04-22-azure-devops-mcp-phase-1.md`.
 
 ## License
 
