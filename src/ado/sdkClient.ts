@@ -12,7 +12,8 @@ import type {
   GitPullRequestChange,
   PullRequestStatus,
 } from "./types.js";
-import { mapSdkError, AdoNotFoundError, AdoUnknownError } from "./errors.js";
+import { GitVersionType } from "azure-devops-node-api/interfaces/GitInterfaces.js";
+import { AdoError, mapSdkError, AdoNotFoundError, AdoUnknownError } from "./errors.js";
 import { buildHttpsAgent } from "./tlsAgent.js";
 
 export interface SdkAdoClientOptions {
@@ -47,7 +48,8 @@ export class SdkAdoClient implements AdoClient {
       if (!user) throw new AdoUnknownError("connect() returned no authenticatedUser");
       return user;
     } catch (err) {
-      if (err instanceof AdoUnknownError) throw err;
+      // Re-throw any of our own typed errors untouched; only map raw SDK errors.
+      if (err instanceof AdoError) throw err;
       throw mapSdkError(err);
     }
   }
@@ -116,6 +118,8 @@ export class SdkAdoClient implements AdoClient {
       if (!pr) throw new AdoNotFoundError(`PR ${args.pullRequestId} not found`);
       return pr;
     } catch (err) {
+      // Re-throw any of our own typed errors untouched; only map raw SDK errors.
+      if (err instanceof AdoError) throw err;
       throw mapSdkError(err);
     }
   }
@@ -167,7 +171,7 @@ export class SdkAdoClient implements AdoClient {
         undefined, // includeContentMetadata
         undefined, // latestProcessedChange
         undefined, // download
-        { version: args.commitSha, versionType: 2 /* commit */ },
+        { version: args.commitSha, versionType: GitVersionType.Commit },
         true, // includeContent
       );
       return item.content ?? null;
