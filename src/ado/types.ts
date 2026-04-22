@@ -3,3 +3,13 @@
 // "azure-devops-node-api/interfaces/...".
 export type { Identity } from "azure-devops-node-api/interfaces/IdentitiesInterfaces.js";
 export type { ConnectionData } from "azure-devops-node-api/interfaces/LocationsInterfaces.js";
+export type { TeamProjectReference } from "azure-devops-node-api/interfaces/CoreInterfaces.js";
+export type {
+  GitRepository,
+  GitPullRequest,
+  GitPullRequestIteration,
+  GitPullRequestCommentThread,
+  GitItem,
+  GitPullRequestChange,
+  PullRequestStatus,
+} from "azure-devops-node-api/interfaces/GitInterfaces.js";

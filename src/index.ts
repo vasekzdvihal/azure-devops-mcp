@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { runSetup } from "./setup.js";
 import { readConfig, ConfigNotFoundError } from "./config/configFile.js";
 import { getPat, accountFromBaseUrl, PatNotFoundError } from "./config/keyring.js";
+import { isReadOnly } from "./config/readOnly.js";
 import { SdkAdoClient } from "./ado/sdkClient.js";
 import { registerAllTools } from "./mcp/registerTools.js";
 
@@ -37,7 +38,11 @@ async function main(): Promise<void> {
     version: "0.0.1",
   });
 
-  registerAllTools(server, client);
+  const readOnly = isReadOnly();
+  registerAllTools(server, client, { readOnly });
+  if (readOnly) {
+    process.stderr.write("[azure-devops-mcp] read-only mode: write tools (when added) will not be registered\n");
+  }
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
