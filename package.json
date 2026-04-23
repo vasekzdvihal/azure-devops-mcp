@@ -12,8 +12,29 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "azure-devops",
+    "claude",
+    "claude-code",
+    "pull-request"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vasekzdvihal/azure-devops-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vasekzdvihal/azure-devops-mcp/issues"
+  },
+  "homepage": "https://github.com/vasekzdvihal/azure-devops-mcp#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.ts",
@@ -21,7 +42,8 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.4.2",
