@@ -60,10 +60,12 @@ describe("mapSdkError", () => {
     expect(mapSdkError(undefined)).toBeInstanceOf(AdoUnknownError);
   });
 
-  it("AdoAuthError carries a helpful message about scopes", () => {
+  it("AdoAuthError mentions both read and write scopes", () => {
     const mapped = mapSdkError(Object.assign(new Error("x"), { statusCode: 401 }));
     expect(mapped.message).toMatch(/PAT/i);
-    expect(mapped.message).toMatch(/scope/i);
+    expect(mapped.message).toMatch(/Code \(read\)/);
+    expect(mapped.message).toMatch(/Code \(write\)/);
+    expect(mapped.message).toMatch(/Pull Request \(write\)/);
   });
 
   it("AdoTlsError mentions CA bundle config", () => {
