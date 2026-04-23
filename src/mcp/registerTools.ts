@@ -5,8 +5,8 @@ import { ProjectsService } from "../domains/projects/service.js";
 import { buildProjectsTools } from "../domains/projects/tools.js";
 import { RepositoriesService } from "../domains/repositories/service.js";
 import { buildRepositoriesTools } from "../domains/repositories/tools.js";
-import { PullRequestsService } from "../domains/pullRequests/service.js";
-import { buildPullRequestTools } from "../domains/pullRequests/tools.js";
+import { PullRequestsReadService } from "../domains/pullRequests/readService.js";
+import { buildPullRequestReadTools } from "../domains/pullRequests/readTools.js";
 import { toToolResult } from "./errorBoundary.js";
 import type { AdoClient } from "../ado/client.js";
 
@@ -31,7 +31,7 @@ export function registerAllTools(
     ...buildIdentityTools(new IdentityService(client)),
     ...buildProjectsTools(new ProjectsService(client)),
     ...buildRepositoriesTools(new RepositoriesService(client)),
-    ...buildPullRequestTools(new PullRequestsService(client)),
+    ...buildPullRequestReadTools(new PullRequestsReadService(client)),
   ];
 
   // Note: when Phase 2 adds write tools, build a separate `writeTools` array

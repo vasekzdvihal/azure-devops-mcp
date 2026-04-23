@@ -13,7 +13,7 @@ const DEFAULT_MAX_LINES = 1000;
  * Produces a single file's unified diff as a string, with truncation,
  * binary-file detection, and clear markers for added/deleted/unchanged cases.
  *
- * Pure function. No I/O. Used by PullRequestsService.getDiff.
+ * Pure function. No I/O. Used by PullRequestsReadService.getDiff.
  */
 export function shapeDiff(args: ShapeDiffArgs): string {
   const max = args.maxLines ?? DEFAULT_MAX_LINES;

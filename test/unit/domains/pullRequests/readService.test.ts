@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PullRequestsService } from "../../../../src/domains/pullRequests/service.js";
+import { PullRequestsReadService } from "../../../../src/domains/pullRequests/readService.js";
 import { FakeAdoClient } from "../../../fakes/FakeAdoClient.js";
 import type {
   GitPullRequest,
@@ -14,7 +14,7 @@ function makeFake(): FakeAdoClient {
   return new FakeAdoClient();
 }
 
-describe("PullRequestsService.list", () => {
+describe("PullRequestsReadService.list", () => {
   it("returns shaped PR summaries", async () => {
     const fake = makeFake();
     const prs: GitPullRequest[] = [
@@ -30,7 +30,7 @@ describe("PullRequestsService.list", () => {
       },
     ];
     fake.setPullRequests(REPO.project, REPO.repo, prs);
-    const svc = new PullRequestsService(fake, async () => REPO);
+    const svc = new PullRequestsReadService(fake, async () => REPO);
     const result = await svc.list({});
     expect(result[0]).toMatchObject({
       id: 42,
@@ -43,7 +43,7 @@ describe("PullRequestsService.list", () => {
   });
 });
 
-describe("PullRequestsService.getDiff", () => {
+describe("PullRequestsReadService.getDiff", () => {
   it("fetches base + target content and returns a unified diff", async () => {
     const fake = makeFake();
     const pr: GitPullRequest = {
@@ -66,7 +66,7 @@ describe("PullRequestsService.getDiff", () => {
       commitSha: "targetSHA",
       content: "new\n",
     });
-    const svc = new PullRequestsService(fake, async () => REPO);
+    const svc = new PullRequestsReadService(fake, async () => REPO);
     const diff = await svc.getDiff({ pullRequestId: 7, path: "src/foo.ts" });
     expect(diff).toMatch(/-old/);
     expect(diff).toMatch(/\+new/);
@@ -80,12 +80,12 @@ describe("PullRequestsService.getDiff", () => {
       pullRequestId: 8,
       pr: { pullRequestId: 8 } as GitPullRequest,
     });
-    const svc = new PullRequestsService(fake, async () => REPO);
+    const svc = new PullRequestsReadService(fake, async () => REPO);
     await expect(svc.getDiff({ pullRequestId: 8, path: "x" })).rejects.toThrow(/SHA/);
   });
 });
 
-describe("PullRequestsService.listChanges", () => {
+describe("PullRequestsReadService.listChanges", () => {
   it("returns shaped change list", async () => {
     const fake = makeFake();
     const changes: GitPullRequestChange[] = [
@@ -93,7 +93,7 @@ describe("PullRequestsService.listChanges", () => {
       { changeType: 1 /* add */, item: { path: "/src/new.ts" } },
     ];
     fake.setPullRequestChanges({ ...REPO, repository: REPO.repo, pullRequestId: 9, changes });
-    const svc = new PullRequestsService(fake, async () => REPO);
+    const svc = new PullRequestsReadService(fake, async () => REPO);
     const result = await svc.listChanges({ pullRequestId: 9 });
     expect(result).toEqual([
       { path: "/src/foo.ts", changeType: "edit" },
@@ -102,7 +102,7 @@ describe("PullRequestsService.listChanges", () => {
   });
 });
 
-describe("PullRequestsService.listComments", () => {
+describe("PullRequestsReadService.listComments", () => {
   it("returns shaped comment threads", async () => {
     const fake = makeFake();
     const threads: GitPullRequestCommentThread[] = [
@@ -120,7 +120,7 @@ describe("PullRequestsService.listComments", () => {
       },
     ];
     fake.setPullRequestThreads({ ...REPO, repository: REPO.repo, pullRequestId: 10, threads });
-    const svc = new PullRequestsService(fake, async () => REPO);
+    const svc = new PullRequestsReadService(fake, async () => REPO);
     const result = await svc.listComments({ pullRequestId: 10 });
     expect(result[0]).toMatchObject({
       threadId: 1,
@@ -132,7 +132,7 @@ describe("PullRequestsService.listComments", () => {
   });
 });
 
-describe("PullRequestsService.getIterations", () => {
+describe("PullRequestsReadService.getIterations", () => {
   it("returns shaped iteration summaries", async () => {
     const fake = makeFake();
     const iterations: GitPullRequestIteration[] = [
@@ -145,7 +145,7 @@ describe("PullRequestsService.getIterations", () => {
       pullRequestId: 11,
       iterations,
     });
-    const svc = new PullRequestsService(fake, async () => REPO);
+    const svc = new PullRequestsReadService(fake, async () => REPO);
     const result = await svc.getIterations({ pullRequestId: 11 });
     expect(result).toEqual([
       {

@@ -1,4 +1,4 @@
-import type { PullRequestsService } from "./service.js";
+import type { PullRequestsReadService } from "./readService.js";
 import type { ToolDefinition } from "../identity/tools.js";
 import {
   ListPullRequestsInput,
@@ -6,7 +6,7 @@ import {
   GetPullRequestDiffInput,
 } from "./schemas.js";
 
-export function buildPullRequestTools(svc: PullRequestsService): ToolDefinition[] {
+export function buildPullRequestReadTools(svc: PullRequestsReadService): ToolDefinition[] {
   return [
     {
       name: "list_pull_requests",

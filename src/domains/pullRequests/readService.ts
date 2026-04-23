@@ -107,7 +107,7 @@ export interface PrIterationSummary {
   createdDate?: string;
 }
 
-export class PullRequestsService {
+export class PullRequestsReadService {
   constructor(
     private readonly client: AdoClient,
     private readonly resolver: RepoResolver = detectRepo,
