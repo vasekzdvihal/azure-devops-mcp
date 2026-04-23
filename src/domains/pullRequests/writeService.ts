@@ -93,6 +93,15 @@ export class PullRequestsWriteService {
     filePath?: string;
     line?: number;
   }): Promise<AddCommentResult> {
+    // filePath and line must be set together — otherwise the caller likely
+    // intended a line-anchored comment but it would silently become a general
+    // PR comment. Catch the mistake at the service boundary.
+    if ((args.filePath && !args.line) || (!args.filePath && args.line)) {
+      throw new Error(
+        "add_pull_request_comment: filePath and line must be provided together. " +
+          "Pass both for a line-anchored comment, or neither for a general PR comment.",
+      );
+    }
     const { project, repository } = await resolveRepo(args, this.resolver);
     const thread = await this.client.createPullRequestThread({
       project,
@@ -253,9 +262,12 @@ function shapeThreadResult(t: GitPullRequestCommentThread): AddCommentResult {
   };
 }
 
-function shapeVoteResult(r: IdentityRefWithVote, requestedVote: string): VoteResult {
+function shapeVoteResult(r: IdentityRefWithVote, _requestedVote: string): VoteResult {
+  // Echo back what ADO actually stored, not what the user asked for.
+  // If ADO returned an unknown numeric value we surface "unknown" rather than
+  // pretending the requested vote was applied.
   return {
-    vote: VOTE_FROM_NUMBER[r.vote ?? 0] ?? requestedVote,
+    vote: VOTE_FROM_NUMBER[r.vote ?? 0] ?? "unknown",
     reviewer: r.displayName,
     reviewerId: r.id,
   };

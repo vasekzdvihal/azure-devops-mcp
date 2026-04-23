@@ -38,12 +38,30 @@ describe("PullRequestsWriteService.addComment — general PR comment", () => {
 });
 
 describe("PullRequestsWriteService.replyToThread", () => {
-  it("appends a comment to the named thread", async () => {
+  it("appends a comment to the named thread and returns commentId", async () => {
     const { svc, fake } = makeSvc();
-    await svc.replyToThread({ pullRequestId: 1, threadId: 7, content: "Sounds good" });
+    fake.setNextCreatedComment({ id: 42, content: "Sounds good", commentType: 1 });
+    const result = await svc.replyToThread({ pullRequestId: 1, threadId: 7, content: "Sounds good" });
     const created = fake.getCreatedComments();
     expect(created[0]?.threadId).toBe(7);
     expect(created[0]?.comment.content).toBe("Sounds good");
+    expect(result.commentId).toBe(42);
+  });
+});
+
+describe("PullRequestsWriteService.addComment — validation", () => {
+  it("throws when filePath is provided without line", async () => {
+    const { svc } = makeSvc();
+    await expect(
+      svc.addComment({ pullRequestId: 1, content: "x", filePath: "src/foo.ts" }),
+    ).rejects.toThrow(/filePath and line must be provided together/);
+  });
+
+  it("throws when line is provided without filePath", async () => {
+    const { svc } = makeSvc();
+    await expect(svc.addComment({ pullRequestId: 1, content: "x", line: 10 })).rejects.toThrow(
+      /filePath and line must be provided together/,
+    );
   });
 });
 
