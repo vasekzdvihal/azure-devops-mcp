@@ -8,7 +8,9 @@ export class AdoAuthError extends AdoError {
     super(
       "Authentication failed against Azure DevOps. " +
         "The PAT may be expired, revoked, or missing required scopes. " +
-        "For read access to PRs, the PAT needs: Code (read), Identity (read)." +
+        "For read access (PRs, comments): Code (read), Identity (read). " +
+        "For write access (post comment, vote, update PR): also add Code (write) and Pull Request (write). " +
+        "Re-run setup with a new PAT." +
         (detail ? ` Details: ${detail}` : ""),
     );
     this.name = "AdoAuthError";
@@ -46,6 +48,19 @@ export class AdoTlsError extends AdoError {
   }
 }
 
+export class AdoConflictError extends AdoError {
+  readonly kind = "conflict";
+  constructor(detail?: string) {
+    super(
+      "Conflict from Azure DevOps. The resource state changed between your read and write " +
+        "(PR may have been abandoned/completed, comment thread closed, or a concurrent edit " +
+        "raced you). Re-fetch the resource and try again." +
+        (detail ? ` Details: ${detail}` : ""),
+    );
+    this.name = "AdoConflictError";
+  }
+}
+
 export class AdoUnknownError extends AdoError {
   readonly kind = "unknown";
   constructor(detail?: string) {
@@ -74,6 +89,9 @@ export function mapSdkError(err: unknown): AdoError {
   }
   if (shape.statusCode === 404) {
     return new AdoNotFoundError(detail);
+  }
+  if (shape.statusCode === 409) {
+    return new AdoConflictError(detail);
   }
 
   switch (shape.code) {

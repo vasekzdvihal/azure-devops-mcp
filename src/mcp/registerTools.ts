@@ -5,39 +5,45 @@ import { ProjectsService } from "../domains/projects/service.js";
 import { buildProjectsTools } from "../domains/projects/tools.js";
 import { RepositoriesService } from "../domains/repositories/service.js";
 import { buildRepositoriesTools } from "../domains/repositories/tools.js";
-import { PullRequestsService } from "../domains/pullRequests/service.js";
-import { buildPullRequestTools } from "../domains/pullRequests/tools.js";
+import { PullRequestsReadService } from "../domains/pullRequests/readService.js";
+import { buildPullRequestReadTools } from "../domains/pullRequests/readTools.js";
+import { PullRequestsWriteService } from "../domains/pullRequests/writeService.js";
+import { buildPullRequestWriteTools } from "../domains/pullRequests/writeTools.js";
 import { toToolResult } from "./errorBoundary.js";
 import type { AdoClient } from "../ado/client.js";
 
 export interface RegisterAllToolsOptions {
   /**
-   * When true, write tools are skipped. No-op in Phase 1 (all tools are reads);
-   * the contract exists so Phase 2 can gate write tools without changing this signature.
+   * When true, write tools (Phase 2: comment / reply / vote / update / draft / reviewers)
+   * are NOT registered. The LLM's tool list contains only the read tools — write attempts
+   * are impossible because the tools don't exist on the surface.
+   *
+   * Set via the AZURE_DEVOPS_READ_ONLY env var, read by index.ts at startup.
    */
   readOnly?: boolean;
 }
 
 /**
  * Wires domain services to AdoClient and registers all tools on the McpServer.
- * Phase 1 domains: identity, projects, repositories, pullRequests.
+ * Phase 1 read tools always register. Phase 2 write tools are gated by `options.readOnly`.
  */
 export function registerAllTools(
   server: McpServer,
   client: AdoClient,
-  _options: RegisterAllToolsOptions = {},
+  options: RegisterAllToolsOptions = {},
 ): void {
-  const tools = [
+  const readTools = [
     ...buildIdentityTools(new IdentityService(client)),
     ...buildProjectsTools(new ProjectsService(client)),
     ...buildRepositoriesTools(new RepositoriesService(client)),
-    ...buildPullRequestTools(new PullRequestsService(client)),
+    ...buildPullRequestReadTools(new PullRequestsReadService(client)),
   ];
 
-  // Note: when Phase 2 adds write tools, build a separate `writeTools` array
-  // and conditionally include it via `...(options.readOnly ? [] : writeTools)`.
+  const writeTools = options.readOnly
+    ? []
+    : buildPullRequestWriteTools(new PullRequestsWriteService(client));
 
-  for (const tool of tools) {
+  for (const tool of [...readTools, ...writeTools]) {
     server.registerTool(tool.name, tool.config, toToolResult(tool.handler));
   }
 }

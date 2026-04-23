@@ -11,6 +11,9 @@ import type {
   GitPullRequestCommentThread,
   GitPullRequestChange,
   PullRequestStatus,
+  Comment,
+  CommentThreadStatus,
+  IdentityRefWithVote,
 } from "./types.js";
 import { GitVersionType } from "azure-devops-node-api/interfaces/GitInterfaces.js";
 import { AdoError, mapSdkError, AdoNotFoundError, AdoUnknownError } from "./errors.js";
@@ -213,6 +216,179 @@ export class SdkAdoClient implements AdoClient {
       );
       return iterations;
     } catch (err) {
+      throw mapSdkError(err);
+    }
+  }
+
+  async createPullRequestThread(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    content: string;
+    filePath?: string;
+    line?: number;
+  }): Promise<GitPullRequestCommentThread> {
+    try {
+      const git = await this.api.getGitApi();
+      const thread: GitPullRequestCommentThread = {
+        comments: [{ content: args.content, commentType: 1 /* text */, parentCommentId: 0 }],
+        status: 1 /* active */,
+        ...(args.filePath && args.line
+          ? {
+              threadContext: {
+                filePath: args.filePath,
+                rightFileStart: { line: args.line, offset: 1 },
+                rightFileEnd: { line: args.line, offset: 1 },
+              },
+            }
+          : {}),
+      };
+      const created = await git.createThread(thread, args.repository, args.pullRequestId, args.project);
+      return created;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async addPullRequestComment(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    threadId: number;
+    content: string;
+  }): Promise<Comment> {
+    try {
+      const git = await this.api.getGitApi();
+      const comment: Comment = { content: args.content, commentType: 1 /* text */, parentCommentId: 0 };
+      const created = await git.createComment(
+        comment,
+        args.repository,
+        args.pullRequestId,
+        args.threadId,
+        args.project,
+      );
+      return created;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async updatePullRequestThreadStatus(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    threadId: number;
+    status: CommentThreadStatus;
+  }): Promise<GitPullRequestCommentThread> {
+    try {
+      const git = await this.api.getGitApi();
+      const update: GitPullRequestCommentThread = { status: args.status };
+      const updated = await git.updateThread(
+        update,
+        args.repository,
+        args.pullRequestId,
+        args.threadId,
+        args.project,
+      );
+      return updated;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async setPullRequestVote(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    reviewerId: string;
+    vote: number;
+  }): Promise<IdentityRefWithVote> {
+    try {
+      const git = await this.api.getGitApi();
+      const reviewer: IdentityRefWithVote = { vote: args.vote };
+      const updated = await git.createPullRequestReviewer(
+        reviewer,
+        args.repository,
+        args.pullRequestId,
+        args.reviewerId,
+        args.project,
+      );
+      return updated;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async updatePullRequest(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    title?: string;
+    description?: string;
+    isDraft?: boolean;
+  }): Promise<GitPullRequest> {
+    try {
+      const git = await this.api.getGitApi();
+      const update: GitPullRequest = {
+        ...(args.title !== undefined ? { title: args.title } : {}),
+        ...(args.description !== undefined ? { description: args.description } : {}),
+        ...(args.isDraft !== undefined ? { isDraft: args.isDraft } : {}),
+      };
+      const updated = await git.updatePullRequest(
+        update,
+        args.repository,
+        args.pullRequestId,
+        args.project,
+      );
+      return updated;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async addPullRequestReviewers(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    reviewerIds: string[];
+  }): Promise<IdentityRefWithVote[]> {
+    try {
+      const git = await this.api.getGitApi();
+      const reviewers = args.reviewerIds.map((id) => ({ id }));
+      const added = await git.createPullRequestReviewers(
+        reviewers,
+        args.repository,
+        args.pullRequestId,
+        args.project,
+      );
+      return added;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async removePullRequestReviewer(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    reviewerId: string;
+  }): Promise<void> {
+    try {
+      const git = await this.api.getGitApi();
+      await git.deletePullRequestReviewer(
+        args.repository,
+        args.pullRequestId,
+        args.reviewerId,
+        args.project,
+      );
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
       throw mapSdkError(err);
     }
   }

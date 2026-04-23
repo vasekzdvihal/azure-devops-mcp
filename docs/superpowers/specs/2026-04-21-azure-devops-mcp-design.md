@@ -254,7 +254,7 @@ Three layers:
 
 ## 10. Phased delivery
 
-The user is new to building MCP servers. To avoid finalizing details that are hard to evaluate in the abstract, implementation is split into two phases with an explicit checkpoint between them.
+The user is new to building MCP servers. To avoid finalizing details that are hard to evaluate in the abstract, implementation is split into incremental phases — each with an explicit checkpoint where the user exercises the result before the next phase begins. Phases 0 and 1 shipped per this design; Phase 2 (PR review writes) is brainstormed in §12.
 
 ### Phase 0 — Walking skeleton
 
@@ -292,6 +292,10 @@ Built on the now-validated foundation.
 
 **End state:** full read-only PR review workflow available in Claude Code. v1 ready for npm publish.
 
+### Phase 2 — PR review write surface
+
+Detailed in §12. Adds 8 write tools (comment, reply, resolve threads, vote, edit description/title, toggle draft, add/remove reviewers). Excludes PR lifecycle (create / complete / abandon) which is deferred to a future Phase 2.x. Read-only mode env var becomes load-bearing here.
+
 ### Phase 0 checkpoint outcomes (2026-04-22)
 
 Phase 0 ran end-to-end against a real ADO Services instance and Claude Code. The walking skeleton worked on first try after two install gotchas were resolved (npm setup script bypassed `index.ts`; MCP servers must live in `~/.claude.json` rather than `~/.claude/settings.json`). Both fixes are committed in the Phase 0 branch.
@@ -312,12 +316,94 @@ These are deferred to implementation or to the post-Phase-0 checkpoint, not bloc
 - Exact defaults for `diffShaper` (`maxLinesPerFile`, `maxFiles`) — pick reasonable starting values, tune after Phase 1 use.
 - Whether to add an eslint boundary plugin to enforce `domains/*` independence — defer until the import-graph genuinely benefits.
 
-## 12. Phase 2 design notes (write operations)
+## 12. Phase 2 — PR review write surface
 
-When write operations land (likely Phase 2: `create_pull_request`, `add_pull_request_comment`, `vote_on_pull_request`, etc.):
+Status: brainstormed and locked 2026-04-23. Implementation pending.
 
-- **Read-only gate.** Each write tool registration goes through a `if (!readOnly) registerTool(...)` check at composition root. The env var `AZURE_DEVOPS_READ_ONLY=true` (read by `index.ts` at startup, threaded into `registerAllTools`) suppresses every write tool from the MCP surface. Read tools are always registered.
-- **Naming for write tools.** Imperative verbs (`create_pull_request`, `add_pull_request_comment`, `complete_pull_request`). Same unprefixed convention as reads.
-- **Confirmation pattern.** Consider whether write tools should require an `confirm: true` parameter as a belt-and-suspenders against accidental calls. Open question — most MCP servers don't, on the grounds that the LLM should already be asking the user before calling. Decide at Phase 2 brainstorming.
-- **PAT scope drift.** Phase 2 expands required PAT scopes. The setup wizard should re-test scope at upgrade time; missing scope should produce a specific error rather than the generic auth failure.
-- **Error mapping additions.** 409 conflict (PR already abandoned, comment thread closed, etc.) should get its own `AdoConflictError` with a clear message.
+**Goal:** add the write tools needed for the LLM to act AS a reviewer or to respond AS the PR author — comment, reply, resolve threads, vote, edit description/title, toggle draft, manage reviewers. Excludes PR lifecycle (create / complete / abandon) which are deferred to a future Phase 2.x.
+
+### 12.1 Tool list (8 new tools)
+
+| Tool | Purpose |
+| --- | --- |
+| `add_pull_request_comment` | Start a new comment thread on a PR. Optional `filePath` + `line` for line-anchored review notes; without those, it's a general PR-level comment. Body is markdown. |
+| `reply_to_pull_request_thread` | Append a comment to an existing thread (by `threadId`). |
+| `update_pull_request_thread_status` | Set thread status: `active` / `fixed` / `wontFix` / `closed` / `byDesign` / `pending`. The "solve" verb. |
+| `vote_on_pull_request` | Cast or update your vote: `approve` / `approveWithSuggestions` / `wait` / `reject` / `reset` (clears your vote). |
+| `update_pull_request` | Edit title and/or description (markdown). Same SDK call backs `set_pull_request_draft_state`. |
+| `set_pull_request_draft_state` | Toggle draft on/off. Reuses the `update_pull_request` SDK method (one less ADO call to learn). |
+| `add_pull_request_reviewers` | Add one or more reviewer identities by id. |
+| `remove_pull_request_reviewers` | Remove one or more reviewer identities by id. |
+
+### 12.2 Locked design decisions
+
+- **Confirmation pattern: none.** No `confirm: true` parameter on any write tool. The LLM is expected to ask the user before calling write tools (standard MCP convention). All Phase 2 actions are reversible (comments deletable, votes changeable via `reset`, threads reactivatable, edits replaceable, drafts toggleable, reviewers re-addable), so the blast radius is low.
+- **Read-only gate is now load-bearing.** `registerAllTools(server, client, { readOnly })` builds two tool arrays. When `readOnly: true`, the `writeTools` array is empty — write tools are not registered and don't appear in the LLM's tool list at all. PAT scope remains the *enforcement* layer; the env var is the *ergonomic* layer for users with broad-scope PATs who want Claude restricted.
+- **PAT scope handling: friendly error at first write attempt.** No startup probe. The first write call with insufficient PAT returns 403 from ADO; `mapSdkError` wraps it as `AdoAuthError` with an extended message that names the additional scopes needed (Code write, Pull Request write). User regenerates PAT, re-runs setup, done.
+- **Error mapping: add `AdoConflictError` for 409.** Triggers when the PR is already abandoned/completed, the thread is already closed, or a concurrent edit conflicts. Friendly message tells the user which.
+- **Repo resolution: extracted to a pure helper.** Currently a private method on the read service. Both read and write services need it; pulling out to `src/domains/pullRequests/repoResolution.ts` lets both consume the same function with no inheritance.
+
+### 12.3 Architecture additions
+
+```
+src/
+  ado/
+    client.ts                # +7 write method signatures
+    sdkClient.ts             # +7 write method impls
+    errors.ts                # +AdoConflictError + 409 mapping
+    types.ts                 # +Comment, CommentThreadStatus, IdentityRefWithVote re-exports
+
+  domains/pullRequests/
+    readService.ts           # MOVED from service.ts (read methods only)
+    writeService.ts          # NEW — 8 write methods using shared repo resolution
+    repoResolution.ts        # NEW — extracted from current service.ts
+    readTools.ts             # MOVED from tools.ts
+    writeTools.ts            # NEW — 8 MCP tool definitions
+    schemas.ts               # extend with write-tool input schemas
+    diffShaper.ts            # unchanged
+
+  mcp/
+    registerTools.ts         # NOW USES the readOnly flag (was no-op in P1)
+```
+
+### 12.4 Setup wizard adjustment
+
+The setup wizard prints a one-line message before prompting for the PAT:
+
+> For Phase 2 (write tools), your PAT needs Code (read & write), Pull Request (read & write), and Identity (read).
+
+Existing read-only users upgrading from Phase 1 either regenerate their PAT with write scopes, or set `AZURE_DEVOPS_READ_ONLY=true` to keep the Phase 1 behavior.
+
+### 12.5 README updates
+
+- Tool catalog grows from 8 (Phase 1) to 16 tools.
+- "Read-only mode" subsection gets a real story — the env var actually does something now.
+- New "Required PAT scopes" table:
+
+| Mode | Required PAT scopes |
+| --- | --- |
+| Read-only (`AZURE_DEVOPS_READ_ONLY=true` OR a read-only PAT) | Code (read), Identity (read) |
+| Full (default) | Code (read & write), Pull Request (read & write), Identity (read) |
+
+- "Security" subsection clarifies: PAT scope is the actual enforcement; the env var is an ergonomic belt-and-suspenders for users with broad-scope PATs.
+
+### 12.6 Testing strategy
+
+- TDD on `pullRequests/writeService.ts` — ~15 unit tests against an extended `FakeAdoClient`.
+- TDD on `pullRequests/repoResolution.ts` — pull existing repo-resolution tests across from the read service test file.
+- Extend `ado/errors.test.ts` with `AdoConflictError` (409) coverage.
+- No new contract tests in this phase (still deferred to Phase 1.5; the friendly-error UX for PAT-scope-missing is exercised manually at the end of Phase 2).
+
+Target test count after Phase 2: ~85 (66 from P1 + ~15 write-service + ~3 error mapper + ~2 repo resolution extraction).
+
+### 12.7 Deferred to a future Phase 2.x — PR lifecycle
+
+These tools are deliberately *not* in Phase 2:
+
+- `create_pull_request` — opens a new PR (source/target branch, title, description, optional reviewers).
+- `complete_pull_request` — merges the PR (with chosen merge strategy: squash / rebase / merge / merge-commit).
+- `abandon_pull_request` — closes the PR without merging.
+- `set_auto_complete` — flags the PR to auto-merge once policies pass.
+- `delete_pull_request_comment` / `update_pull_request_comment` — niche; comment authors can use ADO web UI for now.
+
+Why deferred: lifecycle actions have higher blast radius than reviewer actions (a wrong `complete_pull_request` merges the wrong PR — only the rare "revert" flow gets you out). Worth their own brainstorming pass for confirmation patterns and any guardrails. Phase 2 ships the smaller, lower-risk surface first; lifecycle follows when there's pull for it.
