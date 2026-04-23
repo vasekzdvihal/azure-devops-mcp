@@ -8,6 +8,12 @@ import type { Config } from "./config/schema.js";
 
 export async function runSetup(): Promise<void> {
   process.stdout.write("\nAzure DevOps MCP — setup\n\n");
+  process.stdout.write(
+    "Required PAT scopes:\n" +
+      "  Read access:  Code (read), Identity (read)\n" +
+      "  Write access: also add Code (write), Pull Request (write)\n" +
+      "If you only want read tools, use a read-only PAT or set AZURE_DEVOPS_READ_ONLY=true.\n\n",
+  );
 
   // Loop: collect inputs, test connection, only write on success.
   for (;;) {
