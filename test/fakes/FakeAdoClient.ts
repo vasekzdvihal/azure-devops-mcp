@@ -8,6 +8,9 @@ import type {
   GitPullRequestCommentThread,
   GitPullRequestChange,
   PullRequestStatus,
+  Comment,
+  CommentThreadStatus,
+  IdentityRefWithVote,
 } from "../../src/ado/types.js";
 
 interface PrKey {
@@ -37,6 +40,24 @@ export class FakeAdoClient implements AdoClient {
   private fileContents = new Map<string, string | null>();
   // generic error injection
   private errors = new Map<string, Error>();
+
+  // ---- write-side state (Phase 2) ----
+  // History of writes per PR — tests can inspect to verify what was sent.
+  private createdThreads: Array<{ key: string; thread: GitPullRequestCommentThread }> = [];
+  private createdComments: Array<{ key: string; threadId: number; comment: Comment }> = [];
+  private threadStatusUpdates: Array<{ key: string; threadId: number; status: CommentThreadStatus }> = [];
+  private voteUpdates: Array<{ key: string; reviewerId: string; vote: number }> = [];
+  private prUpdates: Array<{ key: string; update: Partial<GitPullRequest> }> = [];
+  private reviewerAdds: Array<{ key: string; reviewerIds: string[] }> = [];
+  private reviewerRemoves: Array<{ key: string; reviewerId: string }> = [];
+
+  // Configurable return values for the writes.
+  private nextCreatedThread?: GitPullRequestCommentThread;
+  private nextCreatedComment?: Comment;
+  private nextUpdatedThread?: GitPullRequestCommentThread;
+  private nextVoteResult?: IdentityRefWithVote;
+  private nextUpdatedPr?: GitPullRequest;
+  private nextAddedReviewers?: IdentityRefWithVote[];
 
   // ---- setup helpers (test-only, not part of AdoClient) ----
   setWhoamiResult(identity: Identity): void {
@@ -82,6 +103,49 @@ export class FakeAdoClient implements AdoClient {
   }
   injectError(method: string, err: Error): void {
     this.errors.set(method, err);
+  }
+
+  // ---- write-side setup helpers ----
+  setNextCreatedThread(thread: GitPullRequestCommentThread): void {
+    this.nextCreatedThread = thread;
+  }
+  setNextCreatedComment(comment: Comment): void {
+    this.nextCreatedComment = comment;
+  }
+  setNextUpdatedThread(thread: GitPullRequestCommentThread): void {
+    this.nextUpdatedThread = thread;
+  }
+  setNextVoteResult(vote: IdentityRefWithVote): void {
+    this.nextVoteResult = vote;
+  }
+  setNextUpdatedPr(pr: GitPullRequest): void {
+    this.nextUpdatedPr = pr;
+  }
+  setNextAddedReviewers(reviewers: IdentityRefWithVote[]): void {
+    this.nextAddedReviewers = reviewers;
+  }
+
+  // ---- write-side history accessors (for assertions) ----
+  getCreatedThreads(): ReadonlyArray<{ key: string; thread: GitPullRequestCommentThread }> {
+    return this.createdThreads;
+  }
+  getCreatedComments(): ReadonlyArray<{ key: string; threadId: number; comment: Comment }> {
+    return this.createdComments;
+  }
+  getThreadStatusUpdates(): ReadonlyArray<{ key: string; threadId: number; status: CommentThreadStatus }> {
+    return this.threadStatusUpdates;
+  }
+  getVoteUpdates(): ReadonlyArray<{ key: string; reviewerId: string; vote: number }> {
+    return this.voteUpdates;
+  }
+  getPrUpdates(): ReadonlyArray<{ key: string; update: Partial<GitPullRequest> }> {
+    return this.prUpdates;
+  }
+  getReviewerAdds(): ReadonlyArray<{ key: string; reviewerIds: string[] }> {
+    return this.reviewerAdds;
+  }
+  getReviewerRemoves(): ReadonlyArray<{ key: string; reviewerId: string }> {
+    return this.reviewerRemoves;
   }
 
   // ---- AdoClient impl ----
@@ -147,5 +211,132 @@ export class FakeAdoClient implements AdoClient {
   async listPullRequestIterations(args: PrKey): Promise<GitPullRequestIteration[]> {
     this.throwIfInjected("listPullRequestIterations");
     return this.prIterations.get(prKey(args)) ?? [];
+  }
+
+  async createPullRequestThread(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    content: string;
+    filePath?: string;
+    line?: number;
+  }): Promise<GitPullRequestCommentThread> {
+    this.throwIfInjected("createPullRequestThread");
+    const thread: GitPullRequestCommentThread = {
+      id: 999,
+      comments: [{ content: args.content, commentType: 1 }],
+      status: 1,
+      ...(args.filePath && args.line
+        ? {
+            threadContext: {
+              filePath: args.filePath,
+              rightFileStart: { line: args.line, offset: 1 },
+              rightFileEnd: { line: args.line, offset: 1 },
+            },
+          }
+        : {}),
+    };
+    this.createdThreads.push({
+      key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
+      thread,
+    });
+    return this.nextCreatedThread ?? thread;
+  }
+
+  async addPullRequestComment(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    threadId: number;
+    content: string;
+  }): Promise<Comment> {
+    this.throwIfInjected("addPullRequestComment");
+    const comment: Comment = { id: 999, content: args.content, commentType: 1 };
+    this.createdComments.push({
+      key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
+      threadId: args.threadId,
+      comment,
+    });
+    return this.nextCreatedComment ?? comment;
+  }
+
+  async updatePullRequestThreadStatus(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    threadId: number;
+    status: CommentThreadStatus;
+  }): Promise<GitPullRequestCommentThread> {
+    this.throwIfInjected("updatePullRequestThreadStatus");
+    this.threadStatusUpdates.push({
+      key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
+      threadId: args.threadId,
+      status: args.status,
+    });
+    return this.nextUpdatedThread ?? { id: args.threadId, status: args.status };
+  }
+
+  async setPullRequestVote(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    reviewerId: string;
+    vote: number;
+  }): Promise<IdentityRefWithVote> {
+    this.throwIfInjected("setPullRequestVote");
+    this.voteUpdates.push({
+      key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
+      reviewerId: args.reviewerId,
+      vote: args.vote,
+    });
+    return this.nextVoteResult ?? { id: args.reviewerId, vote: args.vote };
+  }
+
+  async updatePullRequest(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    title?: string;
+    description?: string;
+    isDraft?: boolean;
+  }): Promise<GitPullRequest> {
+    this.throwIfInjected("updatePullRequest");
+    const update: Partial<GitPullRequest> = {
+      ...(args.title !== undefined ? { title: args.title } : {}),
+      ...(args.description !== undefined ? { description: args.description } : {}),
+      ...(args.isDraft !== undefined ? { isDraft: args.isDraft } : {}),
+    };
+    this.prUpdates.push({
+      key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
+      update,
+    });
+    return this.nextUpdatedPr ?? { pullRequestId: args.pullRequestId, ...update };
+  }
+
+  async addPullRequestReviewers(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    reviewerIds: string[];
+  }): Promise<IdentityRefWithVote[]> {
+    this.throwIfInjected("addPullRequestReviewers");
+    this.reviewerAdds.push({
+      key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
+      reviewerIds: args.reviewerIds,
+    });
+    return this.nextAddedReviewers ?? args.reviewerIds.map((id) => ({ id, vote: 0 }));
+  }
+
+  async removePullRequestReviewer(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    reviewerId: string;
+  }): Promise<void> {
+    this.throwIfInjected("removePullRequestReviewer");
+    this.reviewerRemoves.push({
+      key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
+      reviewerId: args.reviewerId,
+    });
   }
 }
