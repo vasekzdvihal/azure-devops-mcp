@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  PullRequestsService,
-  RepoContextError,
-} from "../../../../src/domains/pullRequests/service.js";
+import { PullRequestsService } from "../../../../src/domains/pullRequests/service.js";
 import { FakeAdoClient } from "../../../fakes/FakeAdoClient.js";
 import type {
   GitPullRequest,
@@ -16,38 +13,6 @@ const REPO = { project: "MyProject", repo: "MyRepo" };
 function makeFake(): FakeAdoClient {
   return new FakeAdoClient();
 }
-
-describe("PullRequestsService — repo resolution", () => {
-  it("uses explicit project + repository when both provided", async () => {
-    const fake = makeFake();
-    fake.setPullRequests("Explicit", "Repo", []);
-    const svc = new PullRequestsService(fake, async () => REPO); // resolver would return MyProject
-    const result = await svc.list({ project: "Explicit", repository: "Repo" });
-    expect(result).toEqual([]);
-  });
-
-  it("falls back to cwd-detected repo when args are omitted", async () => {
-    const fake = makeFake();
-    fake.setPullRequests(REPO.project, REPO.repo, []);
-    const svc = new PullRequestsService(fake, async () => REPO);
-    const result = await svc.list({});
-    expect(result).toEqual([]);
-  });
-
-  it("throws RepoContextError when args omitted and cwd is not an ADO repo", async () => {
-    const fake = makeFake();
-    const svc = new PullRequestsService(fake, async () => null);
-    await expect(svc.list({})).rejects.toBeInstanceOf(RepoContextError);
-  });
-
-  it("uses partial args + resolver fill (project provided, repo from cwd)", async () => {
-    const fake = makeFake();
-    fake.setPullRequests("Override", REPO.repo, []);
-    const svc = new PullRequestsService(fake, async () => REPO);
-    const result = await svc.list({ project: "Override" });
-    expect(result).toEqual([]);
-  });
-});
 
 describe("PullRequestsService.list", () => {
   it("returns shaped PR summaries", async () => {

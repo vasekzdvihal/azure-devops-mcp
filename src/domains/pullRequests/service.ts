@@ -7,20 +7,11 @@ import type {
   PullRequestStatus,
 } from "../../ado/types.js";
 import { detectRepo } from "../../git/detectRepo.js";
-import type { ParsedRemote } from "../../git/parseRemoteUrl.js";
+import { resolveRepo, RepoContextError, type RepoResolver } from "./repoResolution.js";
 import { shapeDiff } from "./diffShaper.js";
 
-export class RepoContextError extends Error {
-  constructor() {
-    super(
-      "Could not resolve project + repository. Either pass them explicitly " +
-        "or run from inside an Azure DevOps git checkout (with `origin` set).",
-    );
-    this.name = "RepoContextError";
-  }
-}
-
-export type RepoResolver = (cwd?: string) => Promise<ParsedRemote | null>;
+export { RepoContextError } from "./repoResolution.js";
+export type { RepoResolver } from "./repoResolution.js";
 
 const STATUS_FROM_ENUM: Record<number, string> = {
   0: "notSet",
@@ -119,23 +110,8 @@ export interface PrIterationSummary {
 export class PullRequestsService {
   constructor(
     private readonly client: AdoClient,
-    private readonly resolveRepo: RepoResolver = detectRepo,
+    private readonly resolver: RepoResolver = detectRepo,
   ) {}
-
-  // -------- repo resolution --------
-  private async resolve(args: {
-    project?: string;
-    repository?: string;
-  }): Promise<{ project: string; repository: string }> {
-    if (args.project && args.repository) {
-      return { project: args.project, repository: args.repository };
-    }
-    const detected = await this.resolveRepo();
-    const project = args.project ?? detected?.project;
-    const repository = args.repository ?? detected?.repo;
-    if (!project || !repository) throw new RepoContextError();
-    return { project, repository };
-  }
 
   // -------- tools --------
   async list(args: {
@@ -148,7 +124,7 @@ export class PullRequestsService {
     top?: number;
     skip?: number;
   }): Promise<PrSummary[]> {
-    const { project, repository } = await this.resolve(args);
+    const { project, repository } = await resolveRepo(args, this.resolver);
     const statusStr = args.status ?? "active";
     const status: PullRequestStatus | undefined = STATUS_TO_ENUM[statusStr];
     const prs = await this.client.listPullRequests({
@@ -169,7 +145,7 @@ export class PullRequestsService {
     repository?: string;
     pullRequestId: number;
   }): Promise<PrDetail> {
-    const { project, repository } = await this.resolve(args);
+    const { project, repository } = await resolveRepo(args, this.resolver);
     const pr = await this.client.getPullRequest({
       project,
       repository,
@@ -183,7 +159,7 @@ export class PullRequestsService {
     repository?: string;
     pullRequestId: number;
   }): Promise<PrChange[]> {
-    const { project, repository } = await this.resolve(args);
+    const { project, repository } = await resolveRepo(args, this.resolver);
     const changes = await this.client.listPullRequestChanges({
       project,
       repository,
@@ -199,7 +175,7 @@ export class PullRequestsService {
     path: string;
     maxLines?: number;
   }): Promise<string> {
-    const { project, repository } = await this.resolve(args);
+    const { project, repository } = await resolveRepo(args, this.resolver);
     const pr = await this.client.getPullRequest({
       project,
       repository,
@@ -228,7 +204,7 @@ export class PullRequestsService {
     repository?: string;
     pullRequestId: number;
   }): Promise<PrCommentThread[]> {
-    const { project, repository } = await this.resolve(args);
+    const { project, repository } = await resolveRepo(args, this.resolver);
     const threads = await this.client.listPullRequestThreads({
       project,
       repository,
@@ -242,7 +218,7 @@ export class PullRequestsService {
     repository?: string;
     pullRequestId: number;
   }): Promise<PrIterationSummary[]> {
-    const { project, repository } = await this.resolve(args);
+    const { project, repository } = await resolveRepo(args, this.resolver);
     const iterations = await this.client.listPullRequestIterations({
       project,
       repository,
