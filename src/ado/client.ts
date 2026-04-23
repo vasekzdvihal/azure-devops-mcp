@@ -7,6 +7,9 @@ import type {
   GitPullRequestCommentThread,
   GitPullRequestChange,
   PullRequestStatus,
+  Comment,
+  CommentThreadStatus,
+  IdentityRefWithVote,
 } from "./types.js";
 
 /**
@@ -74,4 +77,64 @@ export interface AdoClient {
     repository: string;
     pullRequestId: number;
   }): Promise<GitPullRequestIteration[]>;
+
+  // pull request writes — comments
+  createPullRequestThread(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    content: string;
+    filePath?: string;
+    line?: number;
+  }): Promise<GitPullRequestCommentThread>;
+
+  addPullRequestComment(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    threadId: number;
+    content: string;
+  }): Promise<Comment>;
+
+  updatePullRequestThreadStatus(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    threadId: number;
+    status: CommentThreadStatus;
+  }): Promise<GitPullRequestCommentThread>;
+
+  // pull request writes — vote
+  setPullRequestVote(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    reviewerId: string;
+    vote: number; // 10 / 5 / 0 / -5 / -10 — see writeService for mapping
+  }): Promise<IdentityRefWithVote>;
+
+  // pull request writes — metadata
+  updatePullRequest(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    title?: string;
+    description?: string;
+    isDraft?: boolean;
+  }): Promise<GitPullRequest>;
+
+  // pull request writes — reviewers
+  addPullRequestReviewers(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    reviewerIds: string[];
+  }): Promise<IdentityRefWithVote[]>;
+
+  removePullRequestReviewer(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    reviewerId: string;
+  }): Promise<void>;
 }
