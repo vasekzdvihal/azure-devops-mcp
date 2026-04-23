@@ -5,6 +5,7 @@ import {
   AdoNetworkError,
   AdoTlsError,
   AdoUnknownError,
+  AdoConflictError,
   mapSdkError,
 } from "../../../src/ado/errors.js";
 
@@ -68,5 +69,16 @@ describe("mapSdkError", () => {
   it("AdoTlsError mentions CA bundle config", () => {
     const mapped = mapSdkError(Object.assign(new Error("x"), { code: "SELF_SIGNED_CERT_IN_CHAIN" }));
     expect(mapped.message).toMatch(/CA bundle/i);
+  });
+
+  it("maps statusCode 409 to AdoConflictError", () => {
+    const err = Object.assign(new Error("Conflict"), { statusCode: 409 });
+    expect(mapSdkError(err)).toBeInstanceOf(AdoConflictError);
+  });
+
+  it("AdoConflictError carries a message about the conflict", () => {
+    const mapped = mapSdkError(Object.assign(new Error("Thread is closed"), { statusCode: 409 }));
+    expect(mapped.message).toMatch(/conflict/i);
+    expect(mapped.message).toMatch(/Thread is closed/);
   });
 });
