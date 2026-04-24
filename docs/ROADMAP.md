@@ -134,32 +134,36 @@ Conventions used here:
 
 ---
 
-## 💡 Phase 3 — Pipelines
+## ✅ Phase 3 — Releases, pipelines & commits
 
-**Status:** idea, no commitment yet.
+**Status:** shipped 2026-04-24.
 
-**Goal:** let the LLM check build status, trigger pipelines, fetch logs.
+**Goal:** read-only tools across releases, pipelines, and commit history — enough to answer "who last published X to production and what was published?" in one LLM chain.
 
-**Why interesting:** "is the build green?" is a constant question. "Re-run the failed stage" is a common follow-up. Today you go to ADO in a browser; an MCP makes it conversational.
+**Tools shipped:**
 
-**Tools likely in scope:** `list_pipelines`, `get_pipeline_run`, `list_recent_runs`, `trigger_pipeline_run`, `get_run_logs` (probably per-stage with truncation, similar to `get_pull_request_diff`).
+| Tool | Notes |
+| --- | --- |
+| `list_release_definitions` | classic Release pipelines |
+| `list_releases` | release runs; filter by definition + status |
+| `get_release` | stages + artifacts (source build + branch) |
+| `list_deployments` | flattened per-stage deployments — answers the canonical question |
+| `list_pipelines` | build/pipeline definitions; `type` flag distinguishes classic vs yaml |
+| `list_pipeline_runs` | runs with branch/status/result filters |
+| `get_pipeline_run` | includes stages timeline (covers YAML multi-stage) |
+| `list_branches` | branches with last-commit + ahead/behind; cwd auto-detect |
+| `list_commits` | commits with fromDate/toDate/author filters; cwd auto-detect |
 
-**New domain folder:** `src/domains/pipelines/`. AdoClient extends with a few methods backed by `azdev.WebApi.getBuildApi()` / `getPipelinesApi()`.
+**Key decisions made / locked here:**
+- **Both deployment models supported.** Classic Release pipelines via `ReleaseApi`; YAML multi-stage deployments surface as stages on pipeline runs via `BuildApi.getBuildTimeline`.
+- **Composable primitives, not aggregators.** The LLM chains `list_deployments` → `get_release` → `get_pipeline_run` rather than calling a mega-tool.
+- **Cwd auto-detect for commits only.** Releases and pipelines are project-scoped, not repo-scoped, so cwd resolution doesn't apply cleanly there.
+- **Release-collection 404 hint.** 404 on the first release endpoint is translated to "Release API unavailable — this collection may not have classic releases enabled."
+- **New PAT scopes required:** **Build (read)** and **Release (read)**. Documented in the README scopes table.
 
-**Why not next:** depends on whether the user/colleagues actually want this. If PR review (P1) is the primary workflow, P3 is gravy.
+**Plan:** `docs/superpowers/plans/2026-04-24-azure-devops-mcp-phase-3.md`. Spec: `docs/superpowers/specs/2026-04-24-azure-devops-mcp-releases-pipelines-commits-design.md`.
 
----
-
-## 💡 Phase 4 — Releases
-
-**Status:** idea, no commitment yet.
-
-**Goal:** list releases, get release status, trigger a release for a given environment.
-
-**Notes:**
-- Classic Releases (`getReleaseApi`) and YAML pipeline-based releases have different shapes — would need to support both.
-- Triggering a production release is high-blast-radius — same confirmation considerations as Phase 2 writes.
-- Would land after Phase 3 (pipelines) since releases conceptually depend on builds.
+**Deferred to a future phase:** any write operations (queue build, re-run stage, approve release gate, cancel run, tag build).
 
 ---
 
