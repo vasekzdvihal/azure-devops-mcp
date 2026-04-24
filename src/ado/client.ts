@@ -16,7 +16,7 @@ import type {
   DeploymentStatus,
   ReleaseStatus,
   Build,
-  BuildDefinitionReference,
+  BuildDefinition,
   Timeline,
   BuildStatus,
   BuildResult,
@@ -173,7 +173,7 @@ export interface AdoClient {
   listPipelines(args: {
     project: string;
     repositoryId?: string;
-  }): Promise<BuildDefinitionReference[]>;
+  }): Promise<BuildDefinition[]>;
 
   listPipelineRuns(args: {
     project: string;

@@ -20,7 +20,7 @@ import type {
   DeploymentStatus,
   ReleaseStatus,
   Build,
-  BuildDefinitionReference,
+  BuildDefinition,
   Timeline,
   BuildStatus,
   BuildResult,
@@ -501,15 +501,27 @@ export class SdkAdoClient implements AdoClient {
   async listPipelines(args: {
     project: string;
     repositoryId?: string;
-  }): Promise<BuildDefinitionReference[]> {
+  }): Promise<BuildDefinition[]> {
     try {
       const build = await this.api.getBuildApi();
+      // includeAllProperties=true returns BuildDefinition[] (with process + repository)
+      // rather than the shallow BuildDefinitionReference[] default.
       const defs = await build.getDefinitions(
         args.project,
         undefined, // name
         args.repositoryId,
+        undefined, // repositoryType
+        undefined, // queryOrder
+        undefined, // top
+        undefined, // continuationToken
+        undefined, // minMetricsTime
+        undefined, // definitionIds
+        undefined, // path
+        undefined, // builtAfter
+        undefined, // notBuiltAfter
+        true, // includeAllProperties
       );
-      return defs;
+      return defs as BuildDefinition[];
     } catch (err) {
       throw mapSdkError(err);
     }

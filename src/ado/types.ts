@@ -32,6 +32,7 @@ export type {
 // Build (classic build + YAML pipelines)
 export type {
   Build,
+  BuildDefinition,
   BuildDefinitionReference,
   Timeline,
   TimelineRecord,

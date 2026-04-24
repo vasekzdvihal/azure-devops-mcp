@@ -11,6 +11,8 @@ import { PullRequestsWriteService } from "../domains/pullRequests/writeService.j
 import { buildPullRequestWriteTools } from "../domains/pullRequests/writeTools.js";
 import { ReleasesReadService } from "../domains/releases/readService.js";
 import { buildReleasesReadTools } from "../domains/releases/readTools.js";
+import { PipelinesReadService } from "../domains/pipelines/readService.js";
+import { buildPipelinesReadTools } from "../domains/pipelines/readTools.js";
 import { toToolResult } from "./errorBoundary.js";
 import type { AdoClient } from "../ado/client.js";
 
@@ -40,6 +42,7 @@ export function registerAllTools(
     ...buildRepositoriesTools(new RepositoriesService(client)),
     ...buildPullRequestReadTools(new PullRequestsReadService(client)),
     ...buildReleasesReadTools(new ReleasesReadService(client)),
+    ...buildPipelinesReadTools(new PipelinesReadService(client)),
   ];
 
   const writeTools = options.readOnly
