@@ -32,6 +32,14 @@ export const ListDeploymentsInput = {
     .positive()
     .optional()
     .describe("Filter to this release-definition id."),
+  environmentName: z
+    .string()
+    .optional()
+    .describe(
+      "Filter to deployments whose target environment name matches (case-insensitive exact " +
+        "match). Applied client-side after fetch because the SDK only takes numeric environment " +
+        "ids — so combine with a tight `top` to keep the server-side fetch small.",
+    ),
   status: z
     .enum([
       "notDeployed",

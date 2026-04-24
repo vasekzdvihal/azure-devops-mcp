@@ -127,12 +127,14 @@ describe("ReleasesReadService.get", () => {
       {
         environmentName: "Dev",
         status: "succeeded",
+        deploymentStatus: undefined,
         deployedBy: "Bob",
         completedOn: "2026-04-20T09:15:00.000Z",
       },
       {
         environmentName: "Production",
         status: "succeeded",
+        deploymentStatus: undefined,
         deployedBy: "Carol",
         completedOn: "2026-04-20T10:00:00.000Z",
       },
@@ -145,6 +147,26 @@ describe("ReleasesReadService.get", () => {
         sourceVersion: undefined,
       },
     ]);
+  });
+});
+
+describe("ReleasesReadService.get — pending stage", () => {
+  it("maps EnvironmentStatus 1 to 'notStarted'", async () => {
+    const fake = new FakeAdoClient();
+    const release: Release = {
+      id: 9999,
+      name: "Pending-Release",
+      status: 2,
+      releaseDefinition: { id: 9 },
+      environments: [{ name: "Dev", status: 1 }],
+      artifacts: [],
+    };
+    fake.setRelease("MyProj", 9999, release);
+    const svc = new ReleasesReadService(fake);
+
+    const result = await svc.get({ project: "MyProj", releaseId: 9999 });
+
+    expect(result.stages[0]?.status).toBe("notStarted");
   });
 });
 
@@ -203,5 +225,38 @@ describe("ReleasesReadService.listDeployments", () => {
         sourceVersion: undefined,
       },
     ]);
+  });
+
+  it("filters by environmentName case-insensitively client-side", async () => {
+    const fake = new FakeAdoClient();
+    const deployments: Deployment[] = [
+      {
+        id: 1,
+        deploymentStatus: 4,
+        release: { id: 100, name: "R1" },
+        releaseEnvironment: { name: "Dev" },
+      },
+      {
+        id: 2,
+        deploymentStatus: 4,
+        release: { id: 100, name: "R1" },
+        releaseEnvironment: { name: "Production" },
+      },
+      {
+        id: 3,
+        deploymentStatus: 4,
+        release: { id: 101, name: "R2" },
+        releaseEnvironment: { name: "production" }, // lowercase variant
+      },
+    ];
+    fake.setDeployments("MyProj", deployments);
+    const svc = new ReleasesReadService(fake);
+
+    const result = await svc.listDeployments({
+      project: "MyProj",
+      environmentName: "PRODUCTION",
+    });
+
+    expect(result.map((d) => d.deploymentId)).toEqual([2, 3]);
   });
 });

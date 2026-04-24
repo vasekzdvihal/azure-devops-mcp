@@ -43,6 +43,7 @@ const DEPLOYMENT_STATUS_FROM_ENUM: Record<number, string> = {
 // EnvironmentStatus enum — per-stage status inside a release.
 const ENVIRONMENT_STATUS_FROM_ENUM: Record<number, string> = {
   0: "undefined",
+  1: "notStarted",
   2: "inProgress",
   4: "succeeded",
   8: "canceled",
@@ -76,6 +77,7 @@ export interface ReleaseDetail extends ReleaseSummary {
   stages: Array<{
     environmentName: string;
     status: string;
+    deploymentStatus?: string;
     deployedBy?: string;
     completedOn?: string;
   }>;
@@ -139,6 +141,7 @@ export class ReleasesReadService {
   async listDeployments(args: {
     project: string;
     definitionId?: number;
+    environmentName?: string;
     status?: string;
     top?: number;
   }): Promise<DeploymentSummary[]> {
@@ -151,7 +154,10 @@ export class ReleasesReadService {
       deploymentStatus,
       top: args.top,
     });
-    return deployments.map(shapeDeployment);
+    const shaped = deployments.map(shapeDeployment);
+    if (!args.environmentName) return shaped;
+    const target = args.environmentName.toLowerCase();
+    return shaped.filter((d) => d.environmentName?.toLowerCase() === target);
   }
 }
 
@@ -189,9 +195,16 @@ function shapeReleaseDetail(r: Release): ReleaseDetail {
 
 function shapeStage(env: ReleaseEnvironment): ReleaseDetail["stages"][number] {
   const latestStep = env.deploySteps?.[env.deploySteps.length - 1];
+  // `status` is the environment-level state (the box in the ADO UI);
+  // `deploymentStatus` is the latest deploy attempt's outcome. They often
+  // agree but diverge during retries or when a manual intervention is queued.
   return {
     environmentName: env.name ?? "",
     status: ENVIRONMENT_STATUS_FROM_ENUM[env.status ?? 0] ?? "unknown",
+    deploymentStatus:
+      latestStep?.status !== undefined
+        ? (DEPLOYMENT_STATUS_FROM_ENUM[latestStep.status] ?? "unknown")
+        : undefined,
     deployedBy: latestStep?.requestedBy?.displayName,
     completedOn: latestStep?.lastModifiedOn?.toISOString(),
   };

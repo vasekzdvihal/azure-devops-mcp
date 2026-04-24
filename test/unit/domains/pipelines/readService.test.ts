@@ -187,4 +187,24 @@ describe("PipelinesReadService.get", () => {
 
     expect(result.stages).toEqual([]);
   });
+
+  it("passes triggerInfo and templateParameters through", async () => {
+    const fake = new FakeAdoClient();
+    const build: Build = {
+      id: 502,
+      buildNumber: "20260420.2",
+      definition: { id: 10, name: "Newton.n2-CI" },
+      status: 2,
+      result: 2,
+      triggerInfo: { "ci.sourceSha": "abc", "ci.message": "fix(x)" },
+      templateParameters: { environment: "prod" },
+    };
+    fake.setPipelineRun("MyProj", 502, { build, timeline: null });
+    const svc = new PipelinesReadService(fake);
+
+    const result = await svc.get({ project: "MyProj", runId: 502 });
+
+    expect(result.triggerInfo).toEqual({ "ci.sourceSha": "abc", "ci.message": "fix(x)" });
+    expect(result.templateParameters).toEqual({ environment: "prod" });
+  });
 });

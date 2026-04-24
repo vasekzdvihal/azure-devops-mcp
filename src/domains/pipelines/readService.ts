@@ -89,6 +89,8 @@ export interface PipelineRunDetail extends PipelineRunSummary {
     startTime?: string;
     finishTime?: string;
   }>;
+  triggerInfo?: { [key: string]: string };
+  templateParameters?: { [key: string]: string };
 }
 
 export class PipelinesReadService {
@@ -132,6 +134,8 @@ export class PipelinesReadService {
     return {
       ...shapeRun(build),
       stages,
+      triggerInfo: build.triggerInfo,
+      templateParameters: build.templateParameters,
     };
   }
 }
