@@ -1,7 +1,7 @@
 {
   "name": "@vasekzdvihal/azure-devops-mcp",
-  "version": "0.2.0",
-  "description": "MCP server for Azure DevOps (Server and Services) — read-only PR workflows.",
+  "version": "0.3.0",
+  "description": "MCP server for Azure DevOps (Server and Services) — PR review, releases, pipelines, and commit history.",
   "license": "MIT",
   "type": "module",
   "engines": {

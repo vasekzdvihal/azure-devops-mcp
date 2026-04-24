@@ -1,6 +1,6 @@
 # Azure DevOps MCP
 
-Azure DevOps MCP server for Claude Code and other MCP hosts. Supports both **Azure DevOps Server** (on-prem) and **Azure DevOps Services** (cloud). v2 ships the full PR review workflow — read PRs, post comments, reply to threads, resolve threads, vote, edit PR metadata, manage reviewers. Read-only mode is available for users who want a restricted surface.
+Azure DevOps MCP server for Claude Code and other MCP hosts. Supports both **Azure DevOps Server** (on-prem) and **Azure DevOps Services** (cloud). Ships read tools for PRs, releases, pipelines, and commit history; plus the full PR review write workflow — comment, reply, resolve threads, vote, edit PR metadata, manage reviewers. Read-only mode is available for users who want a restricted surface.
 
 ## Setup
 
@@ -20,8 +20,8 @@ The wizard tests the connection before writing anything. Config goes to `~/.conf
 
 | Mode | Required scopes |
 | --- | --- |
-| Read-only (read tools only) | **Code (read)**, **Identity (read)** |
-| Full (default — read + write tools) | **Code (read & write)**, **Pull Request (read & write)**, **Identity (read)** |
+| Read-only (read tools only) | **Code (read)**, **Identity (read)**, **Build (read)**, **Release (read)** |
+| Full (default — read + write tools) | **Code (read & write)**, **Pull Request (read & write)**, **Identity (read)**, **Build (read)**, **Release (read)** |
 
 A read-only PAT is the actual security guarantee — ADO enforces scope at the API regardless of what the MCP server exposes. The read-only mode env var (below) is an additional layer for users who can't or don't want to scope down their PAT.
 
@@ -77,6 +77,15 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `get_pull_request_diff` | Returns unified diff text for a single file in a PR (truncatable). |
 | `list_pull_request_comments` | Returns comment threads on a PR (with line anchors). |
 | `get_pull_request_iterations` | Returns iteration history of a PR (each push = one iteration). |
+| `list_release_definitions` | Lists classic Release pipeline definitions in a project. |
+| `list_releases` | Lists release runs. Filter by definitionId or status (active/abandoned/draft). |
+| `get_release` | Full release: stages (name, status, who deployed, when) and artifacts (source build + branch). |
+| `list_deployments` | Per-stage flattened view — best for "who last deployed X to production?". |
+| `list_pipelines` | Lists build/pipeline definitions. Covers classic-build and YAML; `type` field distinguishes. |
+| `list_pipeline_runs` | Lists runs (builds). Filter by pipelineId, branch, status, result. |
+| `get_pipeline_run` | Run detail with stages timeline — how you see if a YAML multi-stage stage succeeded. |
+| `list_branches` | Branches in a repo with last commit id + ahead/behind. Auto-detects repo from cwd. |
+| `list_commits` | Commits on a branch. Filter by fromDate, toDate, author, top. Auto-detects repo from cwd. |
 
 ### Write tools (suppressed in read-only mode)
 

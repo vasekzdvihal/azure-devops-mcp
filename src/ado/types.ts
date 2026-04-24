@@ -17,3 +17,32 @@ export type {
   CommentThreadStatus,
   IdentityRefWithVote,
 } from "azure-devops-node-api/interfaces/GitInterfaces.js";
+
+// Release (classic release pipelines)
+export type {
+  Release,
+  ReleaseDefinition,
+  Deployment,
+  ReleaseEnvironment,
+  Artifact,
+  DeploymentStatus,
+  ReleaseStatus,
+} from "azure-devops-node-api/interfaces/ReleaseInterfaces.js";
+
+// Build (classic build + YAML pipelines)
+export type {
+  Build,
+  BuildDefinition,
+  BuildDefinitionReference,
+  Timeline,
+  TimelineRecord,
+  BuildStatus,
+  BuildResult,
+} from "azure-devops-node-api/interfaces/BuildInterfaces.js";
+
+// Git commits & branches
+export type {
+  GitBranchStats,
+  GitCommitRef,
+  GitQueryCommitsCriteria,
+} from "azure-devops-node-api/interfaces/GitInterfaces.js";

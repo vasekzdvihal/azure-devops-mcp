@@ -10,6 +10,18 @@ import type {
   Comment,
   CommentThreadStatus,
   IdentityRefWithVote,
+  Release,
+  ReleaseDefinition,
+  Deployment,
+  DeploymentStatus,
+  ReleaseStatus,
+  Build,
+  BuildDefinition,
+  Timeline,
+  BuildStatus,
+  BuildResult,
+  GitBranchStats,
+  GitCommitRef,
 } from "./types.js";
 
 /**
@@ -137,4 +149,59 @@ export interface AdoClient {
     pullRequestId: number;
     reviewerId: string;
   }): Promise<void>;
+
+  // releases (classic Release pipelines)
+  listReleaseDefinitions(args: { project: string }): Promise<ReleaseDefinition[]>;
+
+  listReleases(args: {
+    project: string;
+    definitionId?: number;
+    status?: ReleaseStatus;
+    top?: number;
+  }): Promise<Release[]>;
+
+  getRelease(args: { project: string; releaseId: number }): Promise<Release>;
+
+  listDeployments(args: {
+    project: string;
+    definitionId?: number;
+    deploymentStatus?: DeploymentStatus;
+    top?: number;
+  }): Promise<Deployment[]>;
+
+  // pipelines (classic-build + YAML, both via BuildApi)
+  listPipelines(args: {
+    project: string;
+    repositoryId?: string;
+  }): Promise<BuildDefinition[]>;
+
+  listPipelineRuns(args: {
+    project: string;
+    pipelineId?: number;
+    branch?: string;
+    status?: BuildStatus;
+    result?: BuildResult;
+    top?: number;
+  }): Promise<Build[]>;
+
+  getPipelineRun(args: {
+    project: string;
+    runId: number;
+  }): Promise<{ build: Build; timeline: Timeline | null }>;
+
+  // commits & branches
+  listBranches(args: {
+    project: string;
+    repository: string;
+  }): Promise<GitBranchStats[]>;
+
+  listCommits(args: {
+    project: string;
+    repository: string;
+    branch?: string;
+    fromDate?: string;
+    toDate?: string;
+    author?: string;
+    top?: number;
+  }): Promise<GitCommitRef[]>;
 }

@@ -11,6 +11,18 @@ import type {
   Comment,
   CommentThreadStatus,
   IdentityRefWithVote,
+  Release,
+  ReleaseDefinition,
+  Deployment,
+  DeploymentStatus,
+  ReleaseStatus,
+  Build,
+  BuildDefinition,
+  Timeline,
+  BuildStatus,
+  BuildResult,
+  GitBranchStats,
+  GitCommitRef,
 } from "../../src/ado/types.js";
 
 interface PrKey {
@@ -146,6 +158,53 @@ export class FakeAdoClient implements AdoClient {
   }
   getReviewerRemoves(): ReadonlyArray<{ key: string; reviewerId: string }> {
     return this.reviewerRemoves;
+  }
+
+  // ---- phase-3 state ----
+  private releaseDefs = new Map<string, ReleaseDefinition[]>(); // project
+  private releases = new Map<string, Release[]>(); // project
+  private releaseDetails = new Map<string, Release>(); // `${project} ${releaseId}`
+  private deployments = new Map<string, Deployment[]>(); // project
+  private pipelines = new Map<string, BuildDefinition[]>(); // project
+  private pipelineRuns = new Map<string, Build[]>(); // project
+  private pipelineRunDetails = new Map<
+    string,
+    { build: Build; timeline: Timeline | null }
+  >(); // `${project} ${runId}`
+  private branches = new Map<string, GitBranchStats[]>(); // `${project} ${repo}`
+  private commits = new Map<string, GitCommitRef[]>(); // `${project} ${repo}`
+
+  // ---- phase-3 setup helpers ----
+  setReleaseDefinitions(project: string, defs: ReleaseDefinition[]): void {
+    this.releaseDefs.set(project, defs);
+  }
+  setReleases(project: string, releases: Release[]): void {
+    this.releases.set(project, releases);
+  }
+  setRelease(project: string, releaseId: number, release: Release): void {
+    this.releaseDetails.set(`${project} ${releaseId}`, release);
+  }
+  setDeployments(project: string, deployments: Deployment[]): void {
+    this.deployments.set(project, deployments);
+  }
+  setPipelines(project: string, pipelines: BuildDefinition[]): void {
+    this.pipelines.set(project, pipelines);
+  }
+  setPipelineRuns(project: string, runs: Build[]): void {
+    this.pipelineRuns.set(project, runs);
+  }
+  setPipelineRun(
+    project: string,
+    runId: number,
+    detail: { build: Build; timeline: Timeline | null },
+  ): void {
+    this.pipelineRunDetails.set(`${project} ${runId}`, detail);
+  }
+  setBranches(project: string, repository: string, branches: GitBranchStats[]): void {
+    this.branches.set(`${project} ${repository}`, branches);
+  }
+  setCommits(project: string, repository: string, commits: GitCommitRef[]): void {
+    this.commits.set(`${project} ${repository}`, commits);
   }
 
   // ---- AdoClient impl ----
@@ -338,5 +397,94 @@ export class FakeAdoClient implements AdoClient {
       key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
       reviewerId: args.reviewerId,
     });
+  }
+
+  async listReleaseDefinitions(args: { project: string }): Promise<ReleaseDefinition[]> {
+    this.throwIfInjected("listReleaseDefinitions");
+    return this.releaseDefs.get(args.project) ?? [];
+  }
+
+  async listReleases(args: {
+    project: string;
+    definitionId?: number;
+    status?: ReleaseStatus;
+    top?: number;
+  }): Promise<Release[]> {
+    this.throwIfInjected("listReleases");
+    return this.releases.get(args.project) ?? [];
+  }
+
+  async getRelease(args: { project: string; releaseId: number }): Promise<Release> {
+    this.throwIfInjected("getRelease");
+    const r = this.releaseDetails.get(`${args.project} ${args.releaseId}`);
+    if (!r)
+      throw new Error(
+        `FakeAdoClient.getRelease: no release configured for ${args.project} ${args.releaseId}`,
+      );
+    return r;
+  }
+
+  async listDeployments(args: {
+    project: string;
+    definitionId?: number;
+    deploymentStatus?: DeploymentStatus;
+    top?: number;
+  }): Promise<Deployment[]> {
+    this.throwIfInjected("listDeployments");
+    return this.deployments.get(args.project) ?? [];
+  }
+
+  async listPipelines(args: {
+    project: string;
+    repositoryId?: string;
+  }): Promise<BuildDefinition[]> {
+    this.throwIfInjected("listPipelines");
+    return this.pipelines.get(args.project) ?? [];
+  }
+
+  async listPipelineRuns(args: {
+    project: string;
+    pipelineId?: number;
+    branch?: string;
+    status?: BuildStatus;
+    result?: BuildResult;
+    top?: number;
+  }): Promise<Build[]> {
+    this.throwIfInjected("listPipelineRuns");
+    return this.pipelineRuns.get(args.project) ?? [];
+  }
+
+  async getPipelineRun(args: {
+    project: string;
+    runId: number;
+  }): Promise<{ build: Build; timeline: Timeline | null }> {
+    this.throwIfInjected("getPipelineRun");
+    const d = this.pipelineRunDetails.get(`${args.project} ${args.runId}`);
+    if (!d)
+      throw new Error(
+        `FakeAdoClient.getPipelineRun: no run configured for ${args.project} ${args.runId}`,
+      );
+    return d;
+  }
+
+  async listBranches(args: {
+    project: string;
+    repository: string;
+  }): Promise<GitBranchStats[]> {
+    this.throwIfInjected("listBranches");
+    return this.branches.get(`${args.project} ${args.repository}`) ?? [];
+  }
+
+  async listCommits(args: {
+    project: string;
+    repository: string;
+    branch?: string;
+    fromDate?: string;
+    toDate?: string;
+    author?: string;
+    top?: number;
+  }): Promise<GitCommitRef[]> {
+    this.throwIfInjected("listCommits");
+    return this.commits.get(`${args.project} ${args.repository}`) ?? [];
   }
 }

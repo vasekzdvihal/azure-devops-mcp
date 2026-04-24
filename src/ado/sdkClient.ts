@@ -14,6 +14,19 @@ import type {
   Comment,
   CommentThreadStatus,
   IdentityRefWithVote,
+  Release,
+  ReleaseDefinition,
+  Deployment,
+  DeploymentStatus,
+  ReleaseStatus,
+  Build,
+  BuildDefinition,
+  Timeline,
+  BuildStatus,
+  BuildResult,
+  GitBranchStats,
+  GitCommitRef,
+  GitQueryCommitsCriteria,
 } from "./types.js";
 import { GitVersionType } from "azure-devops-node-api/interfaces/GitInterfaces.js";
 import { AdoError, mapSdkError, AdoNotFoundError, AdoUnknownError } from "./errors.js";
@@ -389,6 +402,232 @@ export class SdkAdoClient implements AdoClient {
       );
     } catch (err) {
       if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  // -------- releases --------
+
+  async listReleaseDefinitions(args: { project: string }): Promise<ReleaseDefinition[]> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      const defs = await rel.getReleaseDefinitions(args.project);
+      return defs;
+    } catch (err) {
+      const mapped = mapSdkError(err);
+      // A 404 on the first release endpoint hit in a project is almost
+      // certainly "classic releases are not enabled on this collection"
+      // rather than "project missing" — other tools against the same
+      // project would have 404'd before reaching this code path.
+      if (mapped instanceof AdoNotFoundError) {
+        throw new AdoNotFoundError(
+          "Release API unavailable — this collection may not have classic releases enabled, " +
+            "or the project name is wrong. " +
+            mapped.message.replace(/^.*Details:\s*/, "Details: "),
+        );
+      }
+      throw mapped;
+    }
+  }
+
+  async listReleases(args: {
+    project: string;
+    definitionId?: number;
+    status?: ReleaseStatus;
+    top?: number;
+  }): Promise<Release[]> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      const releases = await rel.getReleases(
+        args.project,
+        args.definitionId,
+        undefined, // definitionEnvironmentId
+        undefined, // searchText
+        undefined, // createdBy
+        args.status,
+        undefined, // environmentStatusFilter
+        undefined, // minCreatedTime
+        undefined, // maxCreatedTime
+        undefined, // queryOrder
+        args.top,
+      );
+      return releases;
+    } catch (err) {
+      throw mapSdkError(err);
+    }
+  }
+
+  async getRelease(args: { project: string; releaseId: number }): Promise<Release> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      const release = await rel.getRelease(args.project, args.releaseId);
+      if (!release) throw new AdoNotFoundError(`Release ${args.releaseId} not found`);
+      return release;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async listDeployments(args: {
+    project: string;
+    definitionId?: number;
+    deploymentStatus?: DeploymentStatus;
+    top?: number;
+  }): Promise<Deployment[]> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      const deployments = await rel.getDeployments(
+        args.project,
+        args.definitionId,
+        undefined, // definitionEnvironmentId
+        undefined, // createdBy
+        undefined, // minModifiedTime
+        undefined, // maxModifiedTime
+        args.deploymentStatus,
+        undefined, // operationStatus
+        undefined, // latestAttemptsOnly
+        undefined, // queryOrder
+        args.top,
+      );
+      return deployments;
+    } catch (err) {
+      throw mapSdkError(err);
+    }
+  }
+
+  // -------- pipelines (BuildApi) --------
+
+  async listPipelines(args: {
+    project: string;
+    repositoryId?: string;
+  }): Promise<BuildDefinition[]> {
+    try {
+      const build = await this.api.getBuildApi();
+      // includeAllProperties=true returns BuildDefinition[] (with process + repository)
+      // rather than the shallow BuildDefinitionReference[] default.
+      const defs = await build.getDefinitions(
+        args.project,
+        undefined, // name
+        args.repositoryId,
+        undefined, // repositoryType
+        undefined, // queryOrder
+        undefined, // top
+        undefined, // continuationToken
+        undefined, // minMetricsTime
+        undefined, // definitionIds
+        undefined, // path
+        undefined, // builtAfter
+        undefined, // notBuiltAfter
+        true, // includeAllProperties
+      );
+      return defs as BuildDefinition[];
+    } catch (err) {
+      throw mapSdkError(err);
+    }
+  }
+
+  async listPipelineRuns(args: {
+    project: string;
+    pipelineId?: number;
+    branch?: string;
+    status?: BuildStatus;
+    result?: BuildResult;
+    top?: number;
+  }): Promise<Build[]> {
+    try {
+      const build = await this.api.getBuildApi();
+      const runs = await build.getBuilds(
+        args.project,
+        args.pipelineId !== undefined ? [args.pipelineId] : undefined,
+        undefined, // queues
+        undefined, // buildNumber
+        undefined, // minTime
+        undefined, // maxTime
+        undefined, // requestedFor
+        undefined, // reasonFilter
+        args.status,
+        args.result,
+        undefined, // tagFilters
+        undefined, // properties
+        args.top,
+        undefined, // continuationToken
+        undefined, // maxBuildsPerDefinition
+        undefined, // deletedFilter
+        undefined, // queryOrder
+        args.branch,
+      );
+      return runs;
+    } catch (err) {
+      throw mapSdkError(err);
+    }
+  }
+
+  async getPipelineRun(args: {
+    project: string;
+    runId: number;
+  }): Promise<{ build: Build; timeline: Timeline | null }> {
+    try {
+      const build = await this.api.getBuildApi();
+      const b = await build.getBuild(args.project, args.runId);
+      if (!b) throw new AdoNotFoundError(`Pipeline run ${args.runId} not found`);
+      // Timeline can be null for very old runs that never started a plan.
+      let timeline: Timeline | null = null;
+      try {
+        timeline = await build.getBuildTimeline(args.project, args.runId);
+      } catch {
+        timeline = null;
+      }
+      return { build: b, timeline };
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  // -------- commits & branches --------
+
+  async listBranches(args: {
+    project: string;
+    repository: string;
+  }): Promise<GitBranchStats[]> {
+    try {
+      const git = await this.api.getGitApi();
+      const branches = await git.getBranches(args.repository, args.project);
+      return branches;
+    } catch (err) {
+      throw mapSdkError(err);
+    }
+  }
+
+  async listCommits(args: {
+    project: string;
+    repository: string;
+    branch?: string;
+    fromDate?: string;
+    toDate?: string;
+    author?: string;
+    top?: number;
+  }): Promise<GitCommitRef[]> {
+    try {
+      const git = await this.api.getGitApi();
+      const criteria: GitQueryCommitsCriteria = {
+        ...(args.branch
+          ? { itemVersion: { version: args.branch, versionType: 0 /* Branch */ } }
+          : {}),
+        ...(args.fromDate ? { fromDate: args.fromDate } : {}),
+        ...(args.toDate ? { toDate: args.toDate } : {}),
+        ...(args.author ? { author: args.author } : {}),
+      };
+      const commits = await git.getCommits(
+        args.repository,
+        criteria,
+        args.project,
+        undefined, // skip
+        args.top,
+      );
+      return commits;
+    } catch (err) {
       throw mapSdkError(err);
     }
   }
