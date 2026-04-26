@@ -11,6 +11,8 @@ import type {
   Comment,
   CommentThreadStatus,
   IdentityRefWithVote,
+  GitPullRequestCompletionOptions,
+  GitPullRequestMergeStrategy,
   Release,
   ReleaseDefinition,
   Deployment,
@@ -52,6 +54,53 @@ export class FakeAdoClient implements AdoClient {
   private fileContents = new Map<string, string | null>();
   // generic error injection
   private errors = new Map<string, Error>();
+
+  // ---- phase-2.1 lifecycle state ----
+  private createdPrs: Array<{
+    project: string;
+    repository: string;
+    pr: GitPullRequest;
+  }> = [];
+  private completedPrs: Array<{ key: string; mergeStrategy: GitPullRequestMergeStrategy }> = [];
+  private abandonedPrs: string[] = [];
+  private autoCompleteSet: Array<{
+    key: string;
+    setById: string;
+    options: GitPullRequestCompletionOptions;
+  }> = [];
+  private nextCreatedPr?: GitPullRequest;
+  private nextCompletedPr?: GitPullRequest;
+  private nextAbandonedPr?: GitPullRequest;
+  private nextAutoCompletedPr?: GitPullRequest;
+
+  setNextCreatedPr(pr: GitPullRequest): void {
+    this.nextCreatedPr = pr;
+  }
+  setNextCompletedPr(pr: GitPullRequest): void {
+    this.nextCompletedPr = pr;
+  }
+  setNextAbandonedPr(pr: GitPullRequest): void {
+    this.nextAbandonedPr = pr;
+  }
+  setNextAutoCompletedPr(pr: GitPullRequest): void {
+    this.nextAutoCompletedPr = pr;
+  }
+  getCreatedPrs(): ReadonlyArray<{ project: string; repository: string; pr: GitPullRequest }> {
+    return this.createdPrs;
+  }
+  getCompletedPrs(): ReadonlyArray<{ key: string; mergeStrategy: GitPullRequestMergeStrategy }> {
+    return this.completedPrs;
+  }
+  getAbandonedPrs(): ReadonlyArray<string> {
+    return this.abandonedPrs;
+  }
+  getAutoCompleteSets(): ReadonlyArray<{
+    key: string;
+    setById: string;
+    options: GitPullRequestCompletionOptions;
+  }> {
+    return this.autoCompleteSet;
+  }
 
   // ---- write-side state (Phase 2) ----
   // History of writes per PR — tests can inspect to verify what was sent.
@@ -486,5 +535,92 @@ export class FakeAdoClient implements AdoClient {
   }): Promise<GitCommitRef[]> {
     this.throwIfInjected("listCommits");
     return this.commits.get(`${args.project} ${args.repository}`) ?? [];
+  }
+
+  async createPullRequest(args: {
+    project: string;
+    repository: string;
+    sourceRefName: string;
+    targetRefName: string;
+    title: string;
+    description?: string;
+    isDraft?: boolean;
+    reviewerIds?: string[];
+  }): Promise<GitPullRequest> {
+    this.throwIfInjected("createPullRequest");
+    const pr: GitPullRequest = {
+      sourceRefName: args.sourceRefName,
+      targetRefName: args.targetRefName,
+      title: args.title,
+      description: args.description,
+      isDraft: args.isDraft,
+      reviewers: args.reviewerIds?.map((id) => ({ id, vote: 0 })),
+    };
+    this.createdPrs.push({ project: args.project, repository: args.repository, pr });
+    return this.nextCreatedPr ?? { ...pr, pullRequestId: 9999 };
+  }
+
+  async completePullRequest(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    mergeStrategy: GitPullRequestMergeStrategy;
+    deleteSourceBranch?: boolean;
+    mergeCommitMessage?: string;
+    bypassPolicy?: boolean;
+    bypassReason?: string;
+    lastMergeSourceCommitId?: string;
+  }): Promise<GitPullRequest> {
+    this.throwIfInjected("completePullRequest");
+    this.completedPrs.push({
+      key: prKey({
+        project: args.project,
+        repository: args.repository,
+        pullRequestId: args.pullRequestId,
+      }),
+      mergeStrategy: args.mergeStrategy,
+    });
+    return this.nextCompletedPr ?? { pullRequestId: args.pullRequestId, status: 3 };
+  }
+
+  async abandonPullRequest(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+  }): Promise<GitPullRequest> {
+    this.throwIfInjected("abandonPullRequest");
+    this.abandonedPrs.push(
+      prKey({
+        project: args.project,
+        repository: args.repository,
+        pullRequestId: args.pullRequestId,
+      }),
+    );
+    return this.nextAbandonedPr ?? { pullRequestId: args.pullRequestId, status: 2 };
+  }
+
+  async setPullRequestAutoComplete(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    autoCompleteSetById: string;
+    completionOptions: GitPullRequestCompletionOptions;
+  }): Promise<GitPullRequest> {
+    this.throwIfInjected("setPullRequestAutoComplete");
+    this.autoCompleteSet.push({
+      key: prKey({
+        project: args.project,
+        repository: args.repository,
+        pullRequestId: args.pullRequestId,
+      }),
+      setById: args.autoCompleteSetById,
+      options: args.completionOptions,
+    });
+    return (
+      this.nextAutoCompletedPr ?? {
+        pullRequestId: args.pullRequestId,
+        autoCompleteSetBy: { id: args.autoCompleteSetById },
+      }
+    );
   }
 }

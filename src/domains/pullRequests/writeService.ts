@@ -4,10 +4,31 @@ import type {
   CommentThreadStatus,
   GitPullRequest,
   GitPullRequestCommentThread,
+  GitPullRequestMergeStrategy,
   IdentityRefWithVote,
 } from "../../ado/types.js";
 import { detectRepo } from "../../git/detectRepo.js";
 import { resolveRepo, type RepoResolver } from "./repoResolution.js";
+
+const MERGE_STRATEGY_TO_ENUM: Record<string, GitPullRequestMergeStrategy> = {
+  noFastForward: 1,
+  squash: 2,
+  rebase: 3,
+  rebaseMerge: 4,
+};
+
+// PullRequestStatus enum from ADO (Phase 1 readService also has this map).
+const PR_STATUS_FROM_ENUM: Record<number, string> = {
+  0: "notSet",
+  1: "active",
+  2: "abandoned",
+  3: "completed",
+  4: "all",
+};
+
+function ensureRefsHeads(branch: string): string {
+  return branch.startsWith("refs/") ? branch : `refs/heads/${branch}`;
+}
 
 // --- enum mappings (mirrors readService's reverse maps) ---
 
@@ -250,6 +271,134 @@ export class PullRequestsWriteService {
       reviewerId: args.reviewerId,
     });
     return { removed: args.reviewerId };
+  }
+
+  // --- lifecycle (Phase 2.1) ---
+
+  async createPr(args: {
+    project?: string;
+    repository?: string;
+    sourceBranch: string;
+    targetBranch: string;
+    title: string;
+    description?: string;
+    isDraft?: boolean;
+    reviewerIds?: string[];
+  }): Promise<{
+    pullRequestId: number;
+    title?: string;
+    sourceBranch?: string;
+    targetBranch?: string;
+    isDraft?: boolean;
+    url?: string;
+  }> {
+    const { project, repository } = await resolveRepo(args, this.resolver);
+    const created = await this.client.createPullRequest({
+      project,
+      repository,
+      sourceRefName: ensureRefsHeads(args.sourceBranch),
+      targetRefName: ensureRefsHeads(args.targetBranch),
+      title: args.title,
+      description: args.description,
+      isDraft: args.isDraft,
+      reviewerIds: args.reviewerIds,
+    });
+    return {
+      pullRequestId: created.pullRequestId ?? 0,
+      title: created.title,
+      sourceBranch: created.sourceRefName?.replace(/^refs\/heads\//, ""),
+      targetBranch: created.targetRefName?.replace(/^refs\/heads\//, ""),
+      isDraft: created.isDraft,
+      url: created.url,
+    };
+  }
+
+  async completePr(args: {
+    project?: string;
+    repository?: string;
+    pullRequestId: number;
+    mergeStrategy: string;
+    deleteSourceBranch?: boolean;
+    mergeCommitMessage?: string;
+    bypassPolicy?: boolean;
+    bypassReason?: string;
+  }): Promise<{ pullRequestId: number; status: string }> {
+    const { project, repository } = await resolveRepo(args, this.resolver);
+    const strategy = MERGE_STRATEGY_TO_ENUM[args.mergeStrategy];
+    if (!strategy) {
+      throw new Error(`Unknown merge strategy '${args.mergeStrategy}'`);
+    }
+    const completed = await this.client.completePullRequest({
+      project,
+      repository,
+      pullRequestId: args.pullRequestId,
+      mergeStrategy: strategy,
+      deleteSourceBranch: args.deleteSourceBranch,
+      mergeCommitMessage: args.mergeCommitMessage,
+      bypassPolicy: args.bypassPolicy,
+      bypassReason: args.bypassReason,
+    });
+    return {
+      pullRequestId: completed.pullRequestId ?? args.pullRequestId,
+      status: PR_STATUS_FROM_ENUM[completed.status ?? 0] ?? "unknown",
+    };
+  }
+
+  async abandonPr(args: {
+    project?: string;
+    repository?: string;
+    pullRequestId: number;
+  }): Promise<{ pullRequestId: number; status: string }> {
+    const { project, repository } = await resolveRepo(args, this.resolver);
+    const updated = await this.client.abandonPullRequest({
+      project,
+      repository,
+      pullRequestId: args.pullRequestId,
+    });
+    return {
+      pullRequestId: updated.pullRequestId ?? args.pullRequestId,
+      status: PR_STATUS_FROM_ENUM[updated.status ?? 0] ?? "unknown",
+    };
+  }
+
+  async setAutoComplete(args: {
+    project?: string;
+    repository?: string;
+    pullRequestId: number;
+    mergeStrategy: string;
+    deleteSourceBranch?: boolean;
+    mergeCommitMessage?: string;
+  }): Promise<{ pullRequestId: number; autoCompleteSetById?: string }> {
+    const { project, repository } = await resolveRepo(args, this.resolver);
+    const strategy = MERGE_STRATEGY_TO_ENUM[args.mergeStrategy];
+    if (!strategy) {
+      throw new Error(`Unknown merge strategy '${args.mergeStrategy}'`);
+    }
+    // Use the configured PAT's identity as the auto-complete owner — mirrors what
+    // the ADO web UI does when a user clicks "Set auto-complete".
+    const me = await this.client.whoami();
+    if (!me.id) {
+      throw new Error("Cannot set auto-complete — whoami returned no identity id.");
+    }
+    const updated = await this.client.setPullRequestAutoComplete({
+      project,
+      repository,
+      pullRequestId: args.pullRequestId,
+      autoCompleteSetById: me.id,
+      completionOptions: {
+        mergeStrategy: strategy,
+        ...(args.deleteSourceBranch !== undefined
+          ? { deleteSourceBranch: args.deleteSourceBranch }
+          : {}),
+        ...(args.mergeCommitMessage !== undefined
+          ? { mergeCommitMessage: args.mergeCommitMessage }
+          : {}),
+      },
+    });
+    return {
+      pullRequestId: updated.pullRequestId ?? args.pullRequestId,
+      autoCompleteSetById: updated.autoCompleteSetBy?.id,
+    };
   }
 }
 
