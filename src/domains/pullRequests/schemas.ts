@@ -112,3 +112,85 @@ export const RemovePullRequestReviewerInput = {
   ...PullRequestId,
   reviewerId: z.string().min(1).describe("The identity id to remove from reviewers."),
 };
+
+// --- lifecycle (Phase 2.1) ---
+
+const mergeStrategy = z
+  .enum(["noFastForward", "squash", "rebase", "rebaseMerge"])
+  .describe(
+    "Merge strategy. 'noFastForward' = merge commit (default in ADO UI); 'squash' = squash to one commit; " +
+      "'rebase' = rebase source onto target then fast-forward; 'rebaseMerge' = rebase + merge commit (semi-linear).",
+  );
+
+export const CreatePullRequestInput = {
+  project: z.string().min(1).optional().describe(
+    "ADO project name. If omitted, auto-detected from cwd's git remote.",
+  ),
+  repository: z.string().min(1).optional().describe(
+    "ADO repository name. If omitted, auto-detected from cwd's git remote.",
+  ),
+  sourceBranch: z
+    .string()
+    .min(1)
+    .describe("Source branch — short name (e.g. 'feature/x') or full ref ('refs/heads/feature/x')."),
+  targetBranch: z
+    .string()
+    .min(1)
+    .describe("Target branch — short name or full ref. Usually 'main' or a release branch."),
+  title: z.string().min(1).describe("PR title."),
+  description: z
+    .string()
+    .optional()
+    .describe("PR description body (markdown). Optional but recommended."),
+  isDraft: z
+    .boolean()
+    .optional()
+    .describe("Create as a draft PR (default false). Drafts skip required-reviewer auto-assignment."),
+  reviewerIds: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      "Optional initial reviewer identity ids. You can also add reviewers later with " +
+        "`add_pull_request_reviewers`.",
+    ),
+};
+
+export const CompletePullRequestInput = {
+  ...PullRequestId,
+  mergeStrategy,
+  deleteSourceBranch: z
+    .boolean()
+    .optional()
+    .describe("Delete the source branch after merge (default false)."),
+  mergeCommitMessage: z
+    .string()
+    .optional()
+    .describe("Override the merge commit message. If omitted, ADO generates one."),
+  bypassPolicy: z
+    .boolean()
+    .optional()
+    .describe(
+      "Bypass branch policies (requires policy bypass permission). Use sparingly — typically for hotfixes.",
+    ),
+  bypassReason: z
+    .string()
+    .optional()
+    .describe("Reason recorded when bypassing policies. Required by some orgs when bypassPolicy=true."),
+};
+
+export const AbandonPullRequestInput = {
+  ...PullRequestId,
+};
+
+export const SetPullRequestAutoCompleteInput = {
+  ...PullRequestId,
+  mergeStrategy,
+  deleteSourceBranch: z
+    .boolean()
+    .optional()
+    .describe("Delete the source branch after auto-complete merges (default false)."),
+  mergeCommitMessage: z
+    .string()
+    .optional()
+    .describe("Override the merge commit message used when auto-complete fires."),
+};

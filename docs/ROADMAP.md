@@ -134,6 +134,31 @@ Conventions used here:
 
 ---
 
+## ✅ Phase 2.1 — PR lifecycle (create / complete / abandon / auto-complete)
+
+**Status:** shipped 2026-04-26.
+
+**Goal:** the lifecycle tools deferred from Phase 2 — open a PR, merge it, abandon it, set auto-complete.
+
+**Tools shipped:**
+
+| Tool | Notes |
+| --- | --- |
+| `create_pull_request` | new PR; short or full ref names; optional draft + initial reviewers |
+| `complete_pull_request` | merge with strategy (`noFastForward` / `squash` / `rebase` / `rebaseMerge`); optional source-branch deletion + commit message + policy bypass |
+| `abandon_pull_request` | close without merging (reversible) |
+| `set_pull_request_auto_complete` | enable auto-complete; uses configured PAT identity as owner (mirrors ADO web UI) |
+
+**Key decisions made / locked here:**
+- **Branch name normalization.** Schemas accept short names (`feature/x`); the service prepends `refs/heads/` if absent. Less friction than forcing the full ref.
+- **`completePullRequest` self-fetches `lastMergeSourceCommit`** if the caller didn't supply one — saves the LLM a `get_pull_request` round-trip and avoids the failure mode where it forgets the field is required.
+- **Auto-complete owner = whoami identity.** No need to expose an extra arg; the configured PAT is whoever the LLM is acting as.
+- **All four tools register under the existing write-tool gate** — `AZURE_DEVOPS_READ_ONLY=true` suppresses them, same as Phase 2.
+
+Released as v0.4.0.
+
+---
+
 ## ✅ Phase 3 — Releases, pipelines & commits
 
 **Status:** shipped 2026-04-24.

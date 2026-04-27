@@ -16,6 +16,8 @@ export type {
   Comment,
   CommentThreadStatus,
   IdentityRefWithVote,
+  GitPullRequestCompletionOptions,
+  GitPullRequestMergeStrategy,
 } from "azure-devops-node-api/interfaces/GitInterfaces.js";
 
 // Release (classic release pipelines)

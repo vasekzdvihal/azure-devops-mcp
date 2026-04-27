@@ -153,3 +153,110 @@ describe("PullRequestsWriteService.removeReviewer", () => {
     expect(fake.getReviewerRemoves()[0]?.reviewerId).toBe("a");
   });
 });
+
+describe("PullRequestsWriteService.createPr", () => {
+  it("normalizes short branch names to refs/heads/", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setNextCreatedPr({
+      pullRequestId: 123,
+      title: "Add feature",
+      sourceRefName: "refs/heads/feature/x",
+      targetRefName: "refs/heads/main",
+      isDraft: false,
+    });
+    const result = await svc.createPr({
+      sourceBranch: "feature/x",
+      targetBranch: "main",
+      title: "Add feature",
+    });
+    expect(fake.getCreatedPrs()[0]?.pr.sourceRefName).toBe("refs/heads/feature/x");
+    expect(fake.getCreatedPrs()[0]?.pr.targetRefName).toBe("refs/heads/main");
+    expect(result).toMatchObject({
+      pullRequestId: 123,
+      sourceBranch: "feature/x",
+      targetBranch: "main",
+    });
+  });
+
+  it("passes already-prefixed refs through unchanged", async () => {
+    const { svc, fake } = makeSvc();
+    await svc.createPr({
+      sourceBranch: "refs/heads/feature/x",
+      targetBranch: "refs/heads/main",
+      title: "T",
+    });
+    expect(fake.getCreatedPrs()[0]?.pr.sourceRefName).toBe("refs/heads/feature/x");
+    expect(fake.getCreatedPrs()[0]?.pr.targetRefName).toBe("refs/heads/main");
+  });
+
+  it("forwards optional reviewerIds", async () => {
+    const { svc, fake } = makeSvc();
+    await svc.createPr({
+      sourceBranch: "feature/x",
+      targetBranch: "main",
+      title: "T",
+      reviewerIds: ["alice", "bob"],
+    });
+    expect(fake.getCreatedPrs()[0]?.pr.reviewers).toEqual([
+      { id: "alice", vote: 0 },
+      { id: "bob", vote: 0 },
+    ]);
+  });
+});
+
+describe("PullRequestsWriteService.completePr", () => {
+  it("maps merge strategy strings to enum and records the call", async () => {
+    const { svc, fake } = makeSvc();
+    await svc.completePr({
+      pullRequestId: 7,
+      mergeStrategy: "squash",
+      deleteSourceBranch: true,
+    });
+    expect(fake.getCompletedPrs()[0]?.mergeStrategy).toBe(2);
+  });
+
+  it("rejects unknown merge strategies", async () => {
+    const { svc } = makeSvc();
+    await expect(
+      svc.completePr({
+        pullRequestId: 7,
+        mergeStrategy: "fastForwardOnly" as unknown as string,
+      }),
+    ).rejects.toThrow(/Unknown merge strategy/);
+  });
+});
+
+describe("PullRequestsWriteService.abandonPr", () => {
+  it("records the abandon call and returns abandoned status", async () => {
+    const { svc, fake } = makeSvc();
+    const result = await svc.abandonPr({ pullRequestId: 7 });
+    expect(fake.getAbandonedPrs()).toHaveLength(1);
+    expect(result.status).toBe("abandoned");
+  });
+});
+
+describe("PullRequestsWriteService.setAutoComplete", () => {
+  it("uses whoami identity as the auto-complete owner", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setWhoamiResult({ id: "me-id-123", providerDisplayName: "Me" });
+    await svc.setAutoComplete({
+      pullRequestId: 7,
+      mergeStrategy: "noFastForward",
+      deleteSourceBranch: true,
+    });
+    const set = fake.getAutoCompleteSets()[0];
+    expect(set?.setById).toBe("me-id-123");
+    expect(set?.options.mergeStrategy).toBe(1);
+    expect(set?.options.deleteSourceBranch).toBe(true);
+  });
+
+  it("rejects unknown merge strategies before hitting whoami", async () => {
+    const { svc } = makeSvc();
+    await expect(
+      svc.setAutoComplete({
+        pullRequestId: 7,
+        mergeStrategy: "fastForwardOnly" as unknown as string,
+      }),
+    ).rejects.toThrow(/Unknown merge strategy/);
+  });
+});

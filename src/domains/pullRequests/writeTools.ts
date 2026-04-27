@@ -9,6 +9,10 @@ import {
   SetPullRequestDraftStateInput,
   AddPullRequestReviewersInput,
   RemovePullRequestReviewerInput,
+  CreatePullRequestInput,
+  CompletePullRequestInput,
+  AbandonPullRequestInput,
+  SetPullRequestAutoCompleteInput,
 } from "./schemas.js";
 
 export function buildPullRequestWriteTools(svc: PullRequestsWriteService): ToolDefinition[] {
@@ -107,6 +111,57 @@ export function buildPullRequestWriteTools(svc: PullRequestsWriteService): ToolD
       },
       handler: async (args) =>
         svc.removeReviewer(args as Parameters<typeof svc.removeReviewer>[0]),
+    },
+    {
+      name: "create_pull_request",
+      config: {
+        title: "Create a new pull request",
+        description:
+          "Opens a new PR from `sourceBranch` into `targetBranch`. Branch names accept short form " +
+          "('feature/x') or full ref ('refs/heads/feature/x'). Title required, description recommended " +
+          "(markdown). Optional `isDraft` and initial `reviewerIds`. Always confirm the source/target " +
+          "and title with the user before calling — opening a PR is visible to the team.",
+        inputSchema: CreatePullRequestInput,
+      },
+      handler: async (args) => svc.createPr(args as Parameters<typeof svc.createPr>[0]),
+    },
+    {
+      name: "complete_pull_request",
+      config: {
+        title: "Complete (merge) a pull request",
+        description:
+          "Merges a pull request using the chosen `mergeStrategy` ('noFastForward' / 'squash' / " +
+          "'rebase' / 'rebaseMerge'). Optionally deletes the source branch and overrides the merge " +
+          "commit message. Use `bypassPolicy: true` only when explicitly authorized to skip required " +
+          "branch policies. Always confirm with the user before calling — merging is irreversible.",
+        inputSchema: CompletePullRequestInput,
+      },
+      handler: async (args) => svc.completePr(args as Parameters<typeof svc.completePr>[0]),
+    },
+    {
+      name: "abandon_pull_request",
+      config: {
+        title: "Abandon a pull request",
+        description:
+          "Closes a pull request without merging. Reversible — the PR can be reactivated by ADO " +
+          "users with permission. Use for stale PRs or ones superseded by another. Always confirm " +
+          "with the user before calling.",
+        inputSchema: AbandonPullRequestInput,
+      },
+      handler: async (args) => svc.abandonPr(args as Parameters<typeof svc.abandonPr>[0]),
+    },
+    {
+      name: "set_pull_request_auto_complete",
+      config: {
+        title: "Enable auto-complete on a pull request",
+        description:
+          "Sets the PR to auto-merge once required policies pass (CI green, required reviewers " +
+          "approve). Uses the configured PAT identity as the auto-complete owner — same as clicking " +
+          "'Set auto-complete' in the ADO web UI. Always confirm with the user before calling.",
+        inputSchema: SetPullRequestAutoCompleteInput,
+      },
+      handler: async (args) =>
+        svc.setAutoComplete(args as Parameters<typeof svc.setAutoComplete>[0]),
     },
   ];
 }

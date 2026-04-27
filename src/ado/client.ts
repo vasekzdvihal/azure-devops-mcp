@@ -10,6 +10,8 @@ import type {
   Comment,
   CommentThreadStatus,
   IdentityRefWithVote,
+  GitPullRequestCompletionOptions,
+  GitPullRequestMergeStrategy,
   Release,
   ReleaseDefinition,
   Deployment,
@@ -149,6 +151,48 @@ export interface AdoClient {
     pullRequestId: number;
     reviewerId: string;
   }): Promise<void>;
+
+  // pull request lifecycle (Phase 2.1)
+  createPullRequest(args: {
+    project: string;
+    repository: string;
+    sourceRefName: string; // "refs/heads/<branch>"
+    targetRefName: string;
+    title: string;
+    description?: string;
+    isDraft?: boolean;
+    reviewerIds?: string[];
+  }): Promise<GitPullRequest>;
+
+  completePullRequest(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    mergeStrategy: GitPullRequestMergeStrategy;
+    deleteSourceBranch?: boolean;
+    mergeCommitMessage?: string;
+    bypassPolicy?: boolean;
+    bypassReason?: string;
+    /**
+     * The merge source commit SHA (required by ADO to confirm caller saw current state).
+     * The service fetches this if the caller didn't pass it explicitly.
+     */
+    lastMergeSourceCommitId?: string;
+  }): Promise<GitPullRequest>;
+
+  abandonPullRequest(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+  }): Promise<GitPullRequest>;
+
+  setPullRequestAutoComplete(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    autoCompleteSetById: string; // identity id whose name shows on the auto-complete badge
+    completionOptions: GitPullRequestCompletionOptions;
+  }): Promise<GitPullRequest>;
 
   // releases (classic Release pipelines)
   listReleaseDefinitions(args: { project: string }): Promise<ReleaseDefinition[]>;

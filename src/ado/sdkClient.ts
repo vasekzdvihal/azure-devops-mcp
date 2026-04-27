@@ -14,6 +14,8 @@ import type {
   Comment,
   CommentThreadStatus,
   IdentityRefWithVote,
+  GitPullRequestCompletionOptions,
+  GitPullRequestMergeStrategy,
   Release,
   ReleaseDefinition,
   Deployment,
@@ -400,6 +402,140 @@ export class SdkAdoClient implements AdoClient {
         args.reviewerId,
         args.project,
       );
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async createPullRequest(args: {
+    project: string;
+    repository: string;
+    sourceRefName: string;
+    targetRefName: string;
+    title: string;
+    description?: string;
+    isDraft?: boolean;
+    reviewerIds?: string[];
+  }): Promise<GitPullRequest> {
+    try {
+      const git = await this.api.getGitApi();
+      const pr: GitPullRequest = {
+        sourceRefName: args.sourceRefName,
+        targetRefName: args.targetRefName,
+        title: args.title,
+        ...(args.description !== undefined ? { description: args.description } : {}),
+        ...(args.isDraft !== undefined ? { isDraft: args.isDraft } : {}),
+        ...(args.reviewerIds && args.reviewerIds.length > 0
+          ? { reviewers: args.reviewerIds.map((id) => ({ id, vote: 0 })) }
+          : {}),
+      };
+      const created = await git.createPullRequest(pr, args.repository, args.project);
+      return created;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async completePullRequest(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    mergeStrategy: GitPullRequestMergeStrategy;
+    deleteSourceBranch?: boolean;
+    mergeCommitMessage?: string;
+    bypassPolicy?: boolean;
+    bypassReason?: string;
+    lastMergeSourceCommitId?: string;
+  }): Promise<GitPullRequest> {
+    try {
+      const git = await this.api.getGitApi();
+      // ADO requires lastMergeSourceCommit to confirm the caller saw current state.
+      // Fetch it if the caller didn't supply one — saves the LLM a get_pull_request hop.
+      let sourceSha = args.lastMergeSourceCommitId;
+      if (!sourceSha) {
+        const current = await git.getPullRequest(
+          args.repository,
+          args.pullRequestId,
+          args.project,
+        );
+        sourceSha = current.lastMergeSourceCommit?.commitId;
+        if (!sourceSha) {
+          throw new AdoUnknownError(
+            `PR ${args.pullRequestId} has no lastMergeSourceCommit yet — merge processing may still be queued.`,
+          );
+        }
+      }
+      const update: GitPullRequest = {
+        status: 3, // Completed
+        lastMergeSourceCommit: { commitId: sourceSha },
+        completionOptions: {
+          mergeStrategy: args.mergeStrategy,
+          ...(args.deleteSourceBranch !== undefined
+            ? { deleteSourceBranch: args.deleteSourceBranch }
+            : {}),
+          ...(args.mergeCommitMessage !== undefined
+            ? { mergeCommitMessage: args.mergeCommitMessage }
+            : {}),
+          ...(args.bypassPolicy !== undefined ? { bypassPolicy: args.bypassPolicy } : {}),
+          ...(args.bypassReason !== undefined ? { bypassReason: args.bypassReason } : {}),
+        },
+      };
+      const completed = await git.updatePullRequest(
+        update,
+        args.repository,
+        args.pullRequestId,
+        args.project,
+      );
+      return completed;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async abandonPullRequest(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+  }): Promise<GitPullRequest> {
+    try {
+      const git = await this.api.getGitApi();
+      const update: GitPullRequest = { status: 2 /* Abandoned */ };
+      const updated = await git.updatePullRequest(
+        update,
+        args.repository,
+        args.pullRequestId,
+        args.project,
+      );
+      return updated;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async setPullRequestAutoComplete(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    autoCompleteSetById: string;
+    completionOptions: GitPullRequestCompletionOptions;
+  }): Promise<GitPullRequest> {
+    try {
+      const git = await this.api.getGitApi();
+      const update: GitPullRequest = {
+        autoCompleteSetBy: { id: args.autoCompleteSetById },
+        completionOptions: args.completionOptions,
+      };
+      const updated = await git.updatePullRequest(
+        update,
+        args.repository,
+        args.pullRequestId,
+        args.project,
+      );
+      return updated;
     } catch (err) {
       if (err instanceof AdoError) throw err;
       throw mapSdkError(err);

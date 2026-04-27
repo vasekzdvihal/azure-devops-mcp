@@ -99,6 +99,10 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `set_pull_request_draft_state` | Mark draft or publish (`isDraft: true/false`). |
 | `add_pull_request_reviewers` | Add one or more identities as reviewers. |
 | `remove_pull_request_reviewer` | Remove one identity from the reviewer list. |
+| `create_pull_request` | Open a new PR. Source/target branch (short or full ref), title, optional description / draft / reviewers. |
+| `complete_pull_request` | Merge a PR. Choose strategy: `noFastForward` / `squash` / `rebase` / `rebaseMerge`. |
+| `abandon_pull_request` | Close a PR without merging (reversible). |
+| `set_pull_request_auto_complete` | Enable auto-complete — merge once required policies pass. Uses configured PAT identity as owner. |
 
 ## Troubleshooting
 
