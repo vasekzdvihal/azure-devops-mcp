@@ -3,6 +3,7 @@ import type { ToolDefinition } from "../identity/tools.js";
 import {
   ListPipelinesInput,
   ListPipelineRunsInput,
+  PipelineDefinitionId,
   PipelineRunId,
 } from "./schemas.js";
 
@@ -29,6 +30,21 @@ export function buildPipelinesReadTools(svc: PipelinesReadService): ToolDefiniti
         inputSchema: ListPipelineRunsInput,
       },
       handler: async (args) => svc.listRuns(args as Parameters<typeof svc.listRuns>[0]),
+    },
+    {
+      name: "get_pipeline_definition",
+      config: {
+        title: "Get a pipeline definition (YAML or classic)",
+        description:
+          "Returns one pipeline definition's detail: type (yaml/classic), repository, " +
+          "default branch, YAML file path (yaml only), variables (with secret flags — secret " +
+          "values are never returned), variable group ids, and triggers (CI/PR/schedule with " +
+          "branch and path filters). For YAML pipelines, fetch the file at `yamlFilename` from " +
+          "the repository to read the actual stages/jobs.",
+        inputSchema: PipelineDefinitionId,
+      },
+      handler: async (args) =>
+        svc.getDefinition(args as Parameters<typeof svc.getDefinition>[0]),
     },
     {
       name: "get_pipeline_run",

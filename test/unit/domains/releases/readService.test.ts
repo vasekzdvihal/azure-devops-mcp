@@ -38,6 +38,168 @@ describe("ReleasesReadService.listDefinitions", () => {
   });
 });
 
+describe("ReleasesReadService.getDefinition", () => {
+  it("shapes a release definition with environments, approvals, artifacts and variables", async () => {
+    const fake = new FakeAdoClient();
+    const def: ReleaseDefinition = {
+      id: 9,
+      name: "Newton.n2-Deploy",
+      path: "\\Newton",
+      description: "Production release pipeline",
+      releaseNameFormat: "Release-$(rev:r)",
+      createdBy: { displayName: "Alice", id: "a1" },
+      modifiedBy: { displayName: "Mallory", id: "m1" },
+      createdOn: new Date("2026-01-15T08:00:00Z"),
+      modifiedOn: new Date("2026-04-01T14:00:00Z"),
+      variables: {
+        region: { value: "westeurope", allowOverride: true },
+        dbPassword: { isSecret: true, value: "REDACTED" },
+      },
+      variableGroups: [42, 43],
+      artifacts: [
+        {
+          alias: "_Newton.n2-CI",
+          type: "Build",
+          sourceId: "proj-guid:10",
+          definitionReference: {
+            definition: { id: "10", name: "Newton.n2-CI" },
+          },
+        },
+      ],
+      triggers: [
+        { triggerType: 1, artifactAlias: "_Newton.n2-CI" }, // ArtifactSource
+        { triggerType: 2 }, // Schedule
+      ] as unknown as ReleaseDefinition["triggers"],
+      environments: [
+        {
+          id: 100,
+          name: "Dev",
+          rank: 1,
+          queueId: 5,
+          // No approval entries → fully automated stage.
+          preDeployApprovals: { approvals: [] },
+          postDeployApprovals: { approvals: [{ isAutomated: true }] },
+          deployPhases: [
+            {
+              workflowTasks: [
+                { name: "Download artifact", refName: "download", enabled: true },
+                { name: "Run smoke tests", refName: "smoke" },
+              ],
+            },
+          ],
+        } as unknown as ReleaseDefinition["environments"][number],
+        {
+          id: 200,
+          name: "Production",
+          rank: 2,
+          preDeployApprovals: {
+            approvals: [
+              { isAutomated: false, approver: { displayName: "Carol" } },
+              { isAutomated: false, approver: { displayName: "Dan" } },
+            ],
+          },
+          postDeployApprovals: { approvals: [] },
+          deployPhases: [
+            {
+              workflowTasks: [
+                { name: "Deploy", enabled: true },
+                { name: "Notify", enabled: false },
+              ],
+            },
+            { workflowTasks: [{ name: "Smoke" }] },
+          ],
+        } as unknown as ReleaseDefinition["environments"][number],
+      ] as ReleaseDefinition["environments"],
+    };
+    fake.setReleaseDefinition("MyProj", 9, def);
+    const svc = new ReleasesReadService(fake);
+
+    const result = await svc.getDefinition({ project: "MyProj", definitionId: 9 });
+
+    expect(result.id).toBe(9);
+    expect(result.name).toBe("Newton.n2-Deploy");
+    expect(result.modifiedBy).toBe("Mallory");
+    expect(result.releaseNameFormat).toBe("Release-$(rev:r)");
+    expect(result.variables).toEqual([
+      { name: "region", isSecret: false, allowOverride: true, value: "westeurope" },
+      { name: "dbPassword", isSecret: true, allowOverride: false },
+    ]);
+    expect(result.variableGroupIds).toEqual([42, 43]);
+    expect(result.artifacts).toEqual([
+      {
+        alias: "_Newton.n2-CI",
+        type: "Build",
+        sourceId: "proj-guid:10",
+        sourceDefinitionId: "10",
+        sourceDefinitionName: "Newton.n2-CI",
+      },
+    ]);
+    expect(result.triggers).toEqual([
+      { type: "artifactSource", artifactAlias: "_Newton.n2-CI" },
+      { type: "schedule" },
+    ]);
+    expect(result.environments).toEqual([
+      {
+        id: 100,
+        name: "Dev",
+        rank: 1,
+        queueId: 5,
+        preApprovals: { isAutomated: true, approvers: [] },
+        postApprovals: { isAutomated: true, approvers: [] },
+        deployTaskCount: 2,
+      },
+      {
+        id: 200,
+        name: "Production",
+        rank: 2,
+        queueId: undefined,
+        preApprovals: { isAutomated: false, approvers: ["Carol", "Dan"] },
+        postApprovals: { isAutomated: true, approvers: [] },
+        deployTaskCount: 3,
+      },
+    ]);
+  });
+
+  it("includes deploy task names when verbose=true", async () => {
+    const fake = new FakeAdoClient();
+    const def: ReleaseDefinition = {
+      id: 9,
+      name: "Newton.n2-Deploy",
+      environments: [
+        {
+          id: 100,
+          name: "Dev",
+          preDeployApprovals: { approvals: [] },
+          postDeployApprovals: { approvals: [] },
+          deployPhases: [
+            {
+              workflowTasks: [
+                { name: "Deploy", refName: "deploy", enabled: true },
+                { name: "Notify", refName: "notify", enabled: false },
+                { name: "Smoke" }, // missing `enabled` → defaults to true
+              ],
+            },
+          ],
+        } as unknown as ReleaseDefinition["environments"][number],
+      ] as ReleaseDefinition["environments"],
+    };
+    fake.setReleaseDefinition("MyProj", 9, def);
+    const svc = new ReleasesReadService(fake);
+
+    const result = await svc.getDefinition({
+      project: "MyProj",
+      definitionId: 9,
+      verbose: true,
+    });
+
+    expect(result.environments[0]?.deployTasks).toEqual([
+      { displayName: "Deploy", refName: "deploy", enabled: true },
+      { displayName: "Notify", refName: "notify", enabled: false },
+      { displayName: "Smoke", refName: undefined, enabled: true },
+    ]);
+  });
+});
+
 describe("ReleasesReadService.list", () => {
   it("maps enum status to ADO enum on the way in and string on the way out", async () => {
     const fake = new FakeAdoClient();

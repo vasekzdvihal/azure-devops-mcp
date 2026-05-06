@@ -24,6 +24,25 @@ export const ReleaseId = {
   releaseId: z.number().int().positive().describe("The release id (integer)."),
 };
 
+export const ReleaseDefinitionId = {
+  project: z.string().min(1).describe("ADO project name."),
+  definitionId: z
+    .number()
+    .int()
+    .positive()
+    .describe(
+      "The release-definition id (integer). Use `list_release_definitions` to discover ids.",
+    ),
+  verbose: z
+    .boolean()
+    .optional()
+    .describe(
+      "When true, includes the full task list (display name + ref name + enabled flag) for " +
+        "each environment's deploy phases. When false (default), only the per-stage task count " +
+        "is returned, which keeps the payload small for definitions with dozens of tasks.",
+    ),
+};
+
 export const ListDeploymentsInput = {
   project: z.string().min(1).describe("ADO project name."),
   definitionId: z

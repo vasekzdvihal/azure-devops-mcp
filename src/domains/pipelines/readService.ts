@@ -7,6 +7,20 @@ import type {
   TimelineRecord,
 } from "../../ado/types.js";
 
+// DefinitionTriggerType: 1=none, 2=CI, 4=batchedCI, 8=schedule, 16=gatedCheckIn,
+// 32=batchedGatedCheckIn, 64=pullRequest, 128=buildCompletion. The SDK exposes
+// these as numeric constants — we surface readable strings for the LLM.
+const TRIGGER_TYPE_FROM_ENUM: Record<number, string> = {
+  1: "none",
+  2: "continuousIntegration",
+  4: "batchedContinuousIntegration",
+  8: "schedule",
+  16: "gatedCheckIn",
+  32: "batchedGatedCheckIn",
+  64: "pullRequest",
+  128: "buildCompletion",
+};
+
 const BUILD_STATUS_TO_ENUM: Record<string, BuildStatus> = {
   inProgress: 1,
   completed: 2,
@@ -81,6 +95,34 @@ export interface PipelineRunSummary {
   finishTime?: string;
 }
 
+export interface PipelineVariableInfo {
+  name: string;
+  isSecret: boolean;
+  allowOverride: boolean;
+  /** Omitted entirely (undefined) when `isSecret` — ADO returns no value for secrets. */
+  value?: string;
+}
+
+export interface PipelineTriggerInfo {
+  type: string;
+  branchFilters?: string[];
+  pathFilters?: string[];
+  /** Number of schedules attached when `type === "schedule"`. */
+  scheduleCount?: number;
+}
+
+export interface PipelineDefinitionDetail extends PipelineSummary {
+  description?: string;
+  /** YAML pipelines only — the path to the YAML file inside the repository. */
+  yamlFilename?: string;
+  queue?: { id?: number; name?: string };
+  variables: PipelineVariableInfo[];
+  variableGroupIds: number[];
+  triggers: PipelineTriggerInfo[];
+  repositoryName?: string;
+  repositoryType?: string;
+}
+
 export interface PipelineRunDetail extends PipelineRunSummary {
   stages: Array<{
     name: string;
@@ -121,6 +163,17 @@ export class PipelinesReadService {
       top: args.top,
     });
     return runs.map(shapeRun);
+  }
+
+  async getDefinition(args: {
+    project: string;
+    definitionId: number;
+  }): Promise<PipelineDefinitionDetail> {
+    const def = await this.client.getPipelineDefinition({
+      project: args.project,
+      definitionId: args.definitionId,
+    });
+    return shapeDefinition(def);
   }
 
   async get(args: { project: string; runId: number }): Promise<PipelineRunDetail> {
@@ -171,6 +224,60 @@ function shapeRun(b: Build): PipelineRunSummary {
     queueTime: b.queueTime?.toISOString(),
     startTime: b.startTime?.toISOString(),
     finishTime: b.finishTime?.toISOString(),
+  };
+}
+
+function shapeDefinition(d: BuildDefinition): PipelineDefinitionDetail {
+  const summary = shapePipeline(d);
+  // The YAML pipeline's source file lives on `process.yamlFilename`. The SDK
+  // types it as `BuildProcess` (just `{ type }`), so we narrow at the seam.
+  const proc = d.process as { type?: number; yamlFilename?: string } | undefined;
+  const yamlFilename = proc?.type === 2 ? proc.yamlFilename : undefined;
+
+  const variables: PipelineVariableInfo[] = Object.entries(d.variables ?? {}).map(
+    ([name, v]) => ({
+      name,
+      isSecret: !!v?.isSecret,
+      allowOverride: !!v?.allowOverride,
+      // Secrets never include a value on the wire — drop the key rather than
+      // surfacing `undefined` so consumers don't think they got "the value of
+      // the secret was cleared".
+      ...(v?.isSecret ? {} : { value: v?.value }),
+    }),
+  );
+
+  const variableGroupIds: number[] = (d.variableGroups ?? [])
+    .map((g) => (g as { id?: number }).id)
+    .filter((id): id is number => typeof id === "number");
+
+  const triggers: PipelineTriggerInfo[] = (d.triggers ?? []).map((t) => {
+    const type = TRIGGER_TYPE_FROM_ENUM[t.triggerType ?? 0] ?? "unknown";
+    // Each trigger subtype carries different fields; widen for narrowing.
+    const ext = t as {
+      branchFilters?: string[];
+      pathFilters?: string[];
+      schedules?: unknown[];
+    };
+    return {
+      type,
+      ...(ext.branchFilters ? { branchFilters: ext.branchFilters } : {}),
+      ...(ext.pathFilters ? { pathFilters: ext.pathFilters } : {}),
+      ...(type === "schedule" && Array.isArray(ext.schedules)
+        ? { scheduleCount: ext.schedules.length }
+        : {}),
+    };
+  });
+
+  return {
+    ...summary,
+    description: d.description,
+    ...(yamlFilename ? { yamlFilename } : {}),
+    ...(d.queue ? { queue: { id: d.queue.id, name: d.queue.name } } : {}),
+    variables,
+    variableGroupIds,
+    triggers,
+    repositoryName: d.repository?.name,
+    repositoryType: d.repository?.type,
   };
 }
 

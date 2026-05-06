@@ -104,6 +104,106 @@ describe("PipelinesReadService.listRuns", () => {
   });
 });
 
+describe("PipelinesReadService.getDefinition", () => {
+  it("shapes a YAML pipeline with yamlFilename, variables, variableGroups and triggers", async () => {
+    const fake = new FakeAdoClient();
+    const def: BuildDefinition = {
+      id: 10,
+      name: "Newton.n2-CI",
+      path: "\\Newton",
+      type: 2,
+      description: "CI pipeline for Newton",
+      process: {
+        type: 2,
+        yamlFilename: "azure-pipelines.yml",
+      } as unknown as BuildDefinition["process"],
+      repository: {
+        id: "repo-guid-1",
+        name: "Newton",
+        type: "TfsGit",
+        defaultBranch: "refs/heads/main",
+      },
+      queue: { id: 7, name: "Default-Linux" },
+      variables: {
+        environment: { value: "staging", allowOverride: true },
+        apiKey: { isSecret: true, value: "REDACTED" },
+      },
+      variableGroups: [
+        { id: 42, name: "shared-secrets" },
+      ] as unknown as BuildDefinition["variableGroups"],
+      triggers: [
+        {
+          triggerType: 2, // continuousIntegration
+          branchFilters: ["+refs/heads/main"],
+          pathFilters: ["-/docs"],
+        },
+        {
+          triggerType: 64, // pullRequest
+          branchFilters: ["+refs/heads/main"],
+        },
+        {
+          triggerType: 8, // schedule
+          schedules: [{ daysToBuild: 1, startHours: 4 }],
+        },
+      ] as unknown as BuildDefinition["triggers"],
+    };
+    fake.setPipelineDefinition("MyProj", 10, def);
+    const svc = new PipelinesReadService(fake);
+
+    const result = await svc.getDefinition({ project: "MyProj", definitionId: 10 });
+
+    expect(result).toEqual({
+      id: 10,
+      name: "Newton.n2-CI",
+      path: "\\Newton",
+      type: "yaml",
+      repositoryId: "repo-guid-1",
+      defaultBranch: "refs/heads/main",
+      description: "CI pipeline for Newton",
+      yamlFilename: "azure-pipelines.yml",
+      queue: { id: 7, name: "Default-Linux" },
+      variables: [
+        { name: "environment", isSecret: false, allowOverride: true, value: "staging" },
+        // secret value must NOT appear on the wire shape
+        { name: "apiKey", isSecret: true, allowOverride: false },
+      ],
+      variableGroupIds: [42],
+      triggers: [
+        {
+          type: "continuousIntegration",
+          branchFilters: ["+refs/heads/main"],
+          pathFilters: ["-/docs"],
+        },
+        { type: "pullRequest", branchFilters: ["+refs/heads/main"] },
+        { type: "schedule", scheduleCount: 1 },
+      ],
+      repositoryName: "Newton",
+      repositoryType: "TfsGit",
+    });
+  });
+
+  it("returns a classic pipeline with no yamlFilename", async () => {
+    const fake = new FakeAdoClient();
+    const def: BuildDefinition = {
+      id: 11,
+      name: "Newton.n2-Classic",
+      type: 2,
+      process: { type: 1 /* designer */ } as unknown as BuildDefinition["process"],
+      repository: { id: "repo-guid-1", defaultBranch: "refs/heads/main" },
+    };
+    fake.setPipelineDefinition("MyProj", 11, def);
+    const svc = new PipelinesReadService(fake);
+
+    const result = await svc.getDefinition({ project: "MyProj", definitionId: 11 });
+
+    expect(result.type).toBe("classic");
+    expect(result.yamlFilename).toBeUndefined();
+    expect(result.variables).toEqual([]);
+    expect(result.variableGroupIds).toEqual([]);
+    expect(result.triggers).toEqual([]);
+  });
+});
+
 describe("PipelinesReadService.get", () => {
   it("extracts stage records from the build timeline", async () => {
     const fake = new FakeAdoClient();

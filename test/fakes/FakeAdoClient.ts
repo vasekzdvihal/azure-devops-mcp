@@ -220,6 +220,8 @@ export class FakeAdoClient implements AdoClient {
     string,
     { build: Build; timeline: Timeline | null }
   >(); // `${project} ${runId}`
+  private pipelineDefDetails = new Map<string, BuildDefinition>(); // `${project} ${definitionId}`
+  private releaseDefDetails = new Map<string, ReleaseDefinition>(); // `${project} ${definitionId}`
   private branches = new Map<string, GitBranchStats[]>(); // `${project} ${repo}`
   private commits = new Map<string, GitCommitRef[]>(); // `${project} ${repo}`
 
@@ -248,6 +250,12 @@ export class FakeAdoClient implements AdoClient {
     detail: { build: Build; timeline: Timeline | null },
   ): void {
     this.pipelineRunDetails.set(`${project} ${runId}`, detail);
+  }
+  setPipelineDefinition(project: string, definitionId: number, def: BuildDefinition): void {
+    this.pipelineDefDetails.set(`${project} ${definitionId}`, def);
+  }
+  setReleaseDefinition(project: string, definitionId: number, def: ReleaseDefinition): void {
+    this.releaseDefDetails.set(`${project} ${definitionId}`, def);
   }
   setBranches(project: string, repository: string, branches: GitBranchStats[]): void {
     this.branches.set(`${project} ${repository}`, branches);
@@ -473,6 +481,19 @@ export class FakeAdoClient implements AdoClient {
     return r;
   }
 
+  async getReleaseDefinition(args: {
+    project: string;
+    definitionId: number;
+  }): Promise<ReleaseDefinition> {
+    this.throwIfInjected("getReleaseDefinition");
+    const d = this.releaseDefDetails.get(`${args.project} ${args.definitionId}`);
+    if (!d)
+      throw new Error(
+        `FakeAdoClient.getReleaseDefinition: no definition configured for ${args.project} ${args.definitionId}`,
+      );
+    return d;
+  }
+
   async listDeployments(args: {
     project: string;
     definitionId?: number;
@@ -512,6 +533,19 @@ export class FakeAdoClient implements AdoClient {
     if (!d)
       throw new Error(
         `FakeAdoClient.getPipelineRun: no run configured for ${args.project} ${args.runId}`,
+      );
+    return d;
+  }
+
+  async getPipelineDefinition(args: {
+    project: string;
+    definitionId: number;
+  }): Promise<BuildDefinition> {
+    this.throwIfInjected("getPipelineDefinition");
+    const d = this.pipelineDefDetails.get(`${args.project} ${args.definitionId}`);
+    if (!d)
+      throw new Error(
+        `FakeAdoClient.getPipelineDefinition: no definition configured for ${args.project} ${args.definitionId}`,
       );
     return d;
   }

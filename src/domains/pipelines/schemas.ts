@@ -38,3 +38,14 @@ export const PipelineRunId = {
   project: z.string().min(1).describe("ADO project name."),
   runId: z.number().int().positive().describe("The run id (integer)."),
 };
+
+export const PipelineDefinitionId = {
+  project: z.string().min(1).describe("ADO project name."),
+  definitionId: z
+    .number()
+    .int()
+    .positive()
+    .describe(
+      "The pipeline definition id (integer). Use `list_pipelines` to discover ids.",
+    ),
+};

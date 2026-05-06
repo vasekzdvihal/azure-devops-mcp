@@ -78,10 +78,12 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `list_pull_request_comments` | Returns comment threads on a PR (with line anchors). |
 | `get_pull_request_iterations` | Returns iteration history of a PR (each push = one iteration). |
 | `list_release_definitions` | Lists classic Release pipeline definitions in a project. |
+| `get_release_definition` | Full release-definition detail: variables, variable groups, artifacts, triggers, environments (with approvals + deploy task counts). Pass `verbose: true` for the full task list. |
 | `list_releases` | Lists release runs. Filter by definitionId or status (active/abandoned/draft). |
 | `get_release` | Full release: stages (name, status, who deployed, when) and artifacts (source build + branch). |
 | `list_deployments` | Per-stage flattened view — best for "who last deployed X to production?". |
 | `list_pipelines` | Lists build/pipeline definitions. Covers classic-build and YAML; `type` field distinguishes. |
+| `get_pipeline_definition` | Full pipeline-definition detail: type (yaml/classic), repository, default branch, YAML file path, variables, variable groups, triggers (CI/PR/schedule with branch & path filters). |
 | `list_pipeline_runs` | Lists runs (builds). Filter by pipelineId, branch, status, result. |
 | `get_pipeline_run` | Run detail with stages timeline — how you see if a YAML multi-stage stage succeeded. |
 | `list_branches` | Branches in a repo with last commit id + ahead/behind. Auto-detects repo from cwd. |

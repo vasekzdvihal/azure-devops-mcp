@@ -206,6 +206,11 @@ export interface AdoClient {
 
   getRelease(args: { project: string; releaseId: number }): Promise<Release>;
 
+  getReleaseDefinition(args: {
+    project: string;
+    definitionId: number;
+  }): Promise<ReleaseDefinition>;
+
   listDeployments(args: {
     project: string;
     definitionId?: number;
@@ -232,6 +237,11 @@ export interface AdoClient {
     project: string;
     runId: number;
   }): Promise<{ build: Build; timeline: Timeline | null }>;
+
+  getPipelineDefinition(args: {
+    project: string;
+    definitionId: number;
+  }): Promise<BuildDefinition>;
 
   // commits & branches
   listBranches(args: {

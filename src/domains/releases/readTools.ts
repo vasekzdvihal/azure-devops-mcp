@@ -3,6 +3,7 @@ import type { ToolDefinition } from "../identity/tools.js";
 import {
   ProjectOnly,
   ListReleasesInput,
+  ReleaseDefinitionId,
   ReleaseId,
   ListDeploymentsInput,
 } from "./schemas.js";
@@ -21,6 +22,22 @@ export function buildReleasesReadTools(svc: ReleasesReadService): ToolDefinition
       },
       handler: async (args) =>
         svc.listDefinitions(args as Parameters<typeof svc.listDefinitions>[0]),
+    },
+    {
+      name: "get_release_definition",
+      config: {
+        title: "Get a release definition (classic Release pipeline)",
+        description:
+          "Returns one classic Release pipeline definition: variables (with secret flags — " +
+          "secret values are never returned), variable groups, artifacts, triggers, and " +
+          "environments. Each environment includes pre/post approval setup (automated vs. " +
+          "named approvers) plus per-stage deploy task count. Pass `verbose: true` to also " +
+          "include the full deploy task list per environment — large definitions can produce " +
+          "long payloads, so prefer the default compact view unless you need the task names.",
+        inputSchema: ReleaseDefinitionId,
+      },
+      handler: async (args) =>
+        svc.getDefinition(args as Parameters<typeof svc.getDefinition>[0]),
     },
     {
       name: "list_releases",

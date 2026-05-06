@@ -605,6 +605,22 @@ export class SdkAdoClient implements AdoClient {
     }
   }
 
+  async getReleaseDefinition(args: {
+    project: string;
+    definitionId: number;
+  }): Promise<ReleaseDefinition> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      const def = await rel.getReleaseDefinition(args.project, args.definitionId);
+      if (!def)
+        throw new AdoNotFoundError(`Release definition ${args.definitionId} not found`);
+      return def;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
   async listDeployments(args: {
     project: string;
     definitionId?: number;
@@ -715,6 +731,22 @@ export class SdkAdoClient implements AdoClient {
         timeline = null;
       }
       return { build: b, timeline };
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async getPipelineDefinition(args: {
+    project: string;
+    definitionId: number;
+  }): Promise<BuildDefinition> {
+    try {
+      const build = await this.api.getBuildApi();
+      const def = await build.getDefinition(args.project, args.definitionId);
+      if (!def)
+        throw new AdoNotFoundError(`Pipeline definition ${args.definitionId} not found`);
+      return def;
     } catch (err) {
       if (err instanceof AdoError) throw err;
       throw mapSdkError(err);
