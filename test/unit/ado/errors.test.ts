@@ -123,4 +123,13 @@ describe("mapSdkError — scope hint branch", () => {
     expect(mapped).toBeInstanceOf(AdoScopeError);
     expect((mapped as AdoScopeError).scope).toMatch(/Build/);
   });
+
+  it("403 mentioning 'Release' as an identifier (not a scope hint) does NOT produce AdoScopeError", () => {
+    const err = Object.assign(new Error("The stage 'Release' is not in a deployable state."), {
+      statusCode: 403,
+    });
+    const mapped = mapSdkError(err);
+    expect(mapped).toBeInstanceOf(AdoAuthError);
+    expect(mapped).not.toBeInstanceOf(AdoScopeError);
+  });
 });
