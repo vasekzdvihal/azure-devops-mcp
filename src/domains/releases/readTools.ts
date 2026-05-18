@@ -6,6 +6,7 @@ import {
   ReleaseDefinitionId,
   ReleaseId,
   ListDeploymentsInput,
+  ListPendingApprovalsInput,
 } from "./schemas.js";
 
 export function buildReleasesReadTools(svc: ReleasesReadService): ToolDefinition[] {
@@ -75,6 +76,19 @@ export function buildReleasesReadTools(svc: ReleasesReadService): ToolDefinition
       },
       handler: async (args) =>
         svc.listDeployments(args as Parameters<typeof svc.listDeployments>[0]),
+    },
+    {
+      name: "list_pending_approvals",
+      config: {
+        title: "List pending release approvals",
+        description:
+          "Lists release approvals currently in 'pending' state for the project. Optional " +
+          "`releaseId` narrows to one release; optional `assignedTo` filters by approver identity " +
+          "(display name or descriptor). Use the returned `approvalId` with `approve_release_gate`.",
+        inputSchema: ListPendingApprovalsInput,
+      },
+      handler: async (args) =>
+        svc.listPendingApprovals(args as Parameters<typeof svc.listPendingApprovals>[0]),
     },
   ];
 }
