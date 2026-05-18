@@ -49,3 +49,46 @@ export const PipelineDefinitionId = {
       "The pipeline definition id (integer). Use `list_pipelines` to discover ids.",
     ),
 };
+
+export const QueuePipelineRunInput = z.object({
+  project: z.string().min(1).describe("Project name or id"),
+  pipelineId: z.number().int().positive().describe("Pipeline (build definition) id"),
+  branch: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Source ref to run the pipeline on (e.g. 'refs/heads/main' or 'main'). " +
+        "Omit to use the pipeline's default branch.",
+    ),
+  templateParameters: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe("Template parameters to override (YAML pipelines only)"),
+  variables: z
+    .record(
+      z.string(),
+      z.object({
+        value: z.string(),
+        isSecret: z.boolean().optional(),
+      }),
+    )
+    .optional()
+    .describe("Run-scoped variable overrides"),
+});
+
+export const CancelPipelineRunInput = z.object({
+  project: z.string().min(1),
+  runId: z.number().int().positive().describe("Build/run id"),
+});
+
+export const UpdateBuildTagsInput = z
+  .object({
+    project: z.string().min(1),
+    runId: z.number().int().positive(),
+    addTags: z.array(z.string().min(1)).optional(),
+    removeTags: z.array(z.string().min(1)).optional(),
+  })
+  .refine((v) => (v.addTags?.length ?? 0) + (v.removeTags?.length ?? 0) > 0, {
+    message: "Provide at least one tag in addTags or removeTags",
+  });
