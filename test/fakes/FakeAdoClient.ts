@@ -554,6 +554,21 @@ export class FakeAdoClient implements AdoClient {
     return d;
   }
 
+  private nextBuild?: Build;
+
+  setNextBuild(build: Build): void {
+    this.nextBuild = build;
+  }
+
+  async getBuild(args: { project: string; buildId: number }): Promise<Build> {
+    this.throwIfInjected("getBuild");
+    if (!this.nextBuild)
+      throw new Error(`FakeAdoClient.getBuild: no build configured (setNextBuild not called)`);
+    const b = this.nextBuild;
+    this.nextBuild = undefined;
+    return b;
+  }
+
   async listBranches(args: {
     project: string;
     repository: string;

@@ -247,6 +247,8 @@ export interface AdoClient {
     definitionId: number;
   }): Promise<BuildDefinition>;
 
+  getBuild(args: { project: string; buildId: number }): Promise<Build>;
+
   // commits & branches
   listBranches(args: {
     project: string;

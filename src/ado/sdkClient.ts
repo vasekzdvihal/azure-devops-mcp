@@ -753,6 +753,18 @@ export class SdkAdoClient implements AdoClient {
     }
   }
 
+  async getBuild(args: { project: string; buildId: number }): Promise<Build> {
+    try {
+      const build = await this.api.getBuildApi();
+      const b = await build.getBuild(args.project, args.buildId);
+      if (!b) throw new AdoNotFoundError(`Build ${args.buildId} not found`);
+      return b;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
   // -------- commits & branches --------
 
   async listBranches(args: {
