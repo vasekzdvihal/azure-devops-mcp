@@ -50,7 +50,7 @@ export const PipelineDefinitionId = {
     ),
 };
 
-export const QueuePipelineRunInput = z.object({
+export const QueuePipelineRunInput = {
   project: z.string().min(1).describe("Project name or id"),
   pipelineId: z.number().int().positive().describe("Pipeline (build definition) id"),
   branch: z
@@ -75,20 +75,18 @@ export const QueuePipelineRunInput = z.object({
     )
     .optional()
     .describe("Run-scoped variable overrides"),
-});
+};
 
-export const CancelPipelineRunInput = z.object({
+export const CancelPipelineRunInput = {
   project: z.string().min(1),
   runId: z.number().int().positive().describe("Build/run id"),
-});
+};
 
-export const UpdateBuildTagsInput = z
-  .object({
-    project: z.string().min(1),
-    runId: z.number().int().positive(),
-    addTags: z.array(z.string().min(1)).optional(),
-    removeTags: z.array(z.string().min(1)).optional(),
-  })
-  .refine((v) => (v.addTags?.length ?? 0) + (v.removeTags?.length ?? 0) > 0, {
-    message: "Provide at least one tag in addTags or removeTags",
-  });
+// Cross-field validation ("at least one of addTags/removeTags") lives in
+// PipelinesWriteService.updateTags — a z.refine() on a plain raw shape is not possible.
+export const UpdateBuildTagsInput = {
+  project: z.string().min(1),
+  runId: z.number().int().positive(),
+  addTags: z.array(z.string().min(1)).optional(),
+  removeTags: z.array(z.string().min(1)).optional(),
+};

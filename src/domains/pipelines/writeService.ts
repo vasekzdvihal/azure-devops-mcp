@@ -72,6 +72,9 @@ export class PipelinesWriteService {
     addTags?: string[];
     removeTags?: string[];
   }): Promise<UpdateTagsResult> {
+    if ((args.addTags?.length ?? 0) + (args.removeTags?.length ?? 0) === 0) {
+      throw new Error("updateTags: provide at least one tag in addTags or removeTags");
+    }
     let latest: string[] = [];
     if (args.addTags && args.addTags.length > 0) {
       latest = await this.client.addBuildTags({

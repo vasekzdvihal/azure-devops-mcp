@@ -105,4 +105,14 @@ describe("PipelinesWriteService.updateTags", () => {
     expect(fake.getRemovedTags()).toHaveLength(1);
     expect(result.tags).toEqual(["a"]);
   });
+
+  it("throws when both tag arrays are empty/missing", async () => {
+    const { svc } = makeSvc();
+    await expect(svc.updateTags({ project: "p", runId: 1 })).rejects.toThrow(
+      /at least one tag/,
+    );
+    await expect(
+      svc.updateTags({ project: "p", runId: 1, addTags: [], removeTags: [] }),
+    ).rejects.toThrow(/at least one tag/);
+  });
 });
