@@ -83,28 +83,26 @@ Conventions used here:
 
 ---
 
-## 🟡 Phase 2.2 — PR comments, votes & edits
+## ✅ Phase 2.2 — PR comments, votes & edits
 
-**Status:** planned. Remaining PR-write surface after Phase 2.1 shipped the lifecycle subset (create / complete / abandon / auto-complete).
+**Status:** shipped (commit `091ef83`, released alongside v0.4.0 / v0.5.0).
 
-**Goal:** let the LLM participate in PR review, not just open/close PRs. Post comments, reply in threads, resolve threads, vote, edit PR metadata.
+**Goal:** let the LLM participate in PR review — post comments, reply in threads, resolve threads, vote, edit PR metadata, manage reviewers.
 
-**Why this matters:** "address feedback and post my reply" and "approve this PR" are the natural follow-ups to "review the PR". Phase 2.1 covered the lifecycle endpoints; this phase covers the conversation surface.
-
-**Tools in scope:**
+**Tools shipped:**
 
 | Tool | Effect |
 | --- | --- |
-| `update_pull_request` | edit title/description, change target, add/remove reviewers |
-| `add_pull_request_comment` | add comment to a thread or start a new line-anchored thread |
-| `reply_to_comment_thread` | append a reply within an existing thread |
-| `update_comment_thread_status` | resolve / mark wontFix / reactivate a thread |
-| `vote_on_pull_request` | approve / approve-with-suggestions / wait / reject |
+| `add_pull_request_comment` | add a new comment thread (optionally line-anchored to a file/line) |
+| `reply_to_pull_request_thread` | append a reply to an existing thread |
+| `update_pull_request_thread_status` | resolve / mark wontFix / reactivate a thread |
+| `vote_on_pull_request` | approve / approveWithSuggestions / wait / reject / reset |
+| `update_pull_request` | edit title and/or description |
 | `set_pull_request_draft_state` | mark draft / publish |
+| `add_pull_request_reviewers` | add one or more reviewers |
+| `remove_pull_request_reviewer` | remove a reviewer |
 
-**Cross-cutting:** reuse the Phase 2.1 patterns — confirmation messages in tool descriptions for the high-blast-radius tools (`vote_on_pull_request`, `update_comment_thread_status`), `AZURE_DEVOPS_READ_ONLY` gate, `AdoConflictError` mapping for 409s on already-resolved threads / already-completed PRs.
-
-**PAT scopes:** **Code (read & write)** + **Pull Request (read & write)** — already requested as part of Phase 2.1 setup, so no new scope ask.
+**Cross-cutting:** all tools registered behind the existing `AZURE_DEVOPS_READ_ONLY` gate; `vote_on_pull_request` includes the "always confirm before calling" line in its description; 409s on already-resolved threads or already-completed PRs surface as the existing `AdoConflictError`. PAT scopes already requested as part of Phase 2.1 setup, so no new scope ask.
 
 ---
 
@@ -185,6 +183,40 @@ Released as v0.4.0.
 - **Verbose opt-in for deploy tasks.** Release-definition responses default to environment names + approvals + variables only; the full task graph is heavy and noisy. `verbose: true` returns the deploy phases + tasks for callers that need them.
 
 **Plan:** extension to Phase 3; no separate plan doc.
+
+---
+
+## ✅ Phase 4.1 — Pipeline & release run actions
+
+**Status:** shipped 2026-05-18.
+
+**Goal:** let the LLM act on pipeline and release runs — start a build, cancel one, tag it, create / deploy / approve / cancel a release.
+
+**Tools shipped:**
+
+| Tool | Notes |
+| --- | --- |
+| `queue_pipeline_run` | starts a new build via `PipelinesApi.runPipeline` (template params + variables) |
+| `cancel_pipeline_run` | sets build status to cancelling; 409 on already-completed |
+| `update_build_tags` | add and/or remove tags on a build |
+| `create_release` | creates a release; artifacts shape `{ alias, instanceReference: { id, name } }` resolved via `getBuild` |
+| `deploy_release_stage` | resolves env name → id, sets stage status to inProgress |
+| `approve_release_gate` | approve / reject by approvalId |
+| `cancel_release` | abandons a release |
+| `list_pending_approvals` (read) | companion query for `approve_release_gate` |
+
+**Key decisions made / locked here:**
+- **All native SDK.** Every tool maps to a typed method on `azure-devops-node-api` (`BuildApi`, `PipelinesApi`, `ReleaseApi`) — no raw HTTP introduced.
+- **`retry_pipeline_stage` deferred** to Phase 4.2 because the Pipelines REST stage-retry endpoint isn't wrapped by the SDK; YAML re-run via `queue_pipeline_run` is the workaround.
+- **`AdoScopeError`** maps 401/403 with scope hints (body text) to a specific message naming the missing PAT scope. Generic 401/403 still surfaces as `AdoAuthError`. Heuristic anchored on unambiguous patterns (`vso.build_execute`, `vso.release_execute`, `"requires the 'build'…"`) to avoid false positives on identifier names.
+- **Setup wizard scope list updated;** no live probing — runtime errors catch drift.
+- **Confirmation pattern:** `deploy_release_stage` and `approve_release_gate` include "always confirm before calling" in their tool description, matching the Phase 2.x precedent (`vote_on_pull_request`, `complete_pull_request`).
+- **No idempotency wrappers.** Cancelling an already-completed run / abandoned release / etc. propagates as `AdoConflictError` — the caller decides whether to ignore.
+- **SDK enum values verified at implementation time.** The plan's draft values for `ApprovalStatus` (Reassigned/Canceled/Skipped) were wrong; correct SDK values used in both the service reverse-mapping tables and the SdkAdoClient forward mapping.
+
+**Plan:** `docs/superpowers/plans/2026-05-18-azure-devops-mcp-phase-4-1.md`. Spec: `docs/superpowers/specs/2026-05-18-azure-devops-mcp-phase-4-1-design.md`.
+
+**Deferred to Phase 4.2:** `retry_pipeline_stage` (needs raw HTTP) and all definition-edit tools (`update_pipeline_variables`, `update_pipeline_triggers`, `update_release_variables`, `update_release_environment_variables`).
 
 ---
 
