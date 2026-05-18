@@ -58,27 +58,9 @@ Conventions used here:
 - **Diff design — two-tool split.** `list_pull_request_changes` returns metadata (cheap, always); `get_pull_request_diff` returns unified diff for ONE file at a time. LLM controls token spend, mirrors GitHub MCP. Diff synthesized client-side from base + target file content via the `diff` library.
 - **Cwd auto-detect.** `git/parseRemoteUrl` + `git/detectRepo` resolve `{project, repository}` from the cwd's `.git/config remote.origin.url`. Handles ADO Server + Services, HTTPS + SSH; deny-list against false positives on github/gitlab. Explicit args win when both provided.
 - **Read-only mode plumbing wired through.** `index.ts` reads `AZURE_DEVOPS_READ_ONLY`; `registerAllTools(server, client, { readOnly })` accepts it. No-op in Phase 1 (all reads), gates write tools in Phase 2.
-- **No contract tests yet.** Defer to a Phase 1.5; unit tests with `FakeAdoClient` cover all domain logic (66 tests).
+- **No contract tests.** Unit tests with `FakeAdoClient` are the primary safety net (66 tests).
 
 **Plan:** `docs/superpowers/plans/2026-04-22-azure-devops-mcp-phase-1.md`.
-
----
-
-## 🟡 Phase 1.5 — Contract tests
-
-**Status:** planned. ~half a day of work; nothing in the user-facing surface changes.
-
-**Goal:** record real HTTP responses from a live ADO once, replay them in CI to verify the SDK wrapper still behaves correctly when we upgrade `azure-devops-node-api` (or refactor `SdkAdoClient`).
-
-**Why we don't have it yet:** Phase 1 unit tests use `FakeAdoClient` for fast, deterministic coverage of business logic. That's the right primary safety net. Contract tests are a *secondary* layer that catches "the SDK started returning a different shape" — important before publish, less important during early development.
-
-**Sketch:**
-- `vitest` + `@pollyjs/core` (or hand-rolled HTTP recorder) intercepts `https` calls.
-- One recording per `SdkAdoClient` method against a real ADO (your local instance).
-- Recordings live in `test/contract/fixtures/` — committed, no secrets (PAT replaced with `${PAT}` placeholder on save).
-- CI replays the recordings — no live ADO needed in CI.
-
-**Trigger to actually do this:** before the first npm publish, OR when we upgrade `azure-devops-node-api` to a new major version, OR when a real PR-shape change in ADO breaks us in production.
 
 ---
 
@@ -101,36 +83,28 @@ Conventions used here:
 
 ---
 
-## 🟡 Phase 2 — Write operations
+## 🟡 Phase 2.2 — PR comments, votes & edits
 
-**Status:** planned. Larger phase — comparable to Phase 1.
+**Status:** planned. Remaining PR-write surface after Phase 2.1 shipped the lifecycle subset (create / complete / abandon / auto-complete).
 
-**Goal:** let the LLM act on PRs, not just read them. Create new PRs, comment, vote, complete/abandon.
+**Goal:** let the LLM participate in PR review, not just open/close PRs. Post comments, reply in threads, resolve threads, vote, edit PR metadata.
 
-**Why this matters:** "review the PR" is one workflow; "address feedback and post my reply" is the natural follow-up. Without writes, the LLM is read-only — useful for analysis but not for action.
+**Why this matters:** "address feedback and post my reply" and "approve this PR" are the natural follow-ups to "review the PR". Phase 2.1 covered the lifecycle endpoints; this phase covers the conversation surface.
 
-**Why this is its own phase, not bundled with Phase 1:** writes fundamentally change the risk surface. Phase 1's tool calls are safe (idempotent reads). Phase 2 tools can change ADO state — wrong tool call, wrong PR id, wrong comment text → real consequences. Want a separate brainstorming pass for confirmation patterns, the read-only mode gate, and PAT scope changes.
-
-**Tools likely in scope:**
+**Tools in scope:**
 
 | Tool | Effect |
 | --- | --- |
-| `create_pull_request` | new PR (source branch, target branch, title, description, optional reviewers) |
 | `update_pull_request` | edit title/description, change target, add/remove reviewers |
 | `add_pull_request_comment` | add comment to a thread or start a new line-anchored thread |
 | `reply_to_comment_thread` | append a reply within an existing thread |
 | `update_comment_thread_status` | resolve / mark wontFix / reactivate a thread |
 | `vote_on_pull_request` | approve / approve-with-suggestions / wait / reject |
-| `complete_pull_request` | merge (with chosen merge strategy: squash/rebase/merge) |
-| `abandon_pull_request` | close without merging |
 | `set_pull_request_draft_state` | mark draft / publish |
 
-**Key design questions to resolve in Phase 2 brainstorming:**
-- **Confirmation pattern.** Should write tools require an explicit `confirm: true` param as a belt-and-suspenders? (Most MCP servers don't — they trust the LLM to ask the user first. But high-blast-radius tools like `complete_pull_request` are different.)
-- **Read-only mode behavior.** With `AZURE_DEVOPS_READ_ONLY=true`, write tools simply aren't registered (already plumbed through Phase 1's `registerAllTools`). Confirm that pattern over alternatives like "registered but always 403".
-- **PAT scopes.** New scopes needed: **Code (read & write)** for PR mutations, **Pull Request (read & write)** for comments/votes. Setup wizard should re-test scope at upgrade time and surface a specific error rather than the generic auth failure.
-- **Naming convention for confirmation prompts in tool descriptions.** Each write tool's description should explicitly tell the LLM "always confirm with the user before calling this".
-- **Error mapping.** Add `AdoConflictError` (409 → PR already merged/abandoned, comment thread closed, etc.) with a clear message.
+**Cross-cutting:** reuse the Phase 2.1 patterns — confirmation messages in tool descriptions for the high-blast-radius tools (`vote_on_pull_request`, `update_comment_thread_status`), `AZURE_DEVOPS_READ_ONLY` gate, `AdoConflictError` mapping for 409s on already-resolved threads / already-completed PRs.
+
+**PAT scopes:** **Code (read & write)** + **Pull Request (read & write)** — already requested as part of Phase 2.1 setup, so no new scope ask.
 
 ---
 
@@ -189,6 +163,28 @@ Released as v0.4.0.
 **Plan:** `docs/superpowers/plans/2026-04-24-azure-devops-mcp-phase-3.md`. Spec: `docs/superpowers/specs/2026-04-24-azure-devops-mcp-releases-pipelines-commits-design.md`.
 
 **Deferred to a future phase:** any write operations (queue build, re-run stage, approve release gate, cancel run, tag build).
+
+---
+
+## ✅ Phase 3.1 — Definition detail
+
+**Status:** shipped 2026-05-07 as v0.5.0.
+
+**Goal:** read the *definitions* behind pipelines and releases, not just the runs — so the LLM can answer "what variables does this pipeline expose?" or "which approvers gate this release stage?".
+
+**Tools shipped:**
+
+| Tool | Notes |
+| --- | --- |
+| `get_pipeline_definition` | full build/pipeline definition: variables, triggers, repository, process |
+| `get_release_definition` | full release definition: environments, variables, approvals; `verbose` flag opts into full deploy task list |
+
+**Key decisions made / locked here:**
+- **Secrets never leave the server.** When `isSecret: true`, the variable's `value` field is dropped entirely from the response — not masked, not echoed. The LLM sees the variable name and the secret flag, nothing else.
+- **Approvals collapsed.** Each environment's pre/post-deploy approvals are flattened to `{ isAutomated, approvers[] }` rather than the SDK's nested approval objects — small enough for the LLM to reason about, sufficient for "who can approve this?".
+- **Verbose opt-in for deploy tasks.** Release-definition responses default to environment names + approvals + variables only; the full task graph is heavy and noisy. `verbose: true` returns the deploy phases + tasks for callers that need them.
+
+**Plan:** extension to Phase 3; no separate plan doc.
 
 ---
 
