@@ -6,6 +6,7 @@ import {
   AdoTlsError,
   AdoUnknownError,
   AdoConflictError,
+  AdoScopeError,
   mapSdkError,
 } from "../../../src/ado/errors.js";
 
@@ -82,5 +83,44 @@ describe("mapSdkError", () => {
     const mapped = mapSdkError(Object.assign(new Error("Thread is closed"), { statusCode: 409 }));
     expect(mapped.message).toMatch(/conflict/i);
     expect(mapped.message).toMatch(/Thread is closed/);
+  });
+});
+
+describe("AdoScopeError", () => {
+  it("extends AdoError with the scope name on the message", () => {
+    const err = new AdoScopeError("Build (read & execute)", "underlying detail");
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe("AdoScopeError");
+    expect(err.scope).toBe("Build (read & execute)");
+    expect(err.message).toContain("Build (read & execute)");
+    expect(err.message).toContain("rerun");
+  });
+});
+
+describe("mapSdkError — scope hint branch", () => {
+  it("403 with body mentioning Release scope → AdoScopeError naming the right scope", () => {
+    // The SDK surfaces the HTTP body message as the error's `message` property.
+    const err = Object.assign(new Error("TF400813: Resource not available for anonymous access. The user requires the 'Release' permission with 'Manage' scope."), {
+      statusCode: 403,
+    });
+    const mapped = mapSdkError(err);
+    expect(mapped).toBeInstanceOf(AdoScopeError);
+    expect((mapped as AdoScopeError).scope).toMatch(/Release/);
+  });
+
+  it("403 without scope hint → falls through to AdoAuthError", () => {
+    const err = Object.assign(new Error("Forbidden"), { statusCode: 403 });
+    const mapped = mapSdkError(err);
+    expect(mapped).toBeInstanceOf(AdoAuthError);
+    expect(mapped).not.toBeInstanceOf(AdoScopeError);
+  });
+
+  it("401 with scope hint → AdoScopeError", () => {
+    const err = Object.assign(new Error("Token does not have required scope: vso.build_execute"), {
+      statusCode: 401,
+    });
+    const mapped = mapSdkError(err);
+    expect(mapped).toBeInstanceOf(AdoScopeError);
+    expect((mapped as AdoScopeError).scope).toMatch(/Build/);
   });
 });

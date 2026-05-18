@@ -70,6 +70,21 @@ export class AdoUnknownError extends AdoError {
   }
 }
 
+export class AdoScopeError extends AdoError {
+  readonly kind = "scope";
+  readonly scope: string;
+  constructor(scope: string, detail?: string) {
+    super(
+      `This call needs the '${scope}' PAT scope. Update your PAT in Azure DevOps ` +
+        `(https://dev.azure.com/_usersSettings/tokens) and rerun ` +
+        `\`npx -y @vasekzdvihal/azure-devops-mcp setup\`.` +
+        (detail ? ` Underlying detail: ${detail}` : ""),
+    );
+    this.name = "AdoScopeError";
+    this.scope = scope;
+  }
+}
+
 interface SdkErrorShape {
   message?: string;
   statusCode?: number;
@@ -81,11 +96,26 @@ function asSdkErrorShape(err: unknown): SdkErrorShape {
   return {};
 }
 
+function detectMissingScope(message: string): string | null {
+  const lower = message.toLowerCase();
+  if (lower.includes("vso.build_execute") || lower.includes("'build'")) {
+    return "Build (read & execute)";
+  }
+  if (lower.includes("vso.release_execute") || lower.includes("'release'")) {
+    return "Release (read, write, & execute)";
+  }
+  return null;
+}
+
 export function mapSdkError(err: unknown): AdoError {
   const shape = asSdkErrorShape(err);
   const detail = shape.message;
 
   if (shape.statusCode === 401 || shape.statusCode === 403) {
+    const scope = detectMissingScope(detail ?? "");
+    if (scope) {
+      return new AdoScopeError(scope, detail);
+    }
     return new AdoAuthError(detail);
   }
   if (shape.statusCode === 404) {
