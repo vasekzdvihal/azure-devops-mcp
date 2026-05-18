@@ -10,8 +10,8 @@ export async function runSetup(): Promise<void> {
   process.stdout.write("\nAzure DevOps MCP — setup\n\n");
   process.stdout.write(
     "Required PAT scopes:\n" +
-      "  Read access:  Code (read), Identity (read)\n" +
-      "  Write access: also add Code (write), Pull Request (write)\n" +
+      "  Read access:   Code (read), Identity (read), Build (read), Release (read)\n" +
+      "  Write access:  also add Code (write), Pull Request (write), Build (read & execute), Release (read, write, & execute)\n" +
       "If you only want read tools, use a read-only PAT or set AZURE_DEVOPS_READ_ONLY=true.\n\n",
   );
 
