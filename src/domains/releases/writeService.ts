@@ -8,7 +8,8 @@ import type {
 //
 // ReleaseStatus: Undefined=0, Draft=1, Active=2, Abandoned=4
 // ApprovalStatus: Undefined=0, Pending=1, Approved=2, Rejected=4, Reassigned=6, Canceled=7, Skipped=8
-// EnvironmentStatus: Undefined=0, NotStarted=1, InProgress=2, Succeeded=4, Canceled=8, Rejected=16, Queued=32
+// EnvironmentStatus: Undefined=0, NotStarted=1, InProgress=2, Succeeded=4, Canceled=8, Rejected=16,
+//                    Queued=32, Scheduled=64, PartiallySucceeded=128
 
 const RELEASE_STATUS_FROM_ENUM: Record<number, string> = {
   0: "undefined",
@@ -25,6 +26,18 @@ const APPROVAL_STATUS_FROM_ENUM: Record<number, string> = {
   6: "reassigned",
   7: "canceled",
   8: "skipped",
+};
+
+const ENVIRONMENT_STATUS_FROM_ENUM: Record<number, string> = {
+  0: "undefined",
+  1: "notStarted",
+  2: "inProgress",
+  4: "succeeded",
+  8: "canceled",
+  16: "rejected",
+  32: "queued",
+  64: "scheduled",
+  128: "partiallySucceeded",
 };
 
 export interface CreateReleaseResult {
@@ -95,7 +108,10 @@ export class ReleasesWriteService {
       environments: (release.environments ?? []).map((e) => ({
         id: e.id ?? 0,
         name: e.name ?? "",
-        status: typeof e.status === "number" ? String(e.status) : undefined,
+        status:
+            typeof e.status === "number"
+              ? (ENVIRONMENT_STATUS_FROM_ENUM[e.status] ?? "unknown")
+              : undefined,
       })),
     };
   }

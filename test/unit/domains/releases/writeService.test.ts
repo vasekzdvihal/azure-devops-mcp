@@ -51,6 +51,20 @@ describe("ReleasesWriteService.createRelease", () => {
     await svc.createRelease({ project: "p", definitionId: 1 });
     expect(fake.getCreatedReleases()[0]!.metadata.artifacts).toBeUndefined();
   });
+
+  it("maps environment status numbers to readable strings", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setNextCreatedRelease({
+      id: 7,
+      environments: [
+        { id: 1, name: "Dev", status: 1 },     // NotStarted
+        { id: 2, name: "Prod", status: 2 },    // InProgress (unrealistic at create time but exercises the map)
+      ],
+    } as unknown as Release);
+    const result = await svc.createRelease({ project: "p", definitionId: 1 });
+    expect(result.environments[0]?.status).toBe("notStarted");
+    expect(result.environments[1]?.status).toBe("inProgress");
+  });
 });
 
 describe("ReleasesWriteService.deployStage", () => {
