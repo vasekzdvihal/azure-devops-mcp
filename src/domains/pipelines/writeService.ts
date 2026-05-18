@@ -8,7 +8,7 @@ const BUILD_STATUS_FROM_ENUM: Record<number, string> = {
   4: "cancelling",
   8: "postponed",
   32: "notStarted",
-  64: "all",
+  47: "all",
 };
 
 function ensureRefsHeads(branch?: string): string | undefined {

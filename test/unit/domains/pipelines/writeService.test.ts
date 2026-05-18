@@ -95,7 +95,7 @@ describe("PipelinesWriteService.updateTags", () => {
   it("does both when both arrays present", async () => {
     const { svc, fake } = makeSvc();
     fake.setNextTagsState(["a"]);
-    await svc.updateTags({
+    const result = await svc.updateTags({
       project: "p",
       runId: 1,
       addTags: ["a"],
@@ -103,5 +103,6 @@ describe("PipelinesWriteService.updateTags", () => {
     });
     expect(fake.getAddedTags()).toHaveLength(1);
     expect(fake.getRemovedTags()).toHaveLength(1);
+    expect(result.tags).toEqual(["a"]);
   });
 });
