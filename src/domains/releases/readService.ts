@@ -7,6 +7,7 @@ import type {
   ReleaseStatus,
   ReleaseEnvironment,
   Artifact,
+  ReleaseApproval,
 } from "../../ado/types.js";
 
 // ReleaseTriggerType: 0=undefined, 1=artifactSource, 2=schedule, 3=sourceRepo,
@@ -233,6 +234,32 @@ export class ReleasesReadService {
     if (!args.environmentName) return shaped;
     const target = args.environmentName.toLowerCase();
     return shaped.filter((d) => d.environmentName?.toLowerCase() === target);
+  }
+
+  async listPendingApprovals(args: {
+    project: string;
+    releaseId?: number;
+    assignedTo?: string;
+  }): Promise<
+    {
+      approvalId: number;
+      releaseId: number;
+      releaseName: string;
+      environmentName: string;
+      approver: string | null;
+      createdOn: string | null;
+    }[]
+  > {
+    const approvals = await this.client.listPendingApprovals(args);
+    return approvals.map((a: ReleaseApproval) => ({
+      approvalId: a.id ?? 0,
+      releaseId: a.release?.id ?? 0,
+      releaseName: a.release?.name ?? "",
+      environmentName: a.releaseEnvironment?.name ?? "",
+      approver: a.approver?.displayName ?? null,
+      createdOn:
+        a.createdOn instanceof Date ? a.createdOn.toISOString() : (a.createdOn ?? null),
+    }));
   }
 }
 
