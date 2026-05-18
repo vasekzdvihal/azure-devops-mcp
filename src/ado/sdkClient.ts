@@ -21,15 +21,21 @@ import type {
   Deployment,
   DeploymentStatus,
   ReleaseStatus,
+  ReleaseStartMetadata,
+  ReleaseEnvironmentUpdateMetadata,
+  ReleaseApproval,
   Build,
   BuildDefinition,
   Timeline,
   BuildStatus,
   BuildResult,
+  Run,
+  RunPipelineParameters,
   GitBranchStats,
   GitCommitRef,
   GitQueryCommitsCriteria,
 } from "./types.js";
+import type { IPipelinesApi } from "azure-devops-node-api/PipelinesApi.js";
 import { GitVersionType } from "azure-devops-node-api/interfaces/GitInterfaces.js";
 import { AdoError, mapSdkError, AdoNotFoundError, AdoUnknownError } from "./errors.js";
 import { buildHttpsAgent } from "./tlsAgent.js";
@@ -42,6 +48,11 @@ export interface SdkAdoClientOptions {
 
 export class SdkAdoClient implements AdoClient {
   private readonly api: azdev.WebApi;
+  private pipelinesApi?: Promise<IPipelinesApi>;
+
+  private getPipelines(): Promise<IPipelinesApi> {
+    return (this.pipelinesApi ??= this.api.getPipelinesApi());
+  }
 
   constructor(opts: SdkAdoClientOptions) {
     const handler = azdev.getPersonalAccessTokenHandler(opts.pat);
@@ -759,6 +770,158 @@ export class SdkAdoClient implements AdoClient {
       const b = await build.getBuild(args.project, args.buildId);
       if (!b) throw new AdoNotFoundError(`Build ${args.buildId} not found`);
       return b;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  // -------- pipelines (PipelinesApi / BuildApi write ops) --------
+
+  async queuePipelineRun(args: {
+    project: string;
+    pipelineId: number;
+    branch?: string;
+    templateParameters?: Record<string, string>;
+    variables?: Record<string, { value: string; isSecret?: boolean }>;
+  }): Promise<Run> {
+    try {
+      const pipelines = await this.getPipelines();
+      const runParameters: RunPipelineParameters = {
+        templateParameters: args.templateParameters,
+        variables: args.variables,
+        resources: args.branch
+          ? { repositories: { self: { refName: args.branch } } }
+          : undefined,
+      };
+      return await pipelines.runPipeline(runParameters, args.project, args.pipelineId);
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async cancelPipelineRun(args: { project: string; runId: number }): Promise<Build> {
+    try {
+      const build = await this.api.getBuildApi();
+      return await build.updateBuild(
+        { status: /* BuildStatus.Cancelling */ 4 } as Build,
+        args.project,
+        args.runId,
+      );
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async addBuildTags(args: { project: string; runId: number; tags: string[] }): Promise<string[]> {
+    try {
+      const build = await this.api.getBuildApi();
+      return await build.addBuildTags(args.tags, args.project, args.runId);
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async removeBuildTag(args: { project: string; runId: number; tag: string }): Promise<string[]> {
+    try {
+      const build = await this.api.getBuildApi();
+      return await build.deleteBuildTag(args.project, args.runId, args.tag);
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async createRelease(args: {
+    project: string;
+    metadata: ReleaseStartMetadata;
+  }): Promise<Release> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      return await rel.createRelease(args.metadata, args.project);
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async updateReleaseEnvironment(args: {
+    project: string;
+    releaseId: number;
+    environmentId: number;
+    update: ReleaseEnvironmentUpdateMetadata;
+  }): Promise<unknown> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      return await rel.updateReleaseEnvironment(
+        args.update,
+        args.project,
+        args.releaseId,
+        args.environmentId,
+      );
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async cancelRelease(args: {
+    project: string;
+    releaseId: number;
+    comment?: string;
+  }): Promise<Release> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      return await rel.updateRelease(
+        { status: /* ReleaseStatus.Abandoned */ 4, comment: args.comment } as Release,
+        args.project,
+        args.releaseId,
+      );
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async updateReleaseApproval(args: {
+    project: string;
+    approvalId: number;
+    status: "approved" | "rejected";
+    comment?: string;
+  }): Promise<ReleaseApproval> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      // ApprovalStatus: Approved=2, Rejected=4
+      const numericStatus = args.status === "approved" ? 2 : 4;
+      return await rel.updateReleaseApproval(
+        { status: numericStatus, comments: args.comment } as ReleaseApproval,
+        args.project,
+        args.approvalId,
+      );
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async listPendingApprovals(args: {
+    project: string;
+    releaseId?: number;
+    assignedTo?: string;
+  }): Promise<ReleaseApproval[]> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      const result = await rel.getApprovals(
+        args.project,
+        args.assignedTo,
+        /* ApprovalStatus.Pending */ 1,
+        args.releaseId ? [args.releaseId] : undefined,
+      );
+      // PagedList behaves array-like; coerce to a plain array for stable typing.
+      return Array.from(result ?? []);
     } catch (err) {
       if (err instanceof AdoError) throw err;
       throw mapSdkError(err);
