@@ -21,7 +21,7 @@ The wizard tests the connection before writing anything. Config goes to `~/.conf
 | Mode | Required scopes |
 | --- | --- |
 | Read-only (read tools only) | **Code (read)**, **Identity (read)**, **Build (read)**, **Release (read)** |
-| Full (default — read + write tools) | **Code (read & write)**, **Pull Request (read & write)**, **Identity (read)**, **Build (read)**, **Release (read)** |
+| Full (default — read + write tools) | **Code (read & write)**, **Pull Request (read & write)**, **Identity (read)**, **Build (read & execute)**, **Release (read, write, & execute)** |
 
 A read-only PAT is the actual security guarantee — ADO enforces scope at the API regardless of what the MCP server exposes. The read-only mode env var (below) is an additional layer for users who can't or don't want to scope down their PAT.
 
@@ -88,6 +88,7 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `get_pipeline_run` | Run detail with stages timeline — how you see if a YAML multi-stage stage succeeded. |
 | `list_branches` | Branches in a repo with last commit id + ahead/behind. Auto-detects repo from cwd. |
 | `list_commits` | Commits on a branch. Filter by fromDate, toDate, author, top. Auto-detects repo from cwd. |
+| `list_pending_approvals` | List pending release approvals; companion to `approve_release_gate`. |
 
 ### Write tools (suppressed in read-only mode)
 
@@ -105,6 +106,13 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `complete_pull_request` | Merge a PR. Choose strategy: `noFastForward` / `squash` / `rebase` / `rebaseMerge`. |
 | `abandon_pull_request` | Close a PR without merging (reversible). |
 | `set_pull_request_auto_complete` | Enable auto-complete — merge once required policies pass. Uses configured PAT identity as owner. |
+| `queue_pipeline_run` | Start a new build/run; supports template parameters and variable overrides. |
+| `cancel_pipeline_run` | Cancel an in-progress build. |
+| `update_build_tags` | Add and/or remove tags on a build. |
+| `create_release` | Create a release; auto-shapes artifact bindings from `{ alias, buildId }`. |
+| `deploy_release_stage` | Manually deploy one environment of a release (confirms before calling). |
+| `approve_release_gate` | Approve or reject a pending release approval (confirms before calling). |
+| `cancel_release` | Abandon an in-flight release. |
 
 ## Troubleshooting
 
