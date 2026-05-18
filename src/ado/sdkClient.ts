@@ -35,7 +35,6 @@ import type {
   GitCommitRef,
   GitQueryCommitsCriteria,
 } from "./types.js";
-import type { IPipelinesApi } from "azure-devops-node-api/PipelinesApi.js";
 import { GitVersionType } from "azure-devops-node-api/interfaces/GitInterfaces.js";
 import { AdoError, mapSdkError, AdoNotFoundError, AdoUnknownError } from "./errors.js";
 import { buildHttpsAgent } from "./tlsAgent.js";
@@ -48,11 +47,6 @@ export interface SdkAdoClientOptions {
 
 export class SdkAdoClient implements AdoClient {
   private readonly api: azdev.WebApi;
-  private pipelinesApi?: Promise<IPipelinesApi>;
-
-  private getPipelines(): Promise<IPipelinesApi> {
-    return (this.pipelinesApi ??= this.api.getPipelinesApi());
-  }
 
   constructor(opts: SdkAdoClientOptions) {
     const handler = azdev.getPersonalAccessTokenHandler(opts.pat);
@@ -786,7 +780,7 @@ export class SdkAdoClient implements AdoClient {
     variables?: Record<string, { value: string; isSecret?: boolean }>;
   }): Promise<Run> {
     try {
-      const pipelines = await this.getPipelines();
+      const pipelines = await this.api.getPipelinesApi();
       const runParameters: RunPipelineParameters = {
         templateParameters: args.templateParameters,
         variables: args.variables,
