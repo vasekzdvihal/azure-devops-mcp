@@ -17,11 +17,15 @@ import type {
   Deployment,
   DeploymentStatus,
   ReleaseStatus,
+  ReleaseStartMetadata,
+  ReleaseEnvironmentUpdateMetadata,
+  ReleaseApproval,
   Build,
   BuildDefinition,
   Timeline,
   BuildStatus,
   BuildResult,
+  Run,
   GitBranchStats,
   GitCommitRef,
 } from "./types.js";
@@ -243,6 +247,8 @@ export interface AdoClient {
     definitionId: number;
   }): Promise<BuildDefinition>;
 
+  getBuild(args: { project: string; buildId: number }): Promise<Build>;
+
   // commits & branches
   listBranches(args: {
     project: string;
@@ -258,4 +264,51 @@ export interface AdoClient {
     author?: string;
     top?: number;
   }): Promise<GitCommitRef[]>;
+
+  // pipeline writes (Phase 4.1)
+  queuePipelineRun(args: {
+    project: string;
+    pipelineId: number;
+    branch?: string;
+    templateParameters?: Record<string, string>;
+    variables?: Record<string, { value: string; isSecret?: boolean }>;
+  }): Promise<Run>;
+
+  cancelPipelineRun(args: { project: string; runId: number }): Promise<Build>;
+
+  addBuildTags(args: { project: string; runId: number; tags: string[] }): Promise<string[]>;
+  removeBuildTag(args: { project: string; runId: number; tag: string }): Promise<string[]>;
+
+  // release writes (Phase 4.1)
+  createRelease(args: {
+    project: string;
+    metadata: ReleaseStartMetadata;
+  }): Promise<Release>;
+
+  updateReleaseEnvironment(args: {
+    project: string;
+    releaseId: number;
+    environmentId: number;
+    update: ReleaseEnvironmentUpdateMetadata;
+  }): Promise<unknown>;
+
+  cancelRelease(args: {
+    project: string;
+    releaseId: number;
+    comment?: string;
+  }): Promise<Release>;
+
+  updateReleaseApproval(args: {
+    project: string;
+    approvalId: number;
+    status: "approved" | "rejected";
+    comment?: string;
+  }): Promise<ReleaseApproval>;
+
+  // release reads (Phase 4.1)
+  listPendingApprovals(args: {
+    project: string;
+    releaseId?: number;
+    assignedTo?: string;
+  }): Promise<ReleaseApproval[]>;
 }

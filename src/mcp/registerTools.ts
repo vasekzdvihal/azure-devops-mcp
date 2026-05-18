@@ -13,6 +13,10 @@ import { ReleasesReadService } from "../domains/releases/readService.js";
 import { buildReleasesReadTools } from "../domains/releases/readTools.js";
 import { PipelinesReadService } from "../domains/pipelines/readService.js";
 import { buildPipelinesReadTools } from "../domains/pipelines/readTools.js";
+import { PipelinesWriteService } from "../domains/pipelines/writeService.js";
+import { buildPipelineWriteTools } from "../domains/pipelines/writeTools.js";
+import { ReleasesWriteService } from "../domains/releases/writeService.js";
+import { buildReleaseWriteTools } from "../domains/releases/writeTools.js";
 import { CommitsReadService } from "../domains/commits/readService.js";
 import { buildCommitsReadTools } from "../domains/commits/readTools.js";
 import { toToolResult } from "./errorBoundary.js";
@@ -50,7 +54,11 @@ export function registerAllTools(
 
   const writeTools = options.readOnly
     ? []
-    : buildPullRequestWriteTools(new PullRequestsWriteService(client));
+    : [
+        ...buildPullRequestWriteTools(new PullRequestsWriteService(client)),
+        ...buildPipelineWriteTools(new PipelinesWriteService(client)),
+        ...buildReleaseWriteTools(new ReleasesWriteService(client)),
+      ];
 
   for (const tool of [...readTools, ...writeTools]) {
     server.registerTool(tool.name, tool.config, toToolResult(tool.handler));

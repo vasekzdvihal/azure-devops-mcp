@@ -5,6 +5,7 @@ import type {
   ReleaseDefinition,
   Release,
   Deployment,
+  ReleaseApproval,
 } from "../../../../src/ado/types.js";
 
 describe("ReleasesReadService.listDefinitions", () => {
@@ -420,5 +421,58 @@ describe("ReleasesReadService.listDeployments", () => {
     });
 
     expect(result.map((d) => d.deploymentId)).toEqual([2, 3]);
+  });
+});
+
+describe("ReleasesReadService.listPendingApprovals", () => {
+  it("returns shaped approval list filtered by project", async () => {
+    const fake = new FakeAdoClient();
+    const svc = new ReleasesReadService(fake);
+    fake.setPendingApprovals({ project: "p" }, [
+      {
+        id: 1,
+        release: { id: 10, name: "R10" },
+        releaseEnvironment: { id: 20, name: "Prod" },
+        approver: { displayName: "Alice" },
+        createdOn: new Date("2026-05-18T10:00:00Z"),
+      } as unknown as ReleaseApproval,
+    ]);
+    const result = await svc.listPendingApprovals({ project: "p" });
+    expect(result).toEqual([
+      {
+        approvalId: 1,
+        releaseId: 10,
+        releaseName: "R10",
+        environmentName: "Prod",
+        approver: "Alice",
+        createdOn: "2026-05-18T10:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("forwards releaseId + assignedTo to the client", async () => {
+    const fake = new FakeAdoClient();
+    const svc = new ReleasesReadService(fake);
+    fake.setPendingApprovals({ project: "p", releaseId: 5 }, []);
+    await svc.listPendingApprovals({ project: "p", releaseId: 5, assignedTo: "Alice" });
+    expect(fake.getPendingApprovalsCalls()).toEqual([
+      { project: "p", releaseId: 5, assignedTo: "Alice" },
+    ]);
+  });
+
+  it("handles missing approver gracefully", async () => {
+    const fake = new FakeAdoClient();
+    const svc = new ReleasesReadService(fake);
+    fake.setPendingApprovals({ project: "p" }, [
+      {
+        id: 99,
+        release: { id: 7, name: "R7" },
+        releaseEnvironment: { id: 1, name: "Stage" },
+        // no approver, no createdOn
+      } as unknown as ReleaseApproval,
+    ]);
+    const result = await svc.listPendingApprovals({ project: "p" });
+    expect(result[0]?.approver).toBeNull();
+    expect(result[0]?.createdOn).toBeNull();
   });
 });

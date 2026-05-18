@@ -41,7 +41,7 @@ async function main(): Promise<void> {
   const readOnly = isReadOnly();
   registerAllTools(server, client, { readOnly });
   if (readOnly) {
-    process.stderr.write("[azure-devops-mcp] read-only mode: write tools (when added) will not be registered\n");
+    process.stderr.write("[azure-devops-mcp] read-only mode: write tools are not registered\n");
   }
 
   const transport = new StdioServerTransport();

@@ -18,11 +18,15 @@ import type {
   Deployment,
   DeploymentStatus,
   ReleaseStatus,
+  ReleaseStartMetadata,
+  ReleaseEnvironmentUpdateMetadata,
+  ReleaseApproval,
   Build,
   BuildDefinition,
   Timeline,
   BuildStatus,
   BuildResult,
+  Run,
   GitBranchStats,
   GitCommitRef,
 } from "../../src/ado/types.js";
@@ -550,6 +554,21 @@ export class FakeAdoClient implements AdoClient {
     return d;
   }
 
+  private nextBuild?: Build;
+
+  setNextBuild(build: Build): void {
+    this.nextBuild = build;
+  }
+
+  async getBuild(args: { project: string; buildId: number }): Promise<Build> {
+    this.throwIfInjected("getBuild");
+    if (!this.nextBuild)
+      throw new Error(`FakeAdoClient.getBuild: no build configured (setNextBuild not called)`);
+    const b = this.nextBuild;
+    this.nextBuild = undefined;
+    return b;
+  }
+
   async listBranches(args: {
     project: string;
     repository: string;
@@ -655,6 +674,207 @@ export class FakeAdoClient implements AdoClient {
         pullRequestId: args.pullRequestId,
         autoCompleteSetBy: { id: args.autoCompleteSetById },
       }
+    );
+  }
+
+  // ---- phase-4.1 pipeline write state ----
+  private queuedRuns: Array<{
+    project: string;
+    pipelineId: number;
+    branch?: string;
+    templateParameters?: Record<string, string>;
+    variables?: Record<string, { value: string; isSecret?: boolean }>;
+  }> = [];
+  private nextQueuedRun?: Run;
+
+  private cancelledRuns: Array<{ project: string; runId: number }> = [];
+  private nextCancelledRun?: Build;
+
+  private addedTags: Array<{ project: string; runId: number; tags: string[] }> = [];
+  private removedTags: Array<{ project: string; runId: number; tag: string }> = [];
+  private nextTagsState?: string[];
+
+  setNextQueuedRun(run: Run): void {
+    this.nextQueuedRun = run;
+  }
+  getQueuedRuns() {
+    return this.queuedRuns;
+  }
+
+  setNextCancelledRun(build: Build): void {
+    this.nextCancelledRun = build;
+  }
+  getCancelledRuns() {
+    return this.cancelledRuns;
+  }
+
+  setNextTagsState(tags: string[]): void {
+    this.nextTagsState = tags;
+  }
+  getAddedTags() {
+    return this.addedTags;
+  }
+  getRemovedTags() {
+    return this.removedTags;
+  }
+
+  async queuePipelineRun(args: {
+    project: string;
+    pipelineId: number;
+    branch?: string;
+    templateParameters?: Record<string, string>;
+    variables?: Record<string, { value: string; isSecret?: boolean }>;
+  }): Promise<Run> {
+    this.throwIfInjected("queuePipelineRun");
+    this.queuedRuns.push(args);
+    if (!this.nextQueuedRun) {
+      throw new Error("FakeAdoClient: setNextQueuedRun not called");
+    }
+    return this.nextQueuedRun;
+  }
+
+  async cancelPipelineRun(args: { project: string; runId: number }): Promise<Build> {
+    this.throwIfInjected("cancelPipelineRun");
+    this.cancelledRuns.push(args);
+    if (!this.nextCancelledRun) {
+      throw new Error("FakeAdoClient: setNextCancelledRun not called");
+    }
+    return this.nextCancelledRun;
+  }
+
+  async addBuildTags(args: { project: string; runId: number; tags: string[] }): Promise<string[]> {
+    this.throwIfInjected("addBuildTags");
+    this.addedTags.push(args);
+    return this.nextTagsState ?? args.tags;
+  }
+
+  async removeBuildTag(args: { project: string; runId: number; tag: string }): Promise<string[]> {
+    this.throwIfInjected("removeBuildTag");
+    this.removedTags.push(args);
+    return this.nextTagsState ?? [];
+  }
+
+  // ---- phase-4.1 release write state ----
+  private createdReleases: Array<{ project: string; metadata: ReleaseStartMetadata }> = [];
+  private nextCreatedRelease?: Release;
+
+  private deployedEnvironments: Array<{
+    project: string;
+    releaseId: number;
+    environmentId: number;
+    update: ReleaseEnvironmentUpdateMetadata;
+  }> = [];
+
+  private cancelledReleases: Array<{ project: string; releaseId: number; comment?: string }> = [];
+  private nextCancelledRelease?: Release;
+
+  private approvedGates: Array<{
+    project: string;
+    approvalId: number;
+    status: "approved" | "rejected";
+    comment?: string;
+  }> = [];
+  private nextUpdatedApproval?: ReleaseApproval;
+
+  setNextCreatedRelease(release: Release): void {
+    this.nextCreatedRelease = release;
+  }
+  getCreatedReleases() {
+    return this.createdReleases;
+  }
+
+  getDeployedEnvironments() {
+    return this.deployedEnvironments;
+  }
+
+  setNextCancelledRelease(release: Release): void {
+    this.nextCancelledRelease = release;
+  }
+  getCancelledReleases() {
+    return this.cancelledReleases;
+  }
+
+  setNextUpdatedApproval(approval: ReleaseApproval): void {
+    this.nextUpdatedApproval = approval;
+  }
+  getApprovedGates() {
+    return this.approvedGates;
+  }
+
+  async createRelease(args: { project: string; metadata: ReleaseStartMetadata }): Promise<Release> {
+    this.throwIfInjected("createRelease");
+    this.createdReleases.push(args);
+    if (!this.nextCreatedRelease) {
+      throw new Error("FakeAdoClient: setNextCreatedRelease not called");
+    }
+    return this.nextCreatedRelease;
+  }
+
+  async updateReleaseEnvironment(args: {
+    project: string;
+    releaseId: number;
+    environmentId: number;
+    update: ReleaseEnvironmentUpdateMetadata;
+  }): Promise<unknown> {
+    this.throwIfInjected("updateReleaseEnvironment");
+    this.deployedEnvironments.push(args);
+    return {};
+  }
+
+  async cancelRelease(args: {
+    project: string;
+    releaseId: number;
+    comment?: string;
+  }): Promise<Release> {
+    this.throwIfInjected("cancelRelease");
+    this.cancelledReleases.push(args);
+    if (!this.nextCancelledRelease) {
+      throw new Error("FakeAdoClient: setNextCancelledRelease not called");
+    }
+    return this.nextCancelledRelease;
+  }
+
+  async updateReleaseApproval(args: {
+    project: string;
+    approvalId: number;
+    status: "approved" | "rejected";
+    comment?: string;
+  }): Promise<ReleaseApproval> {
+    this.throwIfInjected("updateReleaseApproval");
+    this.approvedGates.push(args);
+    if (!this.nextUpdatedApproval) {
+      throw new Error("FakeAdoClient: setNextUpdatedApproval not called");
+    }
+    return this.nextUpdatedApproval;
+  }
+
+  // ---- phase-4.1 release read state ----
+  private pendingApprovalsByKey = new Map<string, ReleaseApproval[]>();
+  private pendingApprovalsCalls: Array<{
+    project: string;
+    releaseId?: number;
+    assignedTo?: string;
+  }> = [];
+
+  setPendingApprovals(args: { project: string; releaseId?: number }, approvals: ReleaseApproval[]): void {
+    this.pendingApprovalsByKey.set(`${args.project}|${args.releaseId ?? "*"}`, approvals);
+  }
+
+  getPendingApprovalsCalls() {
+    return this.pendingApprovalsCalls;
+  }
+
+  async listPendingApprovals(args: {
+    project: string;
+    releaseId?: number;
+    assignedTo?: string;
+  }): Promise<ReleaseApproval[]> {
+    this.throwIfInjected("listPendingApprovals");
+    this.pendingApprovalsCalls.push(args);
+    return (
+      this.pendingApprovalsByKey.get(`${args.project}|${args.releaseId ?? "*"}`) ??
+      this.pendingApprovalsByKey.get(`${args.project}|*`) ??
+      []
     );
   }
 }
