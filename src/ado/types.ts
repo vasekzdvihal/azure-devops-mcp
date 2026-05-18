@@ -29,6 +29,10 @@ export type {
   Artifact,
   DeploymentStatus,
   ReleaseStatus,
+  ReleaseStartMetadata,
+  ReleaseEnvironmentUpdateMetadata,
+  ReleaseApproval,
+  ApprovalStatus,
 } from "azure-devops-node-api/interfaces/ReleaseInterfaces.js";
 
 // Build (classic build + YAML pipelines)
@@ -41,6 +45,12 @@ export type {
   BuildStatus,
   BuildResult,
 } from "azure-devops-node-api/interfaces/BuildInterfaces.js";
+
+// Pipelines (YAML runs via PipelinesApi)
+export type {
+  Run,
+  RunPipelineParameters,
+} from "azure-devops-node-api/interfaces/PipelinesInterfaces.js";
 
 // Git commits & branches
 export type {
