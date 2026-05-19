@@ -877,4 +877,73 @@ export class FakeAdoClient implements AdoClient {
       []
     );
   }
+
+  // ---- phase-4.2 pipeline write state ----
+  private retriedStages: Array<{
+    project: string;
+    runId: number;
+    stageName: string;
+    forceRetryAllJobs?: boolean;
+  }> = [];
+
+  private pipelineDefUpdates: Array<{
+    project: string;
+    definitionId: number;
+    definition: BuildDefinition;
+  }> = [];
+  private nextUpdatedPipelineDef?: BuildDefinition;
+
+  getRetriedStages() {
+    return this.retriedStages;
+  }
+
+  setNextUpdatedPipelineDef(def: BuildDefinition): void {
+    this.nextUpdatedPipelineDef = def;
+  }
+  getPipelineDefUpdates() {
+    return this.pipelineDefUpdates;
+  }
+
+  async retryBuildStage(args: {
+    project: string;
+    runId: number;
+    stageName: string;
+    forceRetryAllJobs?: boolean;
+  }): Promise<void> {
+    this.throwIfInjected("retryBuildStage");
+    this.retriedStages.push(args);
+  }
+
+  async updatePipelineDefinition(args: {
+    project: string;
+    definitionId: number;
+    definition: BuildDefinition;
+  }): Promise<BuildDefinition> {
+    this.throwIfInjected("updatePipelineDefinition");
+    this.pipelineDefUpdates.push(args);
+    return this.nextUpdatedPipelineDef ?? args.definition;
+  }
+
+  // ---- phase-4.2 release write state ----
+  private releaseDefUpdates: Array<{
+    project: string;
+    definition: ReleaseDefinition;
+  }> = [];
+  private nextUpdatedReleaseDef?: ReleaseDefinition;
+
+  setNextUpdatedReleaseDef(def: ReleaseDefinition): void {
+    this.nextUpdatedReleaseDef = def;
+  }
+  getReleaseDefUpdates() {
+    return this.releaseDefUpdates;
+  }
+
+  async updateReleaseDefinition(args: {
+    project: string;
+    definition: ReleaseDefinition;
+  }): Promise<ReleaseDefinition> {
+    this.throwIfInjected("updateReleaseDefinition");
+    this.releaseDefUpdates.push(args);
+    return this.nextUpdatedReleaseDef ?? args.definition;
+  }
 }
