@@ -2,6 +2,8 @@ import type { AdoClient } from "../../ado/client.js";
 import type {
   ReleaseStartMetadata,
   ReleaseEnvironmentUpdateMetadata,
+  ReleaseDefinition,
+  ConfigurationVariableValue,
 } from "../../ado/types.js";
 
 // Reverse-mapping tables — VALUES verified against SDK ReleaseInterfaces.d.ts.
@@ -39,6 +41,48 @@ const ENVIRONMENT_STATUS_FROM_ENUM: Record<number, string> = {
   64: "scheduled",
   128: "partiallySucceeded",
 };
+
+export interface ReleaseVariableInput {
+  value: string;
+  isSecret?: boolean;
+  allowOverride?: boolean;
+}
+
+export interface UpdateReleaseVariablesResult {
+  definitionId: number;
+  variables: Record<string, { value: string | null; isSecret: boolean }>;
+}
+
+function mergeReleaseVariables(
+  existing: Record<string, ConfigurationVariableValue> | undefined,
+  setOps: Record<string, ReleaseVariableInput> | undefined,
+  removeOps: string[] | undefined,
+): Record<string, ConfigurationVariableValue> {
+  const merged: Record<string, ConfigurationVariableValue> = { ...(existing ?? {}) };
+  for (const name of removeOps ?? []) delete merged[name];
+  for (const [name, v] of Object.entries(setOps ?? {})) {
+    const prev = merged[name];
+    merged[name] = {
+      value: v.value,
+      isSecret: v.isSecret ?? prev?.isSecret ?? false,
+      allowOverride: v.allowOverride ?? prev?.allowOverride,
+    };
+  }
+  return merged;
+}
+
+function projectReleaseVariables(
+  vars: Record<string, ConfigurationVariableValue> | undefined,
+): Record<string, { value: string | null; isSecret: boolean }> {
+  const out: Record<string, { value: string | null; isSecret: boolean }> = {};
+  for (const [name, v] of Object.entries(vars ?? {})) {
+    out[name] = {
+      value: v.isSecret ? null : (v.value ?? null),
+      isSecret: !!v.isSecret,
+    };
+  }
+  return out;
+}
 
 export interface CreateReleaseResult {
   releaseId: number;
@@ -191,6 +235,36 @@ export class ReleasesWriteService {
     return {
       releaseId: release.id ?? args.releaseId,
       status: RELEASE_STATUS_FROM_ENUM[(release.status as number) ?? 0] ?? "unknown",
+    };
+  }
+
+  async updateVariables(args: {
+    project: string;
+    definitionId: number;
+    set?: Record<string, ReleaseVariableInput>;
+    remove?: string[];
+  }): Promise<UpdateReleaseVariablesResult> {
+    const setCount = Object.keys(args.set ?? {}).length;
+    const removeCount = (args.remove ?? []).length;
+    if (setCount + removeCount === 0) {
+      throw new Error("updateVariables: provide at least one of set or remove");
+    }
+
+    const definition = await this.client.getReleaseDefinition({
+      project: args.project,
+      definitionId: args.definitionId,
+    });
+
+    const mergedVars = mergeReleaseVariables(definition.variables, args.set, args.remove);
+
+    const updated = await this.client.updateReleaseDefinition({
+      project: args.project,
+      definition: { ...definition, variables: mergedVars },
+    });
+
+    return {
+      definitionId: args.definitionId,
+      variables: projectReleaseVariables(updated.variables),
     };
   }
 }

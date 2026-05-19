@@ -33,6 +33,7 @@ export type {
   ReleaseEnvironmentUpdateMetadata,
   ReleaseApproval,
   ApprovalStatus,
+  ConfigurationVariableValue,
 } from "azure-devops-node-api/interfaces/ReleaseInterfaces.js";
 
 // Build (classic build + YAML pipelines)

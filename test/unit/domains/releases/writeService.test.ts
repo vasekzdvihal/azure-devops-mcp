@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { ReleasesWriteService } from "../../../../src/domains/releases/writeService.js";
 import { FakeAdoClient } from "../../../fakes/FakeAdoClient.js";
-import type { Release, ReleaseApproval, Build } from "../../../../src/ado/types.js";
+import type { Release, ReleaseApproval, Build, ReleaseDefinition } from "../../../../src/ado/types.js";
 
 function makeSvc() {
   const fake = new FakeAdoClient();
@@ -139,5 +139,83 @@ describe("ReleasesWriteService.cancelRelease", () => {
     expect(fake.getCancelledReleases()).toEqual([{ project: "p", releaseId: 9, comment: "ship later" }]);
     expect(result.releaseId).toBe(9);
     expect(result.status).toBe("abandoned");
+  });
+});
+
+function makeReleaseDef(opts: {
+  variables?: Record<string, { value?: string | null; isSecret?: boolean }>;
+  environments?: Array<{ id: number; name: string; variables?: Record<string, { value?: string | null; isSecret?: boolean }> }>;
+  revision?: number;
+}): ReleaseDefinition {
+  return {
+    id: 99,
+    name: "release-def",
+    revision: opts.revision ?? 3,
+    variables: opts.variables,
+    environments: opts.environments,
+  } as ReleaseDefinition;
+}
+
+describe("ReleasesWriteService.updateVariables", () => {
+  it("preserves existing secrets when updating an unrelated plain var (LOAD-BEARING)", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setReleaseDefinition("p", 99, makeReleaseDef({
+      variables: {
+        existingSecret: { isSecret: true, value: null },
+        plainVar: { value: "foo" },
+      },
+    }));
+
+    await svc.updateVariables({
+      project: "p",
+      definitionId: 99,
+      set: { plainVar: { value: "bar" } },
+    });
+
+    const sent = fake.getReleaseDefUpdates()[0]!.definition.variables!;
+    expect(sent.existingSecret).toBeDefined();
+    expect(sent.existingSecret.isSecret).toBe(true);
+    expect(sent.plainVar.value).toBe("bar");
+  });
+
+  it("preserves isSecret:true when updating a secret without re-asserting", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setReleaseDefinition("p", 99, makeReleaseDef({
+      variables: { token: { isSecret: true, value: null } },
+    }));
+    await svc.updateVariables({
+      project: "p",
+      definitionId: 99,
+      set: { token: { value: "new" } },
+    });
+    const sent = fake.getReleaseDefUpdates()[0]!.definition.variables!;
+    expect(sent.token.isSecret).toBe(true);
+    expect(sent.token.value).toBe("new");
+  });
+
+  it("removes named variables", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setReleaseDefinition("p", 99, makeReleaseDef({
+      variables: { keep: { value: "k" }, drop: { value: "d" } },
+    }));
+    await svc.updateVariables({ project: "p", definitionId: 99, remove: ["drop"] });
+    const sent = fake.getReleaseDefUpdates()[0]!.definition.variables!;
+    expect(sent.keep).toBeDefined();
+    expect(sent.drop).toBeUndefined();
+  });
+
+  it("round-trips revision", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setReleaseDefinition("p", 99, makeReleaseDef({ revision: 17, variables: { a: { value: "1" } } }));
+    await svc.updateVariables({ project: "p", definitionId: 99, set: { a: { value: "2" } } });
+    expect(fake.getReleaseDefUpdates()[0]!.definition.revision).toBe(17);
+  });
+
+  it("throws when both set and remove are empty/missing", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setReleaseDefinition("p", 99, makeReleaseDef({ variables: {} }));
+    await expect(svc.updateVariables({ project: "p", definitionId: 99 })).rejects.toThrow(
+      /at least one of set or remove/,
+    );
   });
 });
