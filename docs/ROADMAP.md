@@ -220,6 +220,34 @@ Released as v0.4.0.
 
 ---
 
+## ✅ Phase 4.2 — Pipeline & release definition edits + retry_pipeline_stage
+
+**Status:** shipped 2026-05-19 in v0.7.0.
+
+**Goal:** five write tools deferred from Phase 4.1 — retry a single failed pipeline stage and edit the persistent variable / trigger surface of pipeline + release definitions.
+
+**Tools shipped:**
+
+| Tool | Notes |
+| --- | --- |
+| `retry_pipeline_stage` | `BuildApi.updateStage` with `forceRetryAllJobs: true` by default |
+| `update_pipeline_variables` | GET → mutate → PUT; secrets preserved by starting from existing map |
+| `update_pipeline_triggers` | full-array replacement; LLM fetches via `get_pipeline_definition` first |
+| `update_release_variables` | mirrors pipeline variables, against the release definition |
+| `update_release_environment_variables` | per-environment variable overrides; case-insensitive env match |
+
+**Key decisions / notes:**
+
+- **Deviation from the ticket.** The ZDV-240 brief assumed `retry_pipeline_stage` would be the first tool needing raw HTTP. Verification against the installed `azure-devops-node-api` showed `BuildApi.updateStage` wraps the endpoint with the right `forceRetryAllJobs` parameter, so no raw-HTTP plumbing was added in this phase. Deferred to whichever future tool first hits a genuinely unwrapped endpoint.
+- **Secret preservation.** The biggest correctness risk in this phase. Service layer always starts from the GET response's `variables` map and mutates on top — so secrets that come back from GET with `value: null` are re-sent intact. There's an explicit non-negotiable unit test for the "update one plain var, don't lose an unrelated secret" failure mode.
+- **Optimistic concurrency.** The `revision` field is round-tripped from GET into the PUT. ADO returns 409 on stale-write → mapped to `AdoConflictError` with the existing "re-fetch and try again" message.
+- **No new PAT scopes.** Build (read & execute) and Release (read, write, & execute) — already required by Phase 4.1 — cover the new endpoints.
+
+**Spec:** `docs/superpowers/specs/2026-05-19-azure-devops-mcp-phase-4-2-design.md`.
+**Plan:** `docs/superpowers/plans/2026-05-19-azure-devops-mcp-phase-4-2.md`.
+
+---
+
 ## 💡 Phase 5 — Work items
 
 **Status:** idea, lower priority.
