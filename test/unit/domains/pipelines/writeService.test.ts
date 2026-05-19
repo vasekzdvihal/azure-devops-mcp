@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PipelinesWriteService } from "../../../../src/domains/pipelines/writeService.js";
 import { FakeAdoClient } from "../../../fakes/FakeAdoClient.js";
 import type { Run, Build } from "../../../../src/ado/types.js";
+import { AdoConflictError } from "../../../../src/ado/errors.js";
 
 function makeSvc() {
   const fake = new FakeAdoClient();
@@ -114,5 +115,44 @@ describe("PipelinesWriteService.updateTags", () => {
     await expect(
       svc.updateTags({ project: "p", runId: 1, addTags: [], removeTags: [] }),
     ).rejects.toThrow(/at least one tag/);
+  });
+});
+
+describe("PipelinesWriteService.retryStage", () => {
+  it("defaults forceRetryAllJobs to true and passes the rest through", async () => {
+    const { svc, fake } = makeSvc();
+    await svc.retryStage({ project: "Proj", runId: 42, stageName: "Build" });
+    expect(fake.getRetriedStages()).toEqual([
+      { project: "Proj", runId: 42, stageName: "Build", forceRetryAllJobs: true },
+    ]);
+  });
+
+  it("respects an explicit forceRetryAllJobs: false", async () => {
+    const { svc, fake } = makeSvc();
+    await svc.retryStage({
+      project: "p",
+      runId: 1,
+      stageName: "Deploy",
+      forceRetryAllJobs: false,
+    });
+    expect(fake.getRetriedStages()[0]?.forceRetryAllJobs).toBe(false);
+  });
+
+  it("propagates an injected AdoConflictError unchanged", async () => {
+    const { svc, fake } = makeSvc();
+    fake.injectError("retryBuildStage", new AdoConflictError("already succeeded"));
+    await expect(
+      svc.retryStage({ project: "p", runId: 1, stageName: "Build" }),
+    ).rejects.toBeInstanceOf(AdoConflictError);
+  });
+
+  it("returns a synthesised confirmation shape after success", async () => {
+    const { svc } = makeSvc();
+    const result = await svc.retryStage({
+      project: "p",
+      runId: 7,
+      stageName: "Test",
+    });
+    expect(result).toEqual({ runId: 7, stageName: "Test", retried: true });
   });
 });

@@ -31,6 +31,12 @@ export interface UpdateTagsResult {
   tags: string[];
 }
 
+export interface RetryStageResult {
+  runId: number;
+  stageName: string;
+  retried: true;
+}
+
 export class PipelinesWriteService {
   constructor(private readonly client: AdoClient) {}
 
@@ -93,5 +99,20 @@ export class PipelinesWriteService {
       }
     }
     return { tags: latest };
+  }
+
+  async retryStage(args: {
+    project: string;
+    runId: number;
+    stageName: string;
+    forceRetryAllJobs?: boolean;
+  }): Promise<RetryStageResult> {
+    await this.client.retryBuildStage({
+      project: args.project,
+      runId: args.runId,
+      stageName: args.stageName,
+      forceRetryAllJobs: args.forceRetryAllJobs ?? true,
+    });
+    return { runId: args.runId, stageName: args.stageName, retried: true };
   }
 }
