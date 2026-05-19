@@ -1,5 +1,5 @@
 import type { AdoClient } from "../../ado/client.js";
-import type { BuildStatus } from "../../ado/types.js";
+import type { BuildStatus, BuildDefinition, BuildDefinitionVariable } from "../../ado/types.js";
 
 const BUILD_STATUS_FROM_ENUM: Record<number, string> = {
   0: "none",
@@ -29,6 +29,65 @@ export interface CancelRunResult {
 
 export interface UpdateTagsResult {
   tags: string[];
+}
+
+export interface RetryStageResult {
+  runId: number;
+  stageName: string;
+  retried: true;
+}
+
+// Variable input shape — kept local to mirror the schema (single source of truth in tools.ts).
+export interface VariableInput {
+  value: string;
+  isSecret?: boolean;
+  allowOverride?: boolean;
+}
+
+export interface UpdateVariablesResult {
+  pipelineId: number;
+  variables: Record<string, { value: string | null; isSecret: boolean }>;
+}
+
+export interface UpdateTriggersResult {
+  pipelineId: number;
+  triggers: unknown[];
+}
+
+function mergeVariables(
+  existing: Record<string, BuildDefinitionVariable> | undefined,
+  setOps: Record<string, VariableInput> | undefined,
+  removeOps: string[] | undefined,
+): Record<string, BuildDefinitionVariable> {
+  // Start from existing — this is the secret-preservation guarantee.
+  const merged: Record<string, BuildDefinitionVariable> = { ...(existing ?? {}) };
+  for (const name of removeOps ?? []) {
+    delete merged[name];
+  }
+  for (const [name, v] of Object.entries(setOps ?? {})) {
+    const prev = merged[name];
+    merged[name] = {
+      value: v.value,
+      // If caller didn't say, fall back to the prior isSecret (preserves "was a secret").
+      isSecret: v.isSecret ?? prev?.isSecret ?? false,
+      allowOverride: v.allowOverride ?? prev?.allowOverride,
+    };
+  }
+  return merged;
+}
+
+function projectVariables(
+  vars: Record<string, BuildDefinitionVariable> | undefined,
+): Record<string, { value: string | null; isSecret: boolean }> {
+  const out: Record<string, { value: string | null; isSecret: boolean }> = {};
+  for (const [name, v] of Object.entries(vars ?? {})) {
+    out[name] = {
+      // Secrets get nulled out so callers can't accidentally surface the stored value.
+      value: v.isSecret ? null : (v.value ?? null),
+      isSecret: !!v.isSecret,
+    };
+  }
+  return out;
 }
 
 export class PipelinesWriteService {
@@ -93,5 +152,76 @@ export class PipelinesWriteService {
       }
     }
     return { tags: latest };
+  }
+
+  async retryStage(args: {
+    project: string;
+    runId: number;
+    stageName: string;
+    forceRetryAllJobs?: boolean;
+  }): Promise<RetryStageResult> {
+    await this.client.retryBuildStage({
+      project: args.project,
+      runId: args.runId,
+      stageName: args.stageName,
+      forceRetryAllJobs: args.forceRetryAllJobs ?? true,
+    });
+    return { runId: args.runId, stageName: args.stageName, retried: true };
+  }
+
+  async updateVariables(args: {
+    project: string;
+    pipelineId: number;
+    set?: Record<string, VariableInput>;
+    remove?: string[];
+  }): Promise<UpdateVariablesResult> {
+    const setCount = Object.keys(args.set ?? {}).length;
+    const removeCount = (args.remove ?? []).length;
+    if (setCount + removeCount === 0) {
+      throw new Error("updateVariables: provide at least one of set or remove");
+    }
+
+    const definition = await this.client.getPipelineDefinition({
+      project: args.project,
+      definitionId: args.pipelineId,
+    });
+
+    const mergedVars = mergeVariables(definition.variables, args.set, args.remove);
+
+    const updated = await this.client.updatePipelineDefinition({
+      project: args.project,
+      definitionId: args.pipelineId,
+      definition: { ...definition, variables: mergedVars },
+    });
+
+    return {
+      pipelineId: args.pipelineId,
+      variables: projectVariables(updated.variables),
+    };
+  }
+
+  async updateTriggers(args: {
+    project: string;
+    pipelineId: number;
+    triggers: unknown[];
+  }): Promise<UpdateTriggersResult> {
+    const definition = await this.client.getPipelineDefinition({
+      project: args.project,
+      definitionId: args.pipelineId,
+    });
+
+    // The triggers array is loosely-typed (Zod gives us record<string, unknown>[]); the
+    // SDK accepts BuildTrigger[] which is a discriminated union. We cast through — ADO
+    // validates the shape server-side and surfaces a 400 with a useful message on bad input.
+    const updated = await this.client.updatePipelineDefinition({
+      project: args.project,
+      definitionId: args.pipelineId,
+      definition: { ...definition, triggers: args.triggers as BuildDefinition["triggers"] },
+    });
+
+    return {
+      pipelineId: args.pipelineId,
+      triggers: (updated.triggers ?? []) as unknown[],
+    };
   }
 }

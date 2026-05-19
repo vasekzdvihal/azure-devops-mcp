@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { PipelinesWriteService } from "../../../../src/domains/pipelines/writeService.js";
 import { FakeAdoClient } from "../../../fakes/FakeAdoClient.js";
-import type { Run, Build } from "../../../../src/ado/types.js";
+import type { Run, Build, BuildDefinition } from "../../../../src/ado/types.js";
+import { AdoConflictError } from "../../../../src/ado/errors.js";
 
 function makeSvc() {
   const fake = new FakeAdoClient();
@@ -114,5 +115,206 @@ describe("PipelinesWriteService.updateTags", () => {
     await expect(
       svc.updateTags({ project: "p", runId: 1, addTags: [], removeTags: [] }),
     ).rejects.toThrow(/at least one tag/);
+  });
+});
+
+describe("PipelinesWriteService.retryStage", () => {
+  it("defaults forceRetryAllJobs to true and passes the rest through", async () => {
+    const { svc, fake } = makeSvc();
+    await svc.retryStage({ project: "Proj", runId: 42, stageName: "Build" });
+    expect(fake.getRetriedStages()).toEqual([
+      { project: "Proj", runId: 42, stageName: "Build", forceRetryAllJobs: true },
+    ]);
+  });
+
+  it("respects an explicit forceRetryAllJobs: false", async () => {
+    const { svc, fake } = makeSvc();
+    await svc.retryStage({
+      project: "p",
+      runId: 1,
+      stageName: "Deploy",
+      forceRetryAllJobs: false,
+    });
+    expect(fake.getRetriedStages()[0]?.forceRetryAllJobs).toBe(false);
+  });
+
+  it("propagates an injected AdoConflictError unchanged", async () => {
+    const { svc, fake } = makeSvc();
+    fake.injectError("retryBuildStage", new AdoConflictError("already succeeded"));
+    await expect(
+      svc.retryStage({ project: "p", runId: 1, stageName: "Build" }),
+    ).rejects.toBeInstanceOf(AdoConflictError);
+  });
+
+  it("returns a synthesised confirmation shape after success", async () => {
+    const { svc } = makeSvc();
+    const result = await svc.retryStage({
+      project: "p",
+      runId: 7,
+      stageName: "Test",
+    });
+    expect(result).toEqual({ runId: 7, stageName: "Test", retried: true });
+  });
+});
+
+function makePipelineDef(opts: {
+  variables?: Record<string, { value?: string | null; isSecret?: boolean; allowOverride?: boolean }>;
+  revision?: number;
+}): BuildDefinition {
+  return {
+    id: 7,
+    name: "test-pipeline",
+    revision: opts.revision ?? 5,
+    variables: opts.variables,
+  } as BuildDefinition;
+}
+
+describe("PipelinesWriteService.updateVariables", () => {
+  it("preserves existing secrets when updating an unrelated plain variable (LOAD-BEARING)", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, makePipelineDef({
+      variables: {
+        existingSecret: { isSecret: true, value: null },
+        plainVar: { value: "foo" },
+      },
+    }));
+
+    await svc.updateVariables({
+      project: "p",
+      pipelineId: 7,
+      set: { plainVar: { value: "bar" } },
+    });
+
+    const put = fake.getPipelineDefUpdates();
+    expect(put).toHaveLength(1);
+    const sent = put[0]!.definition.variables!;
+    expect(sent.existingSecret).toBeDefined();
+    expect(sent.existingSecret.isSecret).toBe(true);
+    expect(sent.plainVar.value).toBe("bar");
+  });
+
+  it("preserves isSecret:true when caller updates a secret without re-asserting isSecret", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, makePipelineDef({
+      variables: { dbPassword: { isSecret: true, value: null } },
+    }));
+
+    await svc.updateVariables({
+      project: "p",
+      pipelineId: 7,
+      set: { dbPassword: { value: "new-secret" } },
+    });
+
+    const sent = fake.getPipelineDefUpdates()[0]!.definition.variables!;
+    expect(sent.dbPassword.isSecret).toBe(true);
+    expect(sent.dbPassword.value).toBe("new-secret");
+  });
+
+  it("allows explicit declassification when caller passes isSecret: false", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, makePipelineDef({
+      variables: { wasSecret: { isSecret: true, value: null } },
+    }));
+
+    await svc.updateVariables({
+      project: "p",
+      pipelineId: 7,
+      set: { wasSecret: { value: "now-plain", isSecret: false } },
+    });
+
+    expect(fake.getPipelineDefUpdates()[0]!.definition.variables!.wasSecret.isSecret).toBe(false);
+  });
+
+  it("removes named variables", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, makePipelineDef({
+      variables: { keepMe: { value: "a" }, dropMe: { value: "b" } },
+    }));
+
+    await svc.updateVariables({ project: "p", pipelineId: 7, remove: ["dropMe"] });
+
+    const sent = fake.getPipelineDefUpdates()[0]!.definition.variables!;
+    expect(sent.keepMe).toBeDefined();
+    expect(sent.dropMe).toBeUndefined();
+  });
+
+  it("round-trips the revision field on the PUT", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, makePipelineDef({ revision: 42, variables: { x: { value: "1" } } }));
+
+    await svc.updateVariables({ project: "p", pipelineId: 7, set: { x: { value: "2" } } });
+
+    expect(fake.getPipelineDefUpdates()[0]!.definition.revision).toBe(42);
+  });
+
+  it("does both set and remove in a single call", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, makePipelineDef({
+      variables: { keep: { value: "k" }, drop: { value: "d" } },
+    }));
+
+    await svc.updateVariables({
+      project: "p",
+      pipelineId: 7,
+      set: { add: { value: "new" } },
+      remove: ["drop"],
+    });
+
+    const sent = fake.getPipelineDefUpdates()[0]!.definition.variables!;
+    expect(sent.keep.value).toBe("k");
+    expect(sent.add.value).toBe("new");
+    expect(sent.drop).toBeUndefined();
+  });
+
+  it("throws when both set and remove are empty/missing", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, makePipelineDef({ variables: {} }));
+    await expect(svc.updateVariables({ project: "p", pipelineId: 7 })).rejects.toThrow(
+      /at least one of set or remove/,
+    );
+    await expect(
+      svc.updateVariables({ project: "p", pipelineId: 7, set: {}, remove: [] }),
+    ).rejects.toThrow(/at least one of set or remove/);
+  });
+});
+
+describe("PipelinesWriteService.updateTriggers", () => {
+  it("replaces the triggers array wholesale, preserving the rest of the definition", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, {
+      id: 7,
+      name: "pipeline",
+      revision: 12,
+      variables: { kept: { value: "v" } },
+      triggers: [{ triggerType: 2 /* CI */ }],
+    } as BuildDefinition);
+
+    const newTriggers = [
+      { triggerType: 2, branchFilters: ["+refs/heads/main"] },
+      { triggerType: 8 /* Schedule */, schedules: [{ daysToBuild: 1 }] },
+    ];
+
+    await svc.updateTriggers({ project: "p", pipelineId: 7, triggers: newTriggers });
+
+    const put = fake.getPipelineDefUpdates();
+    expect(put).toHaveLength(1);
+    expect(put[0]!.definition.triggers).toEqual(newTriggers);
+    expect(put[0]!.definition.variables).toEqual({ kept: { value: "v" } });
+    expect(put[0]!.definition.revision).toBe(12);
+  });
+
+  it("returns the triggers echoed back from the response", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, { id: 7, revision: 1 } as BuildDefinition);
+    const newTriggers = [{ triggerType: 2 }];
+    const result = await svc.updateTriggers({ project: "p", pipelineId: 7, triggers: newTriggers });
+    expect(result).toEqual({ pipelineId: 7, triggers: newTriggers });
+  });
+
+  it("accepts an empty array to remove all triggers (manual-only pipeline)", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, { id: 7, revision: 1, triggers: [{ triggerType: 2 }] } as BuildDefinition);
+    await svc.updateTriggers({ project: "p", pipelineId: 7, triggers: [] });
+    expect(fake.getPipelineDefUpdates()[0]!.definition.triggers).toEqual([]);
   });
 });

@@ -311,4 +311,24 @@ export interface AdoClient {
     releaseId?: number;
     assignedTo?: string;
   }): Promise<ReleaseApproval[]>;
+
+  // pipeline writes (Phase 4.2)
+  retryBuildStage(args: {
+    project: string;
+    runId: number;
+    stageName: string;
+    forceRetryAllJobs?: boolean;
+  }): Promise<void>;
+
+  updatePipelineDefinition(args: {
+    project: string;
+    definitionId: number;
+    definition: BuildDefinition;
+  }): Promise<BuildDefinition>;
+
+  // release writes (Phase 4.2)
+  updateReleaseDefinition(args: {
+    project: string;
+    definition: ReleaseDefinition;
+  }): Promise<ReleaseDefinition>;
 }

@@ -829,6 +829,43 @@ export class SdkAdoClient implements AdoClient {
     }
   }
 
+  async retryBuildStage(args: {
+    project: string;
+    runId: number;
+    stageName: string;
+    forceRetryAllJobs?: boolean;
+  }): Promise<void> {
+    try {
+      const build = await this.api.getBuildApi();
+      await build.updateStage(
+        {
+          forceRetryAllJobs: args.forceRetryAllJobs ?? true,
+          state: /* StageUpdateType.Retry */ 1,
+        },
+        args.runId,
+        args.stageName,
+        args.project,
+      );
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async updatePipelineDefinition(args: {
+    project: string;
+    definitionId: number;
+    definition: BuildDefinition;
+  }): Promise<BuildDefinition> {
+    try {
+      const build = await this.api.getBuildApi();
+      return await build.updateDefinition(args.definition, args.project, args.definitionId);
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
   async createRelease(args: {
     project: string;
     metadata: ReleaseStartMetadata;
@@ -916,6 +953,19 @@ export class SdkAdoClient implements AdoClient {
       );
       // PagedList behaves array-like; coerce to a plain array for stable typing.
       return Array.from(result ?? []);
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async updateReleaseDefinition(args: {
+    project: string;
+    definition: ReleaseDefinition;
+  }): Promise<ReleaseDefinition> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      return await rel.updateReleaseDefinition(args.definition, args.project);
     } catch (err) {
       if (err instanceof AdoError) throw err;
       throw mapSdkError(err);

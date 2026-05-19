@@ -123,3 +123,37 @@ export const ListPendingApprovalsInput = {
       "Identity descriptor or display name. Omit for all pending approvals in the project.",
     ),
 };
+
+// Same shape as the pipeline variant — kept local to avoid cross-domain coupling.
+const VariableSetEntry = z.object({
+  value: z.string().describe("New value. For secrets, this is the secret to store."),
+  isSecret: z
+    .boolean()
+    .optional()
+    .describe(
+      "Mark as secret. If omitted on a variable that was already a secret, " +
+        "the existing isSecret:true is preserved.",
+    ),
+  allowOverride: z
+    .boolean()
+    .optional()
+    .describe("Whether this variable can be overridden at queue time."),
+});
+
+export const UpdateReleaseVariablesInput = {
+  project: z.string().min(1),
+  definitionId: z.number().int().positive().describe("Release definition id"),
+  set: z.record(z.string().min(1), VariableSetEntry).optional(),
+  remove: z.array(z.string().min(1)).optional(),
+};
+
+export const UpdateReleaseEnvironmentVariablesInput = {
+  project: z.string().min(1),
+  definitionId: z.number().int().positive().describe("Release definition id"),
+  environmentName: z
+    .string()
+    .min(1)
+    .describe("Environment name on the release definition (case-insensitive match)."),
+  set: z.record(z.string().min(1), VariableSetEntry).optional(),
+  remove: z.array(z.string().min(1)).optional(),
+};
