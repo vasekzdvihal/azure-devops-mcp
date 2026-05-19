@@ -90,3 +90,63 @@ export const UpdateBuildTagsInput = {
   addTags: z.array(z.string().min(1)).optional(),
   removeTags: z.array(z.string().min(1)).optional(),
 };
+
+export const RetryPipelineStageInput = {
+  project: z.string().min(1),
+  runId: z.number().int().positive().describe("Build/run id (integer)"),
+  stageName: z
+    .string()
+    .min(1)
+    .describe(
+      "Stage ref name as it appears in the pipeline YAML (case-sensitive). " +
+        "Use `get_pipeline_run` and inspect the timeline to find the exact name.",
+    ),
+  forceRetryAllJobs: z
+    .boolean()
+    .optional()
+    .describe(
+      "When true (default), retries all jobs in the stage including those that already succeeded. " +
+        "Set to false to retry only the failed jobs.",
+    ),
+};
+
+// Variable shape reused by both pipeline + release variable tools.
+const VariableSetEntry = z.object({
+  value: z.string().describe("New value. For secrets, this is the secret to store."),
+  isSecret: z
+    .boolean()
+    .optional()
+    .describe(
+      "Mark as secret. If omitted on a variable that was already a secret, " +
+        "the existing isSecret:true is preserved (declassification requires explicit isSecret:false).",
+    ),
+  allowOverride: z
+    .boolean()
+    .optional()
+    .describe("Whether this variable can be overridden at queue time."),
+});
+
+export const UpdatePipelineVariablesInput = {
+  project: z.string().min(1),
+  pipelineId: z.number().int().positive(),
+  set: z
+    .record(z.string().min(1), VariableSetEntry)
+    .optional()
+    .describe("Variables to add or update by name."),
+  remove: z
+    .array(z.string().min(1))
+    .optional()
+    .describe("Variable names to delete from the definition."),
+};
+
+export const UpdatePipelineTriggersInput = {
+  project: z.string().min(1),
+  pipelineId: z.number().int().positive(),
+  triggers: z
+    .array(z.record(z.string(), z.unknown()))
+    .describe(
+      "The full triggers array to set on the definition. Fetch the current definition via " +
+        "`get_pipeline_definition` first, mutate the triggers array, then submit. The array " +
+        "replaces existing triggers wholesale — omitted triggers are removed.",
+    ),
+};
