@@ -277,3 +277,44 @@ describe("PipelinesWriteService.updateVariables", () => {
     ).rejects.toThrow(/at least one of set or remove/);
   });
 });
+
+describe("PipelinesWriteService.updateTriggers", () => {
+  it("replaces the triggers array wholesale, preserving the rest of the definition", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, {
+      id: 7,
+      name: "pipeline",
+      revision: 12,
+      variables: { kept: { value: "v" } },
+      triggers: [{ triggerType: 2 /* CI */ }],
+    } as BuildDefinition);
+
+    const newTriggers = [
+      { triggerType: 2, branchFilters: ["+refs/heads/main"] },
+      { triggerType: 8 /* Schedule */, schedules: [{ daysToBuild: 1 }] },
+    ];
+
+    await svc.updateTriggers({ project: "p", pipelineId: 7, triggers: newTriggers });
+
+    const put = fake.getPipelineDefUpdates();
+    expect(put).toHaveLength(1);
+    expect(put[0]!.definition.triggers).toEqual(newTriggers);
+    expect(put[0]!.definition.variables).toEqual({ kept: { value: "v" } });
+    expect(put[0]!.definition.revision).toBe(12);
+  });
+
+  it("returns the triggers echoed back from the response", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, { id: 7, revision: 1 } as BuildDefinition);
+    const newTriggers = [{ triggerType: 2 }];
+    const result = await svc.updateTriggers({ project: "p", pipelineId: 7, triggers: newTriggers });
+    expect(result).toEqual({ pipelineId: 7, triggers: newTriggers });
+  });
+
+  it("accepts an empty array to remove all triggers (manual-only pipeline)", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition("p", 7, { id: 7, revision: 1, triggers: [{ triggerType: 2 }] } as BuildDefinition);
+    await svc.updateTriggers({ project: "p", pipelineId: 7, triggers: [] });
+    expect(fake.getPipelineDefUpdates()[0]!.definition.triggers).toEqual([]);
+  });
+});

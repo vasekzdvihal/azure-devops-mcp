@@ -49,6 +49,11 @@ export interface UpdateVariablesResult {
   variables: Record<string, { value: string | null; isSecret: boolean }>;
 }
 
+export interface UpdateTriggersResult {
+  pipelineId: number;
+  triggers: unknown[];
+}
+
 function mergeVariables(
   existing: Record<string, BuildDefinitionVariable> | undefined,
   setOps: Record<string, VariableInput> | undefined,
@@ -192,6 +197,31 @@ export class PipelinesWriteService {
     return {
       pipelineId: args.pipelineId,
       variables: projectVariables(updated.variables),
+    };
+  }
+
+  async updateTriggers(args: {
+    project: string;
+    pipelineId: number;
+    triggers: unknown[];
+  }): Promise<UpdateTriggersResult> {
+    const definition = await this.client.getPipelineDefinition({
+      project: args.project,
+      definitionId: args.pipelineId,
+    });
+
+    // The triggers array is loosely-typed (Zod gives us record<string, unknown>[]); the
+    // SDK accepts BuildTrigger[] which is a discriminated union. We cast through — ADO
+    // validates the shape server-side and surfaces a 400 with a useful message on bad input.
+    const updated = await this.client.updatePipelineDefinition({
+      project: args.project,
+      definitionId: args.pipelineId,
+      definition: { ...definition, triggers: args.triggers as BuildDefinition["triggers"] },
+    });
+
+    return {
+      pipelineId: args.pipelineId,
+      triggers: (updated.triggers ?? []) as unknown[],
     };
   }
 }
