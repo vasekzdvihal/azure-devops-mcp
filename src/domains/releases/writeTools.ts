@@ -5,6 +5,8 @@ import {
   DeployReleaseStageInput,
   ApproveReleaseGateInput,
   CancelReleaseInput,
+  UpdateReleaseVariablesInput,
+  UpdateReleaseEnvironmentVariablesInput,
 } from "./schemas.js";
 
 export function buildReleaseWriteTools(svc: ReleasesWriteService): ToolDefinition[] {
@@ -59,6 +61,36 @@ export function buildReleaseWriteTools(svc: ReleasesWriteService): ToolDefinitio
       },
       handler: async (args) =>
         svc.cancelRelease(args as Parameters<typeof svc.cancelRelease>[0]),
+    },
+    {
+      name: "update_release_variables",
+      config: {
+        title: "Add, update, or remove definition-level variables on a release definition",
+        description:
+          "**Always confirm with the user before calling — this changes release configuration " +
+          "visible to every future deployment.** Use `set` to add or update variables and `remove` " +
+          "to delete them. Existing secrets are preserved automatically; declassify a secret " +
+          "by including it in `set` with `isSecret: false`. At least one of `set` or `remove` is " +
+          "required.",
+        inputSchema: UpdateReleaseVariablesInput,
+      },
+      handler: async (args) =>
+        svc.updateVariables(args as Parameters<typeof svc.updateVariables>[0]),
+    },
+    {
+      name: "update_release_environment_variables",
+      config: {
+        title: "Add, update, or remove per-environment variables on a release definition",
+        description:
+          "**Always confirm with the user before calling — this changes release configuration " +
+          "visible to every future deployment.** Mutates only the named environment's variables " +
+          "(case-insensitive name match). Other environments and definition-level variables are " +
+          "untouched. Secret preservation rules match `update_release_variables`. At least one of " +
+          "`set` or `remove` is required.",
+        inputSchema: UpdateReleaseEnvironmentVariablesInput,
+      },
+      handler: async (args) =>
+        svc.updateEnvironmentVariables(args as Parameters<typeof svc.updateEnvironmentVariables>[0]),
     },
   ];
 }
