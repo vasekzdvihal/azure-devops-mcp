@@ -40,6 +40,7 @@ export type {
   Build,
   BuildDefinition,
   BuildDefinitionReference,
+  BuildDefinitionVariable,
   Timeline,
   TimelineRecord,
   BuildStatus,
