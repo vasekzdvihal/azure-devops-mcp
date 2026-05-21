@@ -60,3 +60,16 @@ export type {
   GitCommitRef,
   GitQueryCommitsCriteria,
 } from "azure-devops-node-api/interfaces/GitInterfaces.js";
+
+// Work items (WorkItemTrackingApi)
+export type {
+  WorkItem,
+  Comment as WorkItemComment,
+} from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces.js";
+// WorkItemExpand is used as a *value* (expand: WorkItemExpand.All), so it's a
+// runtime export, not a type-only one.
+export { WorkItemExpand } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces.js";
+
+// JSON Patch (used to mutate work items).
+export type { JsonPatchOperation } from "azure-devops-node-api/interfaces/common/VSSInterfaces.js";
+export { Operation } from "azure-devops-node-api/interfaces/common/VSSInterfaces.js";

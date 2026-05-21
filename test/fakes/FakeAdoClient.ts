@@ -29,6 +29,9 @@ import type {
   Run,
   GitBranchStats,
   GitCommitRef,
+  WorkItem,
+  WorkItemComment,
+  JsonPatchOperation,
 } from "../../src/ado/types.js";
 
 interface PrKey {
@@ -924,6 +927,20 @@ export class FakeAdoClient implements AdoClient {
     return this.nextUpdatedPipelineDef ?? args.definition;
   }
 
+  // ---- phase-5 work items state ----
+  private wiqlIds: number[] = [];
+  private wiqlCalls: Array<{ project: string; wiql: string; team?: string }> = [];
+  private workItemsSummaryCalls: Array<{ project: string; ids: number[] }> = [];
+  private workItemsSummary = new Map<string, WorkItem[]>(); // project → items (matched by id)
+  private workItemById = new Map<string, WorkItem>(); // `${project} ${id}` → item
+  private workItemComments = new Map<string, WorkItemComment[]>(); // `${project} ${id}`
+  private prWorkItemRefs = new Map<string, number[]>(); // `${project} ${repo} ${prId}`
+  private typeStates = new Map<string, string[]>(); // `${project} ${type}`
+  private updatedWorkItems: Array<{ project: string; id: number; patch: JsonPatchOperation[] }> = [];
+  private nextUpdatedWorkItem?: WorkItem;
+  private addedWorkItemComments: Array<{ project: string; id: number; text: string }> = [];
+  private nextAddedComment?: WorkItemComment;
+
   // ---- phase-4.2 release write state ----
   private releaseDefUpdates: Array<{
     project: string;
@@ -938,6 +955,44 @@ export class FakeAdoClient implements AdoClient {
     return this.releaseDefUpdates;
   }
 
+  // ---- phase-5 work item setup helpers ----
+  setWiqlIds(ids: number[]): void {
+    this.wiqlIds = ids;
+  }
+  getWiqlCalls() {
+    return this.wiqlCalls;
+  }
+  getWorkItemsSummaryCalls() {
+    return this.workItemsSummaryCalls;
+  }
+  setWorkItemsSummary(project: string, items: WorkItem[]): void {
+    this.workItemsSummary.set(project, items);
+  }
+  setWorkItem(project: string, id: number, item: WorkItem): void {
+    this.workItemById.set(`${project} ${id}`, item);
+  }
+  setWorkItemComments(project: string, id: number, comments: WorkItemComment[]): void {
+    this.workItemComments.set(`${project} ${id}`, comments);
+  }
+  setPrWorkItemRefs(project: string, repository: string, prId: number, ids: number[]): void {
+    this.prWorkItemRefs.set(`${project} ${repository} ${prId}`, ids);
+  }
+  setTypeStates(project: string, type: string, states: string[]): void {
+    this.typeStates.set(`${project} ${type}`, states);
+  }
+  setNextUpdatedWorkItem(item: WorkItem): void {
+    this.nextUpdatedWorkItem = item;
+  }
+  getUpdatedWorkItems() {
+    return this.updatedWorkItems;
+  }
+  setNextAddedComment(comment: WorkItemComment): void {
+    this.nextAddedComment = comment;
+  }
+  getAddedWorkItemComments() {
+    return this.addedWorkItemComments;
+  }
+
   async updateReleaseDefinition(args: {
     project: string;
     definition: ReleaseDefinition;
@@ -945,5 +1000,65 @@ export class FakeAdoClient implements AdoClient {
     this.throwIfInjected("updateReleaseDefinition");
     this.releaseDefUpdates.push(args);
     return this.nextUpdatedReleaseDef ?? args.definition;
+  }
+
+  // ---- phase-5 work item methods ----
+  async queryWorkItemIds(args: { project: string; wiql: string; team?: string }): Promise<number[]> {
+    this.throwIfInjected("queryWorkItemIds");
+    this.wiqlCalls.push({ project: args.project, wiql: args.wiql, team: args.team });
+    return this.wiqlIds;
+  }
+
+  async getWorkItemsSummary(args: { project: string; ids: number[] }): Promise<WorkItem[]> {
+    this.throwIfInjected("getWorkItemsSummary");
+    this.workItemsSummaryCalls.push({ project: args.project, ids: args.ids });
+    const all = this.workItemsSummary.get(args.project) ?? [];
+    return all.filter((w) => args.ids.includes((w as { id?: number }).id ?? -1));
+  }
+
+  async getWorkItem(args: { project: string; id: number }): Promise<WorkItem> {
+    this.throwIfInjected("getWorkItem");
+    const item = this.workItemById.get(`${args.project} ${args.id}`);
+    if (!item) throw new Error(`FakeAdoClient.getWorkItem: none configured for ${args.project} ${args.id}`);
+    return item;
+  }
+
+  async getWorkItemComments(args: { project: string; id: number; top?: number }): Promise<WorkItemComment[]> {
+    this.throwIfInjected("getWorkItemComments");
+    return this.workItemComments.get(`${args.project} ${args.id}`) ?? [];
+  }
+
+  async getPullRequestWorkItemRefs(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+  }): Promise<number[]> {
+    this.throwIfInjected("getPullRequestWorkItemRefs");
+    return this.prWorkItemRefs.get(`${args.project} ${args.repository} ${args.pullRequestId}`) ?? [];
+  }
+
+  async getWorkItemTypeStates(args: { project: string; type: string }): Promise<string[]> {
+    this.throwIfInjected("getWorkItemTypeStates");
+    return this.typeStates.get(`${args.project} ${args.type}`) ?? [];
+  }
+
+  async updateWorkItem(args: {
+    project: string;
+    id: number;
+    patch: JsonPatchOperation[];
+  }): Promise<WorkItem> {
+    this.throwIfInjected("updateWorkItem");
+    this.updatedWorkItems.push(args);
+    return this.nextUpdatedWorkItem ?? ({ id: args.id } as WorkItem);
+  }
+
+  async addWorkItemComment(args: {
+    project: string;
+    id: number;
+    text: string;
+  }): Promise<WorkItemComment> {
+    this.throwIfInjected("addWorkItemComment");
+    this.addedWorkItemComments.push(args);
+    return this.nextAddedComment ?? ({ text: args.text } as WorkItemComment);
   }
 }

@@ -20,8 +20,8 @@ The wizard tests the connection before writing anything. Config goes to `~/.conf
 
 | Mode | Required scopes |
 | --- | --- |
-| Read-only (read tools only) | **Code (read)**, **Identity (read)**, **Build (read)**, **Release (read)** |
-| Full (default — read + write tools) | **Code (read & write)**, **Pull Request (read & write)**, **Identity (read)**, **Build (read & execute)**, **Release (read, write, & execute)** |
+| Read-only (read tools only) | **Code (read)**, **Identity (read)**, **Build (read)**, **Release (read)**, **Work Items (read)** |
+| Full (default — read + write tools) | **Code (read & write)**, **Pull Request (read & write)**, **Identity (read)**, **Build (read & execute)**, **Release (read, write, & execute)**, **Work Items (read & write)** |
 
 A read-only PAT is the actual security guarantee — ADO enforces scope at the API regardless of what the MCP server exposes. The read-only mode env var (below) is an additional layer for users who can't or don't want to scope down their PAT.
 

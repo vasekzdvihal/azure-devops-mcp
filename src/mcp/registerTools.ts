@@ -19,6 +19,10 @@ import { ReleasesWriteService } from "../domains/releases/writeService.js";
 import { buildReleaseWriteTools } from "../domains/releases/writeTools.js";
 import { CommitsReadService } from "../domains/commits/readService.js";
 import { buildCommitsReadTools } from "../domains/commits/readTools.js";
+import { WorkItemsReadService } from "../domains/workItems/readService.js";
+import { buildWorkItemsReadTools } from "../domains/workItems/readTools.js";
+import { WorkItemsWriteService } from "../domains/workItems/writeService.js";
+import { buildWorkItemsWriteTools } from "../domains/workItems/writeTools.js";
 import { toToolResult } from "./errorBoundary.js";
 import type { AdoClient } from "../ado/client.js";
 
@@ -50,6 +54,7 @@ export function registerAllTools(
     ...buildReleasesReadTools(new ReleasesReadService(client)),
     ...buildPipelinesReadTools(new PipelinesReadService(client)),
     ...buildCommitsReadTools(new CommitsReadService(client)),
+    ...buildWorkItemsReadTools(new WorkItemsReadService(client)),
   ];
 
   const writeTools = options.readOnly
@@ -58,6 +63,7 @@ export function registerAllTools(
         ...buildPullRequestWriteTools(new PullRequestsWriteService(client)),
         ...buildPipelineWriteTools(new PipelinesWriteService(client)),
         ...buildReleaseWriteTools(new ReleasesWriteService(client)),
+        ...buildWorkItemsWriteTools(new WorkItemsWriteService(client)),
       ];
 
   for (const tool of [...readTools, ...writeTools]) {

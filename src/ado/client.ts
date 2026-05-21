@@ -28,6 +28,9 @@ import type {
   Run,
   GitBranchStats,
   GitCommitRef,
+  WorkItem,
+  WorkItemComment,
+  JsonPatchOperation,
 } from "./types.js";
 
 /**
@@ -331,4 +334,50 @@ export interface AdoClient {
     project: string;
     definition: ReleaseDefinition;
   }): Promise<ReleaseDefinition>;
+
+  // work items
+  /** Run a WIQL query and return matching work-item ids (already extracted). */
+  queryWorkItemIds(args: {
+    project: string;
+    wiql: string;
+    /** Team name — required by the @CurrentIteration macro; ignored otherwise. */
+    team?: string;
+  }): Promise<number[]>;
+
+  /** Batch-fetch lightweight work items (default fields) for a list of ids. */
+  getWorkItemsSummary(args: { project: string; ids: number[] }): Promise<WorkItem[]>;
+
+  /** Full work item: all fields + relations (expand: All). Comments fetched separately. */
+  getWorkItem(args: { project: string; id: number }): Promise<WorkItem>;
+
+  /** Recent comments for a work item (newer comments API). */
+  getWorkItemComments(args: {
+    project: string;
+    id: number;
+    top?: number;
+  }): Promise<WorkItemComment[]>;
+
+  /** Work-item ids linked to a PR, via the Git artifact-ref endpoint. */
+  getPullRequestWorkItemRefs(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+  }): Promise<number[]>;
+
+  /** Allowed state names for a work-item type (used to pre-validate transitions). */
+  getWorkItemTypeStates(args: { project: string; type: string }): Promise<string[]>;
+
+  /** Apply a JSON Patch document to a work item. */
+  updateWorkItem(args: {
+    project: string;
+    id: number;
+    patch: JsonPatchOperation[];
+  }): Promise<WorkItem>;
+
+  /** Append a discussion comment. */
+  addWorkItemComment(args: {
+    project: string;
+    id: number;
+    text: string;
+  }): Promise<WorkItemComment>;
 }
