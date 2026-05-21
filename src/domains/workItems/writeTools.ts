@@ -14,7 +14,8 @@ export function buildWorkItemsWriteTools(svc: WorkItemsWriteService): ToolDefini
         title: "Link a work item to a pull request",
         description:
           "Adds a bidirectional artifact link between a work item and a PR (visible in both the WI " +
-          "and the PR in the ADO UI). The work item and PR are assumed to be in the same project.",
+          "and the PR in the ADO UI). The work item and PR are assumed to be in the same project. " +
+          "ADO does not deduplicate — calling this twice for the same WI+PR adds the link twice.",
         inputSchema: LinkWorkItemToPrInput,
       },
       handler: async (args) => svc.linkToPr(args as Parameters<typeof svc.linkToPr>[0]),

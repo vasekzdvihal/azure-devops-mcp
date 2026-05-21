@@ -64,22 +64,12 @@ export type {
 // Work items (WorkItemTrackingApi)
 export type {
   WorkItem,
-  WorkItemReference,
-  WorkItemRelation,
-  WorkItemQueryResult,
-  WorkItemStateColor,
-  WorkItemType,
   Comment as WorkItemComment,
-  CommentList,
 } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces.js";
 // WorkItemExpand is used as a *value* (expand: WorkItemExpand.All), so it's a
 // runtime export, not a type-only one.
 export { WorkItemExpand } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces.js";
 
-// JSON Patch (used to mutate work items) + the generic resource ref returned by
-// getPullRequestWorkItemRefs.
-export type {
-  JsonPatchOperation,
-  ResourceRef,
-} from "azure-devops-node-api/interfaces/common/VSSInterfaces.js";
+// JSON Patch (used to mutate work items).
+export type { JsonPatchOperation } from "azure-devops-node-api/interfaces/common/VSSInterfaces.js";
 export { Operation } from "azure-devops-node-api/interfaces/common/VSSInterfaces.js";

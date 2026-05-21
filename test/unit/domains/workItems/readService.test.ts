@@ -58,6 +58,17 @@ describe("WorkItemsReadService.list", () => {
     await expect(svc.list({ project: "Proj", filter: "currentIteration" })).rejects.toThrow(/team/);
   });
 
+  it("builds a tag WIQL query and shapes results", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setWiqlIds([12]);
+    fake.setWorkItemsSummary("Proj", [
+      wi(12, { "System.WorkItemType": "Bug", "System.Title": "Tagged", "System.State": "Active" }),
+    ]);
+    const out = await svc.list({ project: "Proj", filter: "tag", tag: "sprint-5" });
+    expect(fake.getWiqlCalls()[0]?.wiql).toContain("CONTAINS 'sprint-5'");
+    expect(out[0]?.id).toBe(12);
+  });
+
   it("uses PR work-item refs for linkedToPr (no WIQL)", async () => {
     const { svc, fake } = makeSvc();
     fake.setPrWorkItemRefs("Proj", "repo", 5, [10]);
