@@ -83,6 +83,27 @@ describe("WorkItemsReadService.list", () => {
     const { svc, fake } = makeSvc();
     fake.setWiqlIds([]);
     expect(await svc.list({ project: "Proj", filter: "myActive" })).toEqual([]);
+    expect(fake.getWorkItemsSummaryCalls()).toHaveLength(0);
+  });
+
+  it("throws when tag filter is missing the tag value", async () => {
+    const { svc } = makeSvc();
+    await expect(svc.list({ project: "Proj", filter: "tag" })).rejects.toThrow(/tag/);
+  });
+
+  it("shapes a plain-string assignedTo value", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setWiqlIds([11]);
+    fake.setWorkItemsSummary("Proj", [
+      wi(11, {
+        "System.WorkItemType": "Task",
+        "System.Title": "T",
+        "System.State": "New",
+        "System.AssignedTo": "vasek@example.com",
+      }),
+    ]);
+    const out = await svc.list({ project: "Proj", filter: "myActive" });
+    expect(out[0]?.assignedTo).toBe("vasek@example.com");
   });
 });
 

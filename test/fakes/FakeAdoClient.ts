@@ -930,6 +930,7 @@ export class FakeAdoClient implements AdoClient {
   // ---- phase-5 work items state ----
   private wiqlIds: number[] = [];
   private wiqlCalls: Array<{ project: string; wiql: string; team?: string }> = [];
+  private workItemsSummaryCalls: Array<{ project: string; ids: number[] }> = [];
   private workItemsSummary = new Map<string, WorkItem[]>(); // project → items (matched by id)
   private workItemById = new Map<string, WorkItem>(); // `${project} ${id}` → item
   private workItemComments = new Map<string, WorkItemComment[]>(); // `${project} ${id}`
@@ -960,6 +961,9 @@ export class FakeAdoClient implements AdoClient {
   }
   getWiqlCalls() {
     return this.wiqlCalls;
+  }
+  getWorkItemsSummaryCalls() {
+    return this.workItemsSummaryCalls;
   }
   setWorkItemsSummary(project: string, items: WorkItem[]): void {
     this.workItemsSummary.set(project, items);
@@ -1007,6 +1011,7 @@ export class FakeAdoClient implements AdoClient {
 
   async getWorkItemsSummary(args: { project: string; ids: number[] }): Promise<WorkItem[]> {
     this.throwIfInjected("getWorkItemsSummary");
+    this.workItemsSummaryCalls.push({ project: args.project, ids: args.ids });
     const all = this.workItemsSummary.get(args.project) ?? [];
     return all.filter((w) => args.ids.includes((w as { id?: number }).id ?? -1));
   }
