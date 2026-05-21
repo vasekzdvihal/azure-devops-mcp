@@ -34,7 +34,11 @@ import type {
   GitBranchStats,
   GitCommitRef,
   GitQueryCommitsCriteria,
+  WorkItem,
+  WorkItemComment,
+  JsonPatchOperation,
 } from "./types.js";
+import { WorkItemExpand } from "./types.js";
 import { GitVersionType } from "azure-devops-node-api/interfaces/GitInterfaces.js";
 import { AdoError, mapSdkError, AdoNotFoundError, AdoUnknownError } from "./errors.js";
 import { buildHttpsAgent } from "./tlsAgent.js";
@@ -1015,6 +1019,132 @@ export class SdkAdoClient implements AdoClient {
       );
       return commits;
     } catch (err) {
+      throw mapSdkError(err);
+    }
+  }
+
+  // -------- work items (WorkItemTrackingApi + GitApi) --------
+
+  async queryWorkItemIds(args: { project: string; wiql: string; team?: string }): Promise<number[]> {
+    try {
+      const wit = await this.api.getWorkItemTrackingApi();
+      const teamContext = args.team
+        ? { project: args.project, team: args.team }
+        : { project: args.project };
+      const result = await wit.queryByWiql({ query: args.wiql }, teamContext);
+      return (result.workItems ?? [])
+        .map((w) => w.id)
+        .filter((id): id is number => typeof id === "number");
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async getWorkItemsSummary(args: { project: string; ids: number[] }): Promise<WorkItem[]> {
+    try {
+      if (args.ids.length === 0) return [];
+      const wit = await this.api.getWorkItemTrackingApi();
+      const items = await wit.getWorkItems(
+        args.ids,
+        ["System.Id", "System.WorkItemType", "System.Title", "System.State", "System.AssignedTo"],
+        undefined,
+        undefined,
+        undefined,
+        args.project,
+      );
+      return items ?? [];
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async getWorkItem(args: { project: string; id: number }): Promise<WorkItem> {
+    try {
+      const wit = await this.api.getWorkItemTrackingApi();
+      const item = await wit.getWorkItem(args.id, undefined, undefined, WorkItemExpand.All, args.project);
+      if (!item) throw new AdoNotFoundError(`Work item ${args.id} not found`);
+      return item;
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async getWorkItemComments(args: {
+    project: string;
+    id: number;
+    top?: number;
+  }): Promise<WorkItemComment[]> {
+    try {
+      const wit = await this.api.getWorkItemTrackingApi();
+      const list = await wit.getComments(args.project, args.id, args.top ?? 20);
+      return list.comments ?? [];
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async getPullRequestWorkItemRefs(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+  }): Promise<number[]> {
+    try {
+      const git = await this.api.getGitApi();
+      const refs = await git.getPullRequestWorkItemRefs(
+        args.repository,
+        args.pullRequestId,
+        args.project,
+      );
+      return (refs ?? [])
+        .map((r) => (r.id ? Number(r.id) : NaN))
+        .filter((id) => Number.isInteger(id));
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async getWorkItemTypeStates(args: { project: string; type: string }): Promise<string[]> {
+    try {
+      const wit = await this.api.getWorkItemTrackingApi();
+      const states = await wit.getWorkItemTypeStates(args.project, args.type);
+      return (states ?? [])
+        .map((s) => s.name)
+        .filter((n): n is string => typeof n === "string");
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async updateWorkItem(args: {
+    project: string;
+    id: number;
+    patch: JsonPatchOperation[];
+  }): Promise<WorkItem> {
+    try {
+      const wit = await this.api.getWorkItemTrackingApi();
+      return await wit.updateWorkItem(null, args.patch, args.id, args.project);
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
+      throw mapSdkError(err);
+    }
+  }
+
+  async addWorkItemComment(args: {
+    project: string;
+    id: number;
+    text: string;
+  }): Promise<WorkItemComment> {
+    try {
+      const wit = await this.api.getWorkItemTrackingApi();
+      return await wit.addComment({ text: args.text }, args.project, args.id);
+    } catch (err) {
+      if (err instanceof AdoError) throw err;
       throw mapSdkError(err);
     }
   }
