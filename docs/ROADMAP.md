@@ -248,16 +248,36 @@ Released as v0.4.0.
 
 ---
 
-## 💡 Phase 5 — Work items
+## ✅ Phase 5 — Work items
 
-**Status:** idea, lower priority.
+**Status:** shipped 2026-05-21 in v0.8.0.
 
-**Goal:** find work items, get details, link them to PRs, optionally update state/comments.
+**Goal:** a focused work-item surface — query common item sets, read full item detail, link items to PRs, update state with pre-validation, and post comments.
 
-**Notes:**
-- Work item queries (WIQL) are powerful but verbose. The MCP would expose convenience methods for common queries ("my active items", "items linked to PR X").
-- Field schemas vary by process template (Agile / Scrum / CMMI / custom). Would need to handle gracefully.
-- Probably the most "wide" surface area of any phase — many possible tools. Worth a careful brainstorming pass to pick the small useful subset.
+**Tools shipped:**
+
+| Tool | Notes |
+| --- | --- |
+| `list_work_items` | convenience filters: `myActive`, `linkedToPr`, `currentIteration`, `tag` |
+| `get_work_item` | full field detail for a single work item |
+| `link_work_item_to_pr` | creates an ADO artifact link between the item and a pull request |
+| `update_work_item_state` | patches `System.State`; pre-validates the value against allowed states for the item's type + project before writing |
+| `add_work_item_comment` | appends a comment to the work item's discussion |
+
+**Key decisions / notes:**
+
+- **`linkedToPr` uses the Git API, not WIQL.** The filter calls `GitApi.getPullRequestWorkItemRefs` and then batch-fetches the returned IDs — simpler, no WIQL string construction, and the PR is the natural anchor. WIQL passthrough was intentionally not exposed.
+- **State pre-validation.** `update_work_item_state` fetches allowed transitions before writing; an invalid state returns a descriptive error rather than a 400 from ADO.
+- **New PAT scope: Work Items.** Reads need Work Items (read); the three write tools need Work Items (write). Added to the setup wizard, the README scopes table, and the `AdoAuthError` guidance.
+
+**Explicit out of scope for this phase:**
+- Raw WIQL passthrough
+- Attachment upload / download
+- Custom-field writes beyond the standard system fields
+- Parent / child relation mutation
+- Work-item creation or deletion
+
+**Spec:** `docs/superpowers/specs/2026-05-21-azure-devops-mcp-phase-5-work-items-design.md`.
 
 ---
 
