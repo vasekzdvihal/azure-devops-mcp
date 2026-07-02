@@ -16,10 +16,15 @@ export function buildReleaseWriteTools(svc: ReleasesWriteService): ToolDefinitio
       config: {
         title: "Create a release from a definition",
         description:
-          "Creates a new release for the given release definition. `artifacts` binds aliases to " +
-          "build ids; omit to use the definition's default artifact resolution. `variables` overrides " +
-          "release-scoped variables. Returns the new release id and its environment list so you can " +
-          "chain `deploy_release_stage` or `list_deployments`.",
+          "Creates a new release for the given release definition. **Inert by default: every stage " +
+          "is held as manual, so creating a release deploys nothing** — deployment happens only when " +
+          "you call `deploy_release_stage`. This is deliberate: some definitions auto-deploy (even to " +
+          "Production) the moment a release is created, and this suppresses that. Pass " +
+          "`autoDeploy: true` ONLY when the user explicitly wants creation to honor the definition's " +
+          "own triggers. `artifacts` binds aliases to build ids; omit to use the definition's default " +
+          "artifact resolution. `variables` overrides release-scoped variables. Returns the new " +
+          "release id and its environment list so you can chain `deploy_release_stage` or " +
+          "`list_deployments`.",
         inputSchema: CreateReleaseInput,
       },
       handler: async (args) =>

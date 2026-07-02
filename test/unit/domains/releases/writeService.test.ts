@@ -9,9 +9,19 @@ function makeSvc() {
   return { svc, fake };
 }
 
+// Give a definition some named stages so the default (inert) create path can
+// enumerate them for `manualEnvironments`.
+function defWithStages(project: string, definitionId: number, fake: FakeAdoClient, names: string[]) {
+  fake.setReleaseDefinition(project, definitionId, {
+    id: definitionId,
+    environments: names.map((name, i) => ({ id: i + 1, name })),
+  } as unknown as ReleaseDefinition);
+}
+
 describe("ReleasesWriteService.createRelease", () => {
   it("forwards definitionId + description + variables", async () => {
     const { svc, fake } = makeSvc();
+    defWithStages("p", 11, fake, ["Staging", "Production"]);
     fake.setNextCreatedRelease({ id: 5, name: "Release-5", environments: [] } as unknown as Release);
     const result = await svc.createRelease({
       project: "p",
@@ -28,8 +38,28 @@ describe("ReleasesWriteService.createRelease", () => {
     expect(result.name).toBe("Release-5");
   });
 
+  it("holds every stage as manual by default so creation deploys nothing", async () => {
+    const { svc, fake } = makeSvc();
+    defWithStages("p", 11, fake, ["Staging", "Production"]);
+    fake.setNextCreatedRelease({ id: 10, name: "Release-10", environments: [] } as unknown as Release);
+    await svc.createRelease({ project: "p", definitionId: 11 });
+    expect(fake.getCreatedReleases()[0]!.metadata.manualEnvironments).toEqual([
+      "Staging",
+      "Production",
+    ]);
+  });
+
+  it("autoDeploy:true honors the definition triggers (no manualEnvironments, no definition fetch)", async () => {
+    const { svc, fake } = makeSvc();
+    fake.setNextCreatedRelease({ id: 12, name: "Release-12", environments: [] } as unknown as Release);
+    // No definition configured — if the service fetched it, the fake would throw.
+    await svc.createRelease({ project: "p", definitionId: 11, autoDeploy: true });
+    expect(fake.getCreatedReleases()[0]!.metadata.manualEnvironments).toBeUndefined();
+  });
+
   it("shapes artifacts to { alias, instanceReference: { id, name } } using getBuild for the name", async () => {
     const { svc, fake } = makeSvc();
+    defWithStages("p", 1, fake, ["Dev"]);
     fake.setNextCreatedRelease({ id: 6, name: "R6", environments: [] } as unknown as Release);
     fake.setNextBuild({ id: 100, buildNumber: "20260518.1" } as Build);
     await svc.createRelease({
@@ -47,6 +77,7 @@ describe("ReleasesWriteService.createRelease", () => {
 
   it("omits artifacts entirely when not provided", async () => {
     const { svc, fake } = makeSvc();
+    defWithStages("p", 1, fake, ["Dev"]);
     fake.setNextCreatedRelease({ id: 1 } as unknown as Release);
     await svc.createRelease({ project: "p", definitionId: 1 });
     expect(fake.getCreatedReleases()[0]!.metadata.artifacts).toBeUndefined();
@@ -54,6 +85,7 @@ describe("ReleasesWriteService.createRelease", () => {
 
   it("maps environment status numbers to readable strings", async () => {
     const { svc, fake } = makeSvc();
+    defWithStages("p", 1, fake, ["Dev", "Prod"]);
     fake.setNextCreatedRelease({
       id: 7,
       environments: [

@@ -90,6 +90,15 @@ export const CreateReleaseInput = {
     .record(z.string(), z.object({ value: z.string(), isSecret: z.boolean().optional() }))
     .optional()
     .describe("Release-scoped variable overrides"),
+  autoDeploy: z
+    .boolean()
+    .optional()
+    .describe(
+      "When false or omitted (the DEFAULT), the release is created with every stage held as " +
+        "manual, so creation ships nothing — you then deploy explicitly with `deploy_release_stage`. " +
+        "Set true to honor the definition's own triggers (e.g. auto-deploy the first stage on " +
+        "creation). Only set true when the user explicitly wants creation to auto-deploy.",
+    ),
 };
 
 export const DeployReleaseStageInput = {
