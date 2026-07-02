@@ -1,6 +1,6 @@
 {
   "name": "@vasekzdvihal/azure-devops-mcp",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "MCP server for Azure DevOps (Server and Services) — PR review + lifecycle, releases, pipelines, and commit history.",
   "license": "MIT",
   "author": "Václav Zdvihal",
