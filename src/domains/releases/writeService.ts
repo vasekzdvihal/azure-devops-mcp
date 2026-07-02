@@ -115,6 +115,7 @@ export class ReleasesWriteService {
     description?: string;
     artifacts?: { alias: string; buildId: number }[];
     variables?: Record<string, { value: string; isSecret?: boolean }>;
+    autoDeploy?: boolean;
   }): Promise<CreateReleaseResult> {
     let shapedArtifacts: ReleaseStartMetadata["artifacts"] | undefined;
     if (args.artifacts && args.artifacts.length > 0) {
@@ -134,11 +135,29 @@ export class ReleasesWriteService {
       }
     }
 
+    // Safety: creation is inert by default. Without this, a definition whose stages carry a
+    // "ReleaseStarted" trigger deploys — potentially to Production — the instant the release is
+    // created, which contradicts the suite's contract that `deploy_release_stage` is the one gated
+    // deploy action. We hold every stage as manual by enumerating the definition's environment
+    // names; `autoDeploy: true` opts back into the definition's own triggers.
+    let manualEnvironments: string[] | undefined;
+    if (!args.autoDeploy) {
+      const definition = await this.client.getReleaseDefinition({
+        project: args.project,
+        definitionId: args.definitionId,
+      });
+      const names = (definition.environments ?? [])
+        .map((e) => e.name)
+        .filter((n): n is string => !!n);
+      manualEnvironments = names.length > 0 ? names : undefined;
+    }
+
     const metadata: ReleaseStartMetadata = {
       definitionId: args.definitionId,
       description: args.description,
       artifacts: shapedArtifacts,
       variables: args.variables,
+      manualEnvironments,
     };
 
     const release = await this.client.createRelease({
