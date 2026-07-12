@@ -46,7 +46,8 @@
     "lint": "eslint src test",
     "lint:fix": "eslint src test --fix",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "prepare": "husky"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.4.2",
@@ -60,8 +61,19 @@
     "@types/node": "^22.0.0",
     "@vasekzdvihal/eslint-config": "^0.1.1",
     "eslint": "^10.7.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
     "tsx": "^4.20.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.4"
+  },
+  "packageManager": "pnpm@10.34.5",
+  "lint-staged": {
+    "*.{js,mjs,cjs,ts,tsx,vue}": "eslint --fix"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }
