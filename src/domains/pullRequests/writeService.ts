@@ -1,14 +1,15 @@
 // src/domains/pullRequests/writeService.ts
-import type { AdoClient } from "../../ado/client.js";
+import type { AdoClient } from '../../ado/client.js';
 import type {
   CommentThreadStatus,
   GitPullRequest,
   GitPullRequestCommentThread,
   GitPullRequestMergeStrategy,
   IdentityRefWithVote,
-} from "../../ado/types.js";
-import { detectRepo } from "../../git/detectRepo.js";
-import { resolveRepo, type RepoResolver } from "./repoResolution.js";
+} from '../../ado/types.js';
+import type { RepoResolver } from './repoResolution.js';
+import { detectRepo } from '../../git/detectRepo.js';
+import { resolveRepo } from './repoResolution.js';
 
 const MERGE_STRATEGY_TO_ENUM: Record<string, GitPullRequestMergeStrategy> = {
   noFastForward: 1,
@@ -19,15 +20,15 @@ const MERGE_STRATEGY_TO_ENUM: Record<string, GitPullRequestMergeStrategy> = {
 
 // PullRequestStatus enum from ADO (Phase 1 readService also has this map).
 const PR_STATUS_FROM_ENUM: Record<number, string> = {
-  0: "notSet",
-  1: "active",
-  2: "abandoned",
-  3: "completed",
-  4: "all",
+  0: 'notSet',
+  1: 'active',
+  2: 'abandoned',
+  3: 'completed',
+  4: 'all',
 };
 
 function ensureRefsHeads(branch: string): string {
-  return branch.startsWith("refs/") ? branch : `refs/heads/${branch}`;
+  return branch.startsWith('refs/') ? branch : `refs/heads/${branch}`;
 }
 
 // --- enum mappings (mirrors readService's reverse maps) ---
@@ -42,13 +43,13 @@ const THREAD_STATUS_TO_ENUM: Record<string, CommentThreadStatus> = {
 };
 
 const THREAD_STATUS_FROM_ENUM: Record<number, string> = {
-  0: "unknown",
-  1: "active",
-  2: "fixed",
-  3: "wontFix",
-  4: "closed",
-  5: "byDesign",
-  6: "pending",
+  0: 'unknown',
+  1: 'active',
+  2: 'fixed',
+  3: 'wontFix',
+  4: 'closed',
+  5: 'byDesign',
+  6: 'pending',
 };
 
 // ADO vote values (numeric, no enum in the SDK's PullRequestVote interface).
@@ -62,11 +63,11 @@ const VOTE_TO_NUMBER: Record<string, number> = {
 };
 
 const VOTE_FROM_NUMBER: Record<number, string> = {
-  10: "approve",
-  5: "approveWithSuggestions",
-  0: "reset",
-  [-5]: "wait",
-  [-10]: "reject",
+  10: 'approve',
+  5: 'approveWithSuggestions',
+  0: 'reset',
+  [-5]: 'wait',
+  [-10]: 'reject',
 };
 
 // --- response shapes ---
@@ -119,8 +120,8 @@ export class PullRequestsWriteService {
     // PR comment. Catch the mistake at the service boundary.
     if ((args.filePath && !args.line) || (!args.filePath && args.line)) {
       throw new Error(
-        "add_pull_request_comment: filePath and line must be provided together. " +
-          "Pass both for a line-anchored comment, or neither for a general PR comment.",
+        'add_pull_request_comment: filePath and line must be provided together. '
+        + 'Pass both for a line-anchored comment, or neither for a general PR comment.',
       );
     }
     const { project, repository } = await resolveRepo(args, this.resolver);
@@ -187,7 +188,9 @@ export class PullRequestsWriteService {
       throw new Error(`Unknown vote value: ${args.vote}`);
     }
     const me = await this.client.whoami();
-    if (!me.id) throw new Error("whoami() returned identity without id");
+    if (!me.id) {
+      throw new Error('whoami() returned identity without id');
+    }
     const updated = await this.client.setPullRequestVote({
       project,
       repository,
@@ -207,7 +210,7 @@ export class PullRequestsWriteService {
   }): Promise<UpdatePrResult> {
     const { project, repository } = await resolveRepo(args, this.resolver);
     if (args.title === undefined && args.description === undefined) {
-      throw new Error("updatePullRequest requires at least one of title or description");
+      throw new Error('updatePullRequest requires at least one of title or description');
     }
     const updated = await this.client.updatePullRequest({
       project,
@@ -249,10 +252,10 @@ export class PullRequestsWriteService {
       reviewerIds: args.reviewerIds,
     });
     return {
-      added: added.map((r) => ({
-        id: r.id,
-        name: r.displayName,
-        vote: r.vote ?? 0,
+      added: added.map(reviewer => ({
+        id: reviewer.id,
+        name: reviewer.displayName,
+        vote: reviewer.vote ?? 0,
       })),
     };
   }
@@ -306,8 +309,8 @@ export class PullRequestsWriteService {
     return {
       pullRequestId: created.pullRequestId ?? 0,
       title: created.title,
-      sourceBranch: created.sourceRefName?.replace(/^refs\/heads\//, ""),
-      targetBranch: created.targetRefName?.replace(/^refs\/heads\//, ""),
+      sourceBranch: created.sourceRefName?.replace(/^refs\/heads\//, ''),
+      targetBranch: created.targetRefName?.replace(/^refs\/heads\//, ''),
       isDraft: created.isDraft,
       url: created.url,
     };
@@ -340,7 +343,7 @@ export class PullRequestsWriteService {
     });
     return {
       pullRequestId: completed.pullRequestId ?? args.pullRequestId,
-      status: PR_STATUS_FROM_ENUM[completed.status ?? 0] ?? "unknown",
+      status: PR_STATUS_FROM_ENUM[completed.status ?? 0] ?? 'unknown',
     };
   }
 
@@ -357,7 +360,7 @@ export class PullRequestsWriteService {
     });
     return {
       pullRequestId: updated.pullRequestId ?? args.pullRequestId,
-      status: PR_STATUS_FROM_ENUM[updated.status ?? 0] ?? "unknown",
+      status: PR_STATUS_FROM_ENUM[updated.status ?? 0] ?? 'unknown',
     };
   }
 
@@ -378,7 +381,7 @@ export class PullRequestsWriteService {
     // the ADO web UI does when a user clicks "Set auto-complete".
     const me = await this.client.whoami();
     if (!me.id) {
-      throw new Error("Cannot set auto-complete — whoami returned no identity id.");
+      throw new Error('Cannot set auto-complete — whoami returned no identity id.');
     }
     const updated = await this.client.setPullRequestAutoComplete({
       project,
@@ -404,21 +407,21 @@ export class PullRequestsWriteService {
 
 // --- shapers (pure) ---
 
-function shapeThreadResult(t: GitPullRequestCommentThread): AddCommentResult {
+function shapeThreadResult(thread: GitPullRequestCommentThread): AddCommentResult {
   return {
-    threadId: t.id ?? 0,
-    status: THREAD_STATUS_FROM_ENUM[t.status ?? 0] ?? "unknown",
+    threadId: thread.id ?? 0,
+    status: THREAD_STATUS_FROM_ENUM[thread.status ?? 0] ?? 'unknown',
   };
 }
 
-function shapeVoteResult(r: IdentityRefWithVote, _requestedVote: string): VoteResult {
+function shapeVoteResult(reviewer: IdentityRefWithVote, _requestedVote: string): VoteResult {
   // Echo back what ADO actually stored, not what the user asked for.
   // If ADO returned an unknown numeric value we surface "unknown" rather than
   // pretending the requested vote was applied.
   return {
-    vote: VOTE_FROM_NUMBER[r.vote ?? 0] ?? "unknown",
-    reviewer: r.displayName,
-    reviewerId: r.id,
+    vote: VOTE_FROM_NUMBER[reviewer.vote ?? 0] ?? 'unknown',
+    reviewer: reviewer.displayName,
+    reviewerId: reviewer.id,
   };
 }
 

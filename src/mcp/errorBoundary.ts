@@ -1,8 +1,9 @@
+import process from 'node:process';
 // Structural shape of the SDK's CallToolResult: content array + optional isError
 // plus arbitrary metadata (_meta, etc.). The index signature lets TS accept this
 // value wherever the SDK expects CallToolResult, without importing the SDK type here.
 export interface McpToolResult {
-  content: Array<{ type: "text"; text: string }>;
+  content: Array<{ type: 'text'; text: string }>;
   isError?: boolean;
   [x: string]: unknown;
 }
@@ -18,18 +19,20 @@ export function toToolResult(
     try {
       const value = await handler(args);
       return {
-        content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
       };
-    } catch (err) {
+    }
+    catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // Stack trace goes to stderr for debugging; user-facing message stays clean.
       if (err instanceof Error && err.stack) {
         process.stderr.write(`[azure-devops-mcp] tool error: ${err.stack}\n`);
-      } else {
+      }
+      else {
         process.stderr.write(`[azure-devops-mcp] tool error: ${message}\n`);
       }
       return {
-        content: [{ type: "text", text: message }],
+        content: [{ type: 'text', text: message }],
         isError: true,
       };
     }

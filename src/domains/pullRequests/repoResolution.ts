@@ -1,14 +1,14 @@
+import type { ParsedRemote } from '../../git/parseRemoteUrl.js';
 // src/domains/pullRequests/repoResolution.ts
-import { detectRepo } from "../../git/detectRepo.js";
-import type { ParsedRemote } from "../../git/parseRemoteUrl.js";
+import { detectRepo } from '../../git/detectRepo.js';
 
 export class RepoContextError extends Error {
   constructor() {
     super(
-      "Could not resolve project + repository. Either pass them explicitly " +
-        "or run from inside an Azure DevOps git checkout (with `origin` set).",
+      'Could not resolve project + repository. Either pass them explicitly '
+      + 'or run from inside an Azure DevOps git checkout (with `origin` set).',
     );
-    this.name = "RepoContextError";
+    this.name = 'RepoContextError';
   }
 }
 
@@ -31,6 +31,8 @@ export async function resolveRepo(
   const detected = await resolver();
   const project = args.project ?? detected?.project;
   const repository = args.repository ?? detected?.repo;
-  if (!project || !repository) throw new RepoContextError();
+  if (!project || !repository) {
+    throw new RepoContextError();
+  }
   return { project, repository };
 }

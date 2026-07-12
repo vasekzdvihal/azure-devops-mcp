@@ -1,5 +1,5 @@
-import type { AdoClient } from "../../ado/client.js";
-import type { GitRepository } from "../../ado/types.js";
+import type { AdoClient } from '../../ado/client.js';
+import type { GitRepository } from '../../ado/types.js';
 
 export interface RepoSummary {
   id: string;
@@ -17,12 +17,12 @@ export class RepositoriesService {
   }
 }
 
-function shape(r: GitRepository): RepoSummary {
-  const branch = r.defaultBranch?.replace(/^refs\/heads\//, "");
+function shape(repo: GitRepository): RepoSummary {
+  const branch = repo.defaultBranch?.replace(/^refs\/heads\//, '');
   return {
-    id: r.id ?? "",
-    name: r.name ?? "",
+    id: repo.id ?? '',
+    name: repo.name ?? '',
     defaultBranch: branch,
-    webUrl: r.webUrl,
+    webUrl: repo.webUrl,
   };
 }

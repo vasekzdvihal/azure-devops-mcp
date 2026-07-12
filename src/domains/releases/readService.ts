@@ -1,25 +1,26 @@
-import type { AdoClient } from "../../ado/client.js";
+import type { AdoClient } from '../../ado/client.js';
 import type {
-  Release,
-  ReleaseDefinition,
+  Artifact,
   Deployment,
   DeploymentStatus,
-  ReleaseStatus,
-  ReleaseEnvironment,
-  Artifact,
+  EnvironmentStatus,
+  Release,
   ReleaseApproval,
-} from "../../ado/types.js";
+  ReleaseDefinition,
+  ReleaseEnvironment,
+  ReleaseStatus,
+} from '../../ado/types.js';
 
 // ReleaseTriggerType: 0=undefined, 1=artifactSource, 2=schedule, 3=sourceRepo,
 // 4=containerImage, 5=package, 6=pullRequest.
 const RELEASE_TRIGGER_TYPE_FROM_ENUM: Record<number, string> = {
-  0: "undefined",
-  1: "artifactSource",
-  2: "schedule",
-  3: "sourceRepo",
-  4: "containerImage",
-  5: "package",
-  6: "pullRequest",
+  0: 'undefined',
+  1: 'artifactSource',
+  2: 'schedule',
+  3: 'sourceRepo',
+  4: 'containerImage',
+  5: 'package',
+  6: 'pullRequest',
 };
 
 const RELEASE_STATUS_TO_ENUM: Record<string, ReleaseStatus> = {
@@ -29,10 +30,10 @@ const RELEASE_STATUS_TO_ENUM: Record<string, ReleaseStatus> = {
 };
 
 const RELEASE_STATUS_FROM_ENUM: Record<number, string> = {
-  0: "undefined",
-  1: "draft",
-  2: "active",
-  4: "abandoned",
+  0: 'undefined',
+  1: 'draft',
+  2: 'active',
+  4: 'abandoned',
 };
 
 const DEPLOYMENT_STATUS_TO_ENUM: Record<string, DeploymentStatus> = {
@@ -45,26 +46,38 @@ const DEPLOYMENT_STATUS_TO_ENUM: Record<string, DeploymentStatus> = {
 };
 
 const DEPLOYMENT_STATUS_FROM_ENUM: Record<number, string> = {
-  0: "undefined",
-  1: "notDeployed",
-  2: "inProgress",
-  4: "succeeded",
-  8: "partiallySucceeded",
-  16: "failed",
+  0: 'undefined',
+  1: 'notDeployed',
+  2: 'inProgress',
+  4: 'succeeded',
+  8: 'partiallySucceeded',
+  16: 'failed',
 };
 
 // EnvironmentStatus enum — per-stage status inside a release.
 const ENVIRONMENT_STATUS_FROM_ENUM: Record<number, string> = {
-  0: "undefined",
-  1: "notStarted",
-  2: "inProgress",
-  4: "succeeded",
-  8: "canceled",
-  16: "rejected",
-  32: "queued",
-  64: "scheduled",
-  128: "partiallySucceeded",
+  0: 'undefined',
+  1: 'notStarted',
+  2: 'inProgress',
+  4: 'succeeded',
+  8: 'canceled',
+  16: 'rejected',
+  32: 'queued',
+  64: 'scheduled',
+  128: 'partiallySucceeded',
 };
+
+function toIso(date: Date | undefined): string | undefined {
+  return date?.toISOString();
+}
+
+function deploymentStatusLabel(status: DeploymentStatus | undefined): string {
+  return DEPLOYMENT_STATUS_FROM_ENUM[status ?? 0] ?? 'unknown';
+}
+
+function environmentStatusLabel(status: EnvironmentStatus | undefined): string {
+  return ENVIRONMENT_STATUS_FROM_ENUM[status ?? 0] ?? 'unknown';
+}
 
 export interface ReleaseDefinitionSummary {
   id: number;
@@ -231,9 +244,11 @@ export class ReleasesReadService {
       top: args.top,
     });
     const shaped = deployments.map(shapeDeployment);
-    if (!args.environmentName) return shaped;
+    if (!args.environmentName) {
+      return shaped;
+    }
     const target = args.environmentName.toLowerCase();
-    return shaped.filter((d) => d.environmentName?.toLowerCase() === target);
+    return shaped.filter(deployment => deployment.environmentName?.toLowerCase() === target);
   }
 
   async listPendingApprovals(args: {
@@ -251,74 +266,88 @@ export class ReleasesReadService {
     }[]
   > {
     const approvals = await this.client.listPendingApprovals(args);
-    return approvals.map((a: ReleaseApproval) => ({
-      approvalId: a.id ?? 0,
-      releaseId: a.release?.id ?? 0,
-      releaseName: a.release?.name ?? "",
-      environmentName: a.releaseEnvironment?.name ?? "",
-      approver: a.approver?.displayName ?? null,
-      createdOn:
-        a.createdOn instanceof Date ? a.createdOn.toISOString() : (a.createdOn ?? null),
-    }));
+    return approvals.map(shapePendingApproval);
   }
 }
 
-function shapeDefinition(d: ReleaseDefinition): ReleaseDefinitionSummary {
+function shapePendingApproval(approval: ReleaseApproval): {
+  approvalId: number;
+  releaseId: number;
+  releaseName: string;
+  environmentName: string;
+  approver: string | null;
+  createdOn: string | null;
+} {
   return {
-    id: d.id ?? 0,
-    name: d.name ?? "",
-    path: d.path,
-    createdBy: d.createdBy?.displayName,
-    createdOn: d.createdOn?.toISOString(),
-    modifiedOn: d.modifiedOn?.toISOString(),
+    approvalId: approval.id ?? 0,
+    releaseId: approval.release?.id ?? 0,
+    releaseName: approval.release?.name ?? '',
+    environmentName: approval.releaseEnvironment?.name ?? '',
+    approver: approval.approver?.displayName ?? null,
+    createdOn: isoOrNull(approval.createdOn),
   };
 }
 
-function shapeDefinitionDetail(d: ReleaseDefinition, verbose: boolean): ReleaseDefinitionDetail {
-  const summary = shapeDefinition(d);
+function isoOrNull(value: Date | string | null | undefined): string | null {
+  return value instanceof Date ? value.toISOString() : (value ?? null);
+}
 
-  const variables: ReleaseVariableInfo[] = Object.entries(d.variables ?? {}).map(
-    ([name, v]) => ({
+function shapeDefinition(def: ReleaseDefinition): ReleaseDefinitionSummary {
+  return {
+    id: def.id ?? 0,
+    name: def.name ?? '',
+    path: def.path,
+    createdBy: def.createdBy?.displayName,
+    createdOn: def.createdOn?.toISOString(),
+    modifiedOn: def.modifiedOn?.toISOString(),
+  };
+}
+
+function shapeDefinitionDetail(def: ReleaseDefinition, verbose: boolean): ReleaseDefinitionDetail {
+  const summary = shapeDefinition(def);
+
+  const variables: ReleaseVariableInfo[] = Object.entries(def.variables ?? {}).map(
+    ([name, value]) => ({
       name,
-      isSecret: !!v?.isSecret,
-      allowOverride: !!v?.allowOverride,
-      ...(v?.isSecret ? {} : { value: v?.value }),
+      isSecret: !!value?.isSecret,
+      allowOverride: !!value?.allowOverride,
+      ...(value?.isSecret ? {} : { value: value?.value }),
     }),
   );
 
-  const artifacts: ReleaseDefinitionArtifactInfo[] = (d.artifacts ?? []).map((a: Artifact) => {
-    const ref = a.definitionReference ?? {};
+  const artifacts: ReleaseDefinitionArtifactInfo[] = (def.artifacts ?? []).map((artifact: Artifact) => {
+    const ref = artifact.definitionReference ?? {};
     return {
-      alias: a.alias,
-      type: a.type,
-      sourceId: a.sourceId,
+      alias: artifact.alias,
+      type: artifact.type,
+      sourceId: artifact.sourceId,
       sourceDefinitionId: ref.definition?.id,
       sourceDefinitionName: ref.definition?.name,
     };
   });
 
-  const triggers: ReleaseDefinitionTriggerInfo[] = (d.triggers ?? []).map((t) => {
-    const type = RELEASE_TRIGGER_TYPE_FROM_ENUM[t.triggerType ?? 0] ?? "unknown";
+  const triggers: ReleaseDefinitionTriggerInfo[] = (def.triggers ?? []).map((trigger) => {
+    const type = RELEASE_TRIGGER_TYPE_FROM_ENUM[trigger.triggerType ?? 0] ?? 'unknown';
     // ArtifactSource and PullRequest triggers carry an `artifactAlias`. Other
     // subtypes do not — we widen and pluck conditionally.
-    const ext = t as { artifactAlias?: string };
+    const ext = trigger as { artifactAlias?: string };
     return {
       type,
       ...(ext.artifactAlias ? { artifactAlias: ext.artifactAlias } : {}),
     };
   });
 
-  const environments: ReleaseDefinitionEnvironmentInfo[] = (d.environments ?? []).map((e) =>
-    shapeDefinitionEnvironment(e, verbose),
+  const environments: ReleaseDefinitionEnvironmentInfo[] = (def.environments ?? []).map(env =>
+    shapeDefinitionEnvironment(env, verbose),
   );
 
   return {
     ...summary,
-    description: d.description,
-    releaseNameFormat: d.releaseNameFormat,
-    modifiedBy: d.modifiedBy?.displayName,
+    description: def.description,
+    releaseNameFormat: def.releaseNameFormat,
+    modifiedBy: def.modifiedBy?.displayName,
     variables,
-    variableGroupIds: d.variableGroups ?? [],
+    variableGroupIds: def.variableGroups ?? [],
     artifacts,
     triggers,
     environments,
@@ -347,11 +376,11 @@ function shapeDefinitionEnvironment(
   },
   verbose: boolean,
 ): ReleaseDefinitionEnvironmentInfo {
-  const tasks = (env.deployPhases ?? []).flatMap((p) => p.workflowTasks ?? []);
+  const tasks = (env.deployPhases ?? []).flatMap(phase => phase.workflowTasks ?? []);
 
   return {
     id: env.id,
-    name: env.name ?? "",
+    name: env.name ?? '',
     rank: env.rank,
     queueId: env.queueId,
     preApprovals: shapeApprovals(env.preDeployApprovals),
@@ -359,11 +388,11 @@ function shapeDefinitionEnvironment(
     deployTaskCount: tasks.length,
     ...(verbose
       ? {
-          deployTasks: tasks.map((t) => ({
-            displayName: t.name ?? "",
-            refName: t.refName,
+          deployTasks: tasks.map(task => ({
+            displayName: task.name ?? '',
+            refName: task.refName,
             // ADO defaults a missing `enabled` flag to true in the UI; mirror that.
-            enabled: t.enabled !== false,
+            enabled: task.enabled !== false,
           })),
         }
       : {}),
@@ -371,90 +400,105 @@ function shapeDefinitionEnvironment(
 }
 
 function shapeApprovals(
-  a:
+  gate:
     | { approvals?: Array<{ isAutomated?: boolean; approver?: { displayName?: string } }> }
     | undefined,
 ): ReleaseDefinitionApprovalsInfo {
-  const approvals = a?.approvals ?? [];
+  const approvals = gate?.approvals ?? [];
   // ADO models "no approval gate" as a single approval entry with isAutomated=true.
   // Surface that as a single boolean rather than asking the LLM to interpret the
   // shape itself.
-  const isAutomated = approvals.length === 0 || approvals.every((s) => s.isAutomated === true);
+  const isAutomated = approvals.length === 0 || approvals.every(approval => approval.isAutomated === true);
   const approvers = approvals
-    .filter((s) => s.isAutomated !== true)
-    .map((s) => s.approver?.displayName)
-    .filter((n): n is string => typeof n === "string");
+    .filter(approval => approval.isAutomated !== true)
+    .map(approval => approval.approver?.displayName)
+    .filter((name): name is string => typeof name === 'string');
   return { isAutomated, approvers };
 }
 
-function shapeRelease(r: Release): ReleaseSummary {
+function shapeRelease(release: Release): ReleaseSummary {
   return {
-    id: r.id ?? 0,
-    name: r.name ?? "",
-    definitionId: r.releaseDefinition?.id,
-    definitionName: r.releaseDefinition?.name,
-    status: RELEASE_STATUS_FROM_ENUM[r.status ?? 0] ?? "unknown",
-    createdBy: r.createdBy?.displayName,
-    createdOn: r.createdOn?.toISOString(),
-    description: r.description,
+    id: release.id ?? 0,
+    name: release.name ?? '',
+    definitionId: release.releaseDefinition?.id,
+    definitionName: release.releaseDefinition?.name,
+    status: RELEASE_STATUS_FROM_ENUM[release.status ?? 0] ?? 'unknown',
+    createdBy: release.createdBy?.displayName,
+    createdOn: release.createdOn?.toISOString(),
+    description: release.description,
   };
 }
 
-function shapeReleaseDetail(r: Release): ReleaseDetail {
+function shapeReleaseDetail(release: Release): ReleaseDetail {
   return {
-    ...shapeRelease(r),
-    stages: (r.environments ?? []).map(shapeStage),
-    artifacts: (r.artifacts ?? []).map(shapeArtifact),
+    ...shapeRelease(release),
+    stages: (release.environments ?? []).map(shapeStage),
+    artifacts: (release.artifacts ?? []).map(shapeArtifact),
   };
 }
 
-function shapeStage(env: ReleaseEnvironment): ReleaseDetail["stages"][number] {
+function shapeStage(env: ReleaseEnvironment): ReleaseDetail['stages'][number] {
   const latestStep = env.deploySteps?.[env.deploySteps.length - 1];
   // `status` is the environment-level state (the box in the ADO UI);
   // `deploymentStatus` is the latest deploy attempt's outcome. They often
   // agree but diverge during retries or when a manual intervention is queued.
   return {
-    environmentName: env.name ?? "",
-    status: ENVIRONMENT_STATUS_FROM_ENUM[env.status ?? 0] ?? "unknown",
+    environmentName: env.name ?? '',
+    status: environmentStatusLabel(env.status),
     deploymentStatus:
       latestStep?.status !== undefined
-        ? (DEPLOYMENT_STATUS_FROM_ENUM[latestStep.status] ?? "unknown")
+        ? (DEPLOYMENT_STATUS_FROM_ENUM[latestStep.status] ?? 'unknown')
         : undefined,
     deployedBy: latestStep?.requestedBy?.displayName,
-    completedOn: latestStep?.lastModifiedOn?.toISOString(),
+    completedOn: toIso(latestStep?.lastModifiedOn),
   };
 }
 
-function shapeArtifact(a: Artifact): ReleaseDetail["artifacts"][number] {
-  const ref = a.definitionReference ?? {};
+function shapeArtifact(artifact: Artifact): ReleaseDetail['artifacts'][number] {
   return {
-    alias: a.alias,
+    alias: artifact.alias,
+    ...shapeArtifactRef(artifact),
+  };
+}
+
+function shapeArtifactRef(
+  artifact: Artifact | undefined,
+): Pick<DeploymentSummary, 'sourceBuildId' | 'sourceBranch' | 'sourceVersion'> {
+  const ref = artifact?.definitionReference ?? {};
+  return {
     sourceBuildId: ref.version?.id,
     sourceBranch: ref.branch?.id,
     sourceVersion: ref.sourceVersion?.id,
   };
 }
 
-function shapeDeployment(d: Deployment): DeploymentSummary {
+function shapeDeployment(deployment: Deployment): DeploymentSummary {
   // Artifact metadata lives on the associated release reference (one hop in
   // the SDK shape). Surfacing it on the flat row makes "what was deployed"
   // visible without a follow-up get_release call.
-  const primaryArtifact = d.release?.artifacts?.[0];
-  const ref = primaryArtifact?.definitionReference ?? {};
   return {
-    deploymentId: d.id ?? 0,
-    releaseId: d.release?.id,
-    releaseName: d.release?.name,
-    definitionId: d.releaseDefinition?.id,
-    definitionName: d.releaseDefinition?.name,
-    environmentName: d.releaseEnvironment?.name,
-    status: DEPLOYMENT_STATUS_FROM_ENUM[d.deploymentStatus ?? 0] ?? "unknown",
-    requestedBy: d.requestedBy?.displayName,
-    requestedOn: d.queuedOn?.toISOString(),
-    startedOn: d.startedOn?.toISOString(),
-    completedOn: d.completedOn?.toISOString(),
-    sourceBuildId: ref.version?.id,
-    sourceBranch: ref.branch?.id,
-    sourceVersion: ref.sourceVersion?.id,
+    deploymentId: deployment.id ?? 0,
+    ...shapeDeploymentRefs(deployment),
+    status: deploymentStatusLabel(deployment.deploymentStatus),
+    requestedBy: deployment.requestedBy?.displayName,
+    requestedOn: toIso(deployment.queuedOn),
+    startedOn: toIso(deployment.startedOn),
+    completedOn: toIso(deployment.completedOn),
+    ...shapeArtifactRef(deployment.release?.artifacts?.[0]),
+  };
+}
+
+function shapeDeploymentRefs(
+  deployment: Deployment,
+): Pick<
+  DeploymentSummary,
+  'releaseId' | 'releaseName' | 'definitionId' | 'definitionName' | 'environmentName'
+> {
+  return {
+    releaseId: deployment.release?.id,
+    releaseName: deployment.release?.name,
+    definitionId: deployment.releaseDefinition?.id,
+    definitionName: deployment.releaseDefinition?.name,
+    environmentName: deployment.releaseEnvironment?.name,
   };
 }

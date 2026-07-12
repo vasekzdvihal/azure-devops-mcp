@@ -1,11 +1,11 @@
-import { Entry } from "@napi-rs/keyring";
+import { Entry } from '@napi-rs/keyring';
 
-const SERVICE_NAME = "azure-devops-mcp";
+const SERVICE_NAME = 'azure-devops-mcp';
 
 export class PatNotFoundError extends Error {
   constructor(account: string) {
     super(`No PAT found in OS keyring for account "${account}". Run: npx -y @vasekzdvihal/azure-devops-mcp setup`);
-    this.name = "PatNotFoundError";
+    this.name = 'PatNotFoundError';
   }
 }
 
@@ -19,7 +19,9 @@ export function setPat(account: string, pat: string): void {
 
 export function getPat(account: string): string {
   const password = entryFor(account).getPassword();
-  if (password === null) throw new PatNotFoundError(account);
+  if (password === null) {
+    throw new PatNotFoundError(account);
+  }
   return password;
 }
 

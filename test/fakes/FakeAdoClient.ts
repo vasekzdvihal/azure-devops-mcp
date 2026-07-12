@@ -1,38 +1,38 @@
-import type { AdoClient } from "../../src/ado/client.js";
+import type { AdoClient } from '../../src/ado/client.js';
 import type {
-  Identity,
-  TeamProjectReference,
-  GitRepository,
-  GitPullRequest,
-  GitPullRequestIteration,
-  GitPullRequestCommentThread,
-  GitPullRequestChange,
-  PullRequestStatus,
-  Comment,
-  CommentThreadStatus,
-  IdentityRefWithVote,
-  GitPullRequestCompletionOptions,
-  GitPullRequestMergeStrategy,
-  Release,
-  ReleaseDefinition,
-  Deployment,
-  DeploymentStatus,
-  ReleaseStatus,
-  ReleaseStartMetadata,
-  ReleaseEnvironmentUpdateMetadata,
-  ReleaseApproval,
   Build,
   BuildDefinition,
-  Timeline,
-  BuildStatus,
   BuildResult,
-  Run,
+  BuildStatus,
+  Comment,
+  CommentThreadStatus,
+  Deployment,
+  DeploymentStatus,
   GitBranchStats,
   GitCommitRef,
+  GitPullRequest,
+  GitPullRequestChange,
+  GitPullRequestCommentThread,
+  GitPullRequestCompletionOptions,
+  GitPullRequestIteration,
+  GitPullRequestMergeStrategy,
+  GitRepository,
+  Identity,
+  IdentityRefWithVote,
+  JsonPatchOperation,
+  PullRequestStatus,
+  Release,
+  ReleaseApproval,
+  ReleaseDefinition,
+  ReleaseEnvironmentUpdateMetadata,
+  ReleaseStartMetadata,
+  ReleaseStatus,
+  Run,
+  TeamProjectReference,
+  Timeline,
   WorkItem,
   WorkItemComment,
-  JsonPatchOperation,
-} from "../../src/ado/types.js";
+} from '../../src/ado/types.js';
 
 interface PrKey {
   project: string;
@@ -40,8 +40,8 @@ interface PrKey {
   pullRequestId: number;
 }
 
-function prKey(k: PrKey): string {
-  return `${k.project} ${k.repository} ${k.pullRequestId}`;
+function prKey(key: PrKey): string {
+  return `${key.project} ${key.repository} ${key.pullRequestId}`;
 }
 
 export class FakeAdoClient implements AdoClient {
@@ -68,6 +68,7 @@ export class FakeAdoClient implements AdoClient {
     repository: string;
     pr: GitPullRequest;
   }> = [];
+
   private completedPrs: Array<{ key: string; mergeStrategy: GitPullRequestMergeStrategy }> = [];
   private abandonedPrs: string[] = [];
   private autoCompleteSet: Array<{
@@ -75,6 +76,7 @@ export class FakeAdoClient implements AdoClient {
     setById: string;
     options: GitPullRequestCompletionOptions;
   }> = [];
+
   private nextCreatedPr?: GitPullRequest;
   private nextCompletedPr?: GitPullRequest;
   private nextAbandonedPr?: GitPullRequest;
@@ -83,24 +85,31 @@ export class FakeAdoClient implements AdoClient {
   setNextCreatedPr(pr: GitPullRequest): void {
     this.nextCreatedPr = pr;
   }
+
   setNextCompletedPr(pr: GitPullRequest): void {
     this.nextCompletedPr = pr;
   }
+
   setNextAbandonedPr(pr: GitPullRequest): void {
     this.nextAbandonedPr = pr;
   }
+
   setNextAutoCompletedPr(pr: GitPullRequest): void {
     this.nextAutoCompletedPr = pr;
   }
+
   getCreatedPrs(): ReadonlyArray<{ project: string; repository: string; pr: GitPullRequest }> {
     return this.createdPrs;
   }
+
   getCompletedPrs(): ReadonlyArray<{ key: string; mergeStrategy: GitPullRequestMergeStrategy }> {
     return this.completedPrs;
   }
+
   getAbandonedPrs(): ReadonlyArray<string> {
     return this.abandonedPrs;
   }
+
   getAutoCompleteSets(): ReadonlyArray<{
     key: string;
     setById: string;
@@ -132,31 +141,40 @@ export class FakeAdoClient implements AdoClient {
     this.whoamiResult = identity;
     this.whoamiError = undefined;
   }
+
   setWhoamiError(err: Error): void {
     this.whoamiError = err;
     this.whoamiResult = undefined;
   }
+
   setProjects(projects: TeamProjectReference[]): void {
     this.projects = projects;
   }
+
   setRepositories(project: string, repos: GitRepository[]): void {
     this.repos.set(project, repos);
   }
+
   setPullRequests(project: string, repository: string, prs: GitPullRequest[]): void {
     this.prLists.set(`${project} ${repository}`, prs);
   }
+
   setPullRequest(args: PrKey & { pr: GitPullRequest }): void {
     this.prDetails.set(prKey(args), args.pr);
   }
+
   setPullRequestChanges(args: PrKey & { changes: GitPullRequestChange[] }): void {
     this.prChanges.set(prKey(args), args.changes);
   }
+
   setPullRequestThreads(args: PrKey & { threads: GitPullRequestCommentThread[] }): void {
     this.prThreads.set(prKey(args), args.threads);
   }
+
   setPullRequestIterations(args: PrKey & { iterations: GitPullRequestIteration[] }): void {
     this.prIterations.set(prKey(args), args.iterations);
   }
+
   setFileContent(args: {
     project: string;
     repository: string;
@@ -169,6 +187,7 @@ export class FakeAdoClient implements AdoClient {
       args.content,
     );
   }
+
   injectError(method: string, err: Error): void {
     this.errors.set(method, err);
   }
@@ -177,18 +196,23 @@ export class FakeAdoClient implements AdoClient {
   setNextCreatedThread(thread: GitPullRequestCommentThread): void {
     this.nextCreatedThread = thread;
   }
+
   setNextCreatedComment(comment: Comment): void {
     this.nextCreatedComment = comment;
   }
+
   setNextUpdatedThread(thread: GitPullRequestCommentThread): void {
     this.nextUpdatedThread = thread;
   }
+
   setNextVoteResult(vote: IdentityRefWithVote): void {
     this.nextVoteResult = vote;
   }
+
   setNextUpdatedPr(pr: GitPullRequest): void {
     this.nextUpdatedPr = pr;
   }
+
   setNextAddedReviewers(reviewers: IdentityRefWithVote[]): void {
     this.nextAddedReviewers = reviewers;
   }
@@ -197,21 +221,27 @@ export class FakeAdoClient implements AdoClient {
   getCreatedThreads(): ReadonlyArray<{ key: string; thread: GitPullRequestCommentThread }> {
     return this.createdThreads;
   }
+
   getCreatedComments(): ReadonlyArray<{ key: string; threadId: number; comment: Comment }> {
     return this.createdComments;
   }
+
   getThreadStatusUpdates(): ReadonlyArray<{ key: string; threadId: number; status: CommentThreadStatus }> {
     return this.threadStatusUpdates;
   }
+
   getVoteUpdates(): ReadonlyArray<{ key: string; reviewerId: string; vote: number }> {
     return this.voteUpdates;
   }
+
   getPrUpdates(): ReadonlyArray<{ key: string; update: Partial<GitPullRequest> }> {
     return this.prUpdates;
   }
+
   getReviewerAdds(): ReadonlyArray<{ key: string; reviewerIds: string[] }> {
     return this.reviewerAdds;
   }
+
   getReviewerRemoves(): ReadonlyArray<{ key: string; reviewerId: string }> {
     return this.reviewerRemoves;
   }
@@ -227,6 +257,7 @@ export class FakeAdoClient implements AdoClient {
     string,
     { build: Build; timeline: Timeline | null }
   >(); // `${project} ${runId}`
+
   private pipelineDefDetails = new Map<string, BuildDefinition>(); // `${project} ${definitionId}`
   private releaseDefDetails = new Map<string, ReleaseDefinition>(); // `${project} ${definitionId}`
   private branches = new Map<string, GitBranchStats[]>(); // `${project} ${repo}`
@@ -236,21 +267,27 @@ export class FakeAdoClient implements AdoClient {
   setReleaseDefinitions(project: string, defs: ReleaseDefinition[]): void {
     this.releaseDefs.set(project, defs);
   }
+
   setReleases(project: string, releases: Release[]): void {
     this.releases.set(project, releases);
   }
+
   setRelease(project: string, releaseId: number, release: Release): void {
     this.releaseDetails.set(`${project} ${releaseId}`, release);
   }
+
   setDeployments(project: string, deployments: Deployment[]): void {
     this.deployments.set(project, deployments);
   }
+
   setPipelines(project: string, pipelines: BuildDefinition[]): void {
     this.pipelines.set(project, pipelines);
   }
+
   setPipelineRuns(project: string, runs: Build[]): void {
     this.pipelineRuns.set(project, runs);
   }
+
   setPipelineRun(
     project: string,
     runId: number,
@@ -258,39 +295,49 @@ export class FakeAdoClient implements AdoClient {
   ): void {
     this.pipelineRunDetails.set(`${project} ${runId}`, detail);
   }
+
   setPipelineDefinition(project: string, definitionId: number, def: BuildDefinition): void {
     this.pipelineDefDetails.set(`${project} ${definitionId}`, def);
   }
+
   setReleaseDefinition(project: string, definitionId: number, def: ReleaseDefinition): void {
     this.releaseDefDetails.set(`${project} ${definitionId}`, def);
   }
+
   setBranches(project: string, repository: string, branches: GitBranchStats[]): void {
     this.branches.set(`${project} ${repository}`, branches);
   }
+
   setCommits(project: string, repository: string, commits: GitCommitRef[]): void {
     this.commits.set(`${project} ${repository}`, commits);
   }
 
   // ---- AdoClient impl ----
   private throwIfInjected(method: string): void {
-    const e = this.errors.get(method);
-    if (e) throw e;
+    const err = this.errors.get(method);
+    if (err) {
+      throw err;
+    }
   }
 
   async whoami(): Promise<Identity> {
-    this.throwIfInjected("whoami");
-    if (this.whoamiError) throw this.whoamiError;
-    if (this.whoamiResult) return this.whoamiResult;
-    throw new Error("FakeAdoClient.whoami: no result configured");
+    this.throwIfInjected('whoami');
+    if (this.whoamiError) {
+      throw this.whoamiError;
+    }
+    if (this.whoamiResult) {
+      return this.whoamiResult;
+    }
+    throw new Error('FakeAdoClient.whoami: no result configured');
   }
 
   async listProjects(): Promise<TeamProjectReference[]> {
-    this.throwIfInjected("listProjects");
+    this.throwIfInjected('listProjects');
     return this.projects ?? [];
   }
 
   async listRepositories(args: { project: string }): Promise<GitRepository[]> {
-    this.throwIfInjected("listRepositories");
+    this.throwIfInjected('listRepositories');
     return this.repos.get(args.project) ?? [];
   }
 
@@ -299,19 +346,21 @@ export class FakeAdoClient implements AdoClient {
     repository: string;
     status?: PullRequestStatus;
   }): Promise<GitPullRequest[]> {
-    this.throwIfInjected("listPullRequests");
+    this.throwIfInjected('listPullRequests');
     return this.prLists.get(`${args.project} ${args.repository}`) ?? [];
   }
 
   async getPullRequest(args: PrKey): Promise<GitPullRequest> {
-    this.throwIfInjected("getPullRequest");
+    this.throwIfInjected('getPullRequest');
     const pr = this.prDetails.get(prKey(args));
-    if (!pr) throw new Error(`FakeAdoClient.getPullRequest: no PR configured for ${prKey(args)}`);
+    if (!pr) {
+      throw new Error(`FakeAdoClient.getPullRequest: no PR configured for ${prKey(args)}`);
+    }
     return pr;
   }
 
   async listPullRequestChanges(args: PrKey): Promise<GitPullRequestChange[]> {
-    this.throwIfInjected("listPullRequestChanges");
+    this.throwIfInjected('listPullRequestChanges');
     return this.prChanges.get(prKey(args)) ?? [];
   }
 
@@ -321,18 +370,18 @@ export class FakeAdoClient implements AdoClient {
     path: string;
     commitSha: string;
   }): Promise<string | null> {
-    this.throwIfInjected("getFileContent");
-    const k = `${args.project} ${args.repository} ${args.path} ${args.commitSha}`;
-    return this.fileContents.has(k) ? (this.fileContents.get(k) ?? null) : null;
+    this.throwIfInjected('getFileContent');
+    const key = `${args.project} ${args.repository} ${args.path} ${args.commitSha}`;
+    return this.fileContents.has(key) ? (this.fileContents.get(key) ?? null) : null;
   }
 
   async listPullRequestThreads(args: PrKey): Promise<GitPullRequestCommentThread[]> {
-    this.throwIfInjected("listPullRequestThreads");
+    this.throwIfInjected('listPullRequestThreads');
     return this.prThreads.get(prKey(args)) ?? [];
   }
 
   async listPullRequestIterations(args: PrKey): Promise<GitPullRequestIteration[]> {
-    this.throwIfInjected("listPullRequestIterations");
+    this.throwIfInjected('listPullRequestIterations');
     return this.prIterations.get(prKey(args)) ?? [];
   }
 
@@ -344,7 +393,7 @@ export class FakeAdoClient implements AdoClient {
     filePath?: string;
     line?: number;
   }): Promise<GitPullRequestCommentThread> {
-    this.throwIfInjected("createPullRequestThread");
+    this.throwIfInjected('createPullRequestThread');
     const thread: GitPullRequestCommentThread = {
       id: 999,
       comments: [{ content: args.content, commentType: 1 }],
@@ -373,7 +422,7 @@ export class FakeAdoClient implements AdoClient {
     threadId: number;
     content: string;
   }): Promise<Comment> {
-    this.throwIfInjected("addPullRequestComment");
+    this.throwIfInjected('addPullRequestComment');
     const comment: Comment = { id: 999, content: args.content, commentType: 1 };
     this.createdComments.push({
       key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
@@ -390,7 +439,7 @@ export class FakeAdoClient implements AdoClient {
     threadId: number;
     status: CommentThreadStatus;
   }): Promise<GitPullRequestCommentThread> {
-    this.throwIfInjected("updatePullRequestThreadStatus");
+    this.throwIfInjected('updatePullRequestThreadStatus');
     this.threadStatusUpdates.push({
       key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
       threadId: args.threadId,
@@ -406,7 +455,7 @@ export class FakeAdoClient implements AdoClient {
     reviewerId: string;
     vote: number;
   }): Promise<IdentityRefWithVote> {
-    this.throwIfInjected("setPullRequestVote");
+    this.throwIfInjected('setPullRequestVote');
     this.voteUpdates.push({
       key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
       reviewerId: args.reviewerId,
@@ -423,7 +472,7 @@ export class FakeAdoClient implements AdoClient {
     description?: string;
     isDraft?: boolean;
   }): Promise<GitPullRequest> {
-    this.throwIfInjected("updatePullRequest");
+    this.throwIfInjected('updatePullRequest');
     const update: Partial<GitPullRequest> = {
       ...(args.title !== undefined ? { title: args.title } : {}),
       ...(args.description !== undefined ? { description: args.description } : {}),
@@ -442,12 +491,12 @@ export class FakeAdoClient implements AdoClient {
     pullRequestId: number;
     reviewerIds: string[];
   }): Promise<IdentityRefWithVote[]> {
-    this.throwIfInjected("addPullRequestReviewers");
+    this.throwIfInjected('addPullRequestReviewers');
     this.reviewerAdds.push({
       key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
       reviewerIds: args.reviewerIds,
     });
-    return this.nextAddedReviewers ?? args.reviewerIds.map((id) => ({ id, vote: 0 }));
+    return this.nextAddedReviewers ?? args.reviewerIds.map(id => ({ id, vote: 0 }));
   }
 
   async removePullRequestReviewer(args: {
@@ -456,7 +505,7 @@ export class FakeAdoClient implements AdoClient {
     pullRequestId: number;
     reviewerId: string;
   }): Promise<void> {
-    this.throwIfInjected("removePullRequestReviewer");
+    this.throwIfInjected('removePullRequestReviewer');
     this.reviewerRemoves.push({
       key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
       reviewerId: args.reviewerId,
@@ -464,7 +513,7 @@ export class FakeAdoClient implements AdoClient {
   }
 
   async listReleaseDefinitions(args: { project: string }): Promise<ReleaseDefinition[]> {
-    this.throwIfInjected("listReleaseDefinitions");
+    this.throwIfInjected('listReleaseDefinitions');
     return this.releaseDefs.get(args.project) ?? [];
   }
 
@@ -474,31 +523,33 @@ export class FakeAdoClient implements AdoClient {
     status?: ReleaseStatus;
     top?: number;
   }): Promise<Release[]> {
-    this.throwIfInjected("listReleases");
+    this.throwIfInjected('listReleases');
     return this.releases.get(args.project) ?? [];
   }
 
   async getRelease(args: { project: string; releaseId: number }): Promise<Release> {
-    this.throwIfInjected("getRelease");
-    const r = this.releaseDetails.get(`${args.project} ${args.releaseId}`);
-    if (!r)
+    this.throwIfInjected('getRelease');
+    const release = this.releaseDetails.get(`${args.project} ${args.releaseId}`);
+    if (!release) {
       throw new Error(
         `FakeAdoClient.getRelease: no release configured for ${args.project} ${args.releaseId}`,
       );
-    return r;
+    }
+    return release;
   }
 
   async getReleaseDefinition(args: {
     project: string;
     definitionId: number;
   }): Promise<ReleaseDefinition> {
-    this.throwIfInjected("getReleaseDefinition");
-    const d = this.releaseDefDetails.get(`${args.project} ${args.definitionId}`);
-    if (!d)
+    this.throwIfInjected('getReleaseDefinition');
+    const detail = this.releaseDefDetails.get(`${args.project} ${args.definitionId}`);
+    if (!detail) {
       throw new Error(
         `FakeAdoClient.getReleaseDefinition: no definition configured for ${args.project} ${args.definitionId}`,
       );
-    return d;
+    }
+    return detail;
   }
 
   async listDeployments(args: {
@@ -507,7 +558,7 @@ export class FakeAdoClient implements AdoClient {
     deploymentStatus?: DeploymentStatus;
     top?: number;
   }): Promise<Deployment[]> {
-    this.throwIfInjected("listDeployments");
+    this.throwIfInjected('listDeployments');
     return this.deployments.get(args.project) ?? [];
   }
 
@@ -515,7 +566,7 @@ export class FakeAdoClient implements AdoClient {
     project: string;
     repositoryId?: string;
   }): Promise<BuildDefinition[]> {
-    this.throwIfInjected("listPipelines");
+    this.throwIfInjected('listPipelines');
     return this.pipelines.get(args.project) ?? [];
   }
 
@@ -527,7 +578,7 @@ export class FakeAdoClient implements AdoClient {
     result?: BuildResult;
     top?: number;
   }): Promise<Build[]> {
-    this.throwIfInjected("listPipelineRuns");
+    this.throwIfInjected('listPipelineRuns');
     return this.pipelineRuns.get(args.project) ?? [];
   }
 
@@ -535,26 +586,28 @@ export class FakeAdoClient implements AdoClient {
     project: string;
     runId: number;
   }): Promise<{ build: Build; timeline: Timeline | null }> {
-    this.throwIfInjected("getPipelineRun");
-    const d = this.pipelineRunDetails.get(`${args.project} ${args.runId}`);
-    if (!d)
+    this.throwIfInjected('getPipelineRun');
+    const detail = this.pipelineRunDetails.get(`${args.project} ${args.runId}`);
+    if (!detail) {
       throw new Error(
         `FakeAdoClient.getPipelineRun: no run configured for ${args.project} ${args.runId}`,
       );
-    return d;
+    }
+    return detail;
   }
 
   async getPipelineDefinition(args: {
     project: string;
     definitionId: number;
   }): Promise<BuildDefinition> {
-    this.throwIfInjected("getPipelineDefinition");
-    const d = this.pipelineDefDetails.get(`${args.project} ${args.definitionId}`);
-    if (!d)
+    this.throwIfInjected('getPipelineDefinition');
+    const detail = this.pipelineDefDetails.get(`${args.project} ${args.definitionId}`);
+    if (!detail) {
       throw new Error(
         `FakeAdoClient.getPipelineDefinition: no definition configured for ${args.project} ${args.definitionId}`,
       );
-    return d;
+    }
+    return detail;
   }
 
   private nextBuild?: Build;
@@ -563,20 +616,21 @@ export class FakeAdoClient implements AdoClient {
     this.nextBuild = build;
   }
 
-  async getBuild(args: { project: string; buildId: number }): Promise<Build> {
-    this.throwIfInjected("getBuild");
-    if (!this.nextBuild)
+  async getBuild(_args: { project: string; buildId: number }): Promise<Build> {
+    this.throwIfInjected('getBuild');
+    if (!this.nextBuild) {
       throw new Error(`FakeAdoClient.getBuild: no build configured (setNextBuild not called)`);
-    const b = this.nextBuild;
+    }
+    const result = this.nextBuild;
     this.nextBuild = undefined;
-    return b;
+    return result;
   }
 
   async listBranches(args: {
     project: string;
     repository: string;
   }): Promise<GitBranchStats[]> {
-    this.throwIfInjected("listBranches");
+    this.throwIfInjected('listBranches');
     return this.branches.get(`${args.project} ${args.repository}`) ?? [];
   }
 
@@ -589,7 +643,7 @@ export class FakeAdoClient implements AdoClient {
     author?: string;
     top?: number;
   }): Promise<GitCommitRef[]> {
-    this.throwIfInjected("listCommits");
+    this.throwIfInjected('listCommits');
     return this.commits.get(`${args.project} ${args.repository}`) ?? [];
   }
 
@@ -603,14 +657,14 @@ export class FakeAdoClient implements AdoClient {
     isDraft?: boolean;
     reviewerIds?: string[];
   }): Promise<GitPullRequest> {
-    this.throwIfInjected("createPullRequest");
+    this.throwIfInjected('createPullRequest');
     const pr: GitPullRequest = {
       sourceRefName: args.sourceRefName,
       targetRefName: args.targetRefName,
       title: args.title,
       description: args.description,
       isDraft: args.isDraft,
-      reviewers: args.reviewerIds?.map((id) => ({ id, vote: 0 })),
+      reviewers: args.reviewerIds?.map(id => ({ id, vote: 0 })),
     };
     this.createdPrs.push({ project: args.project, repository: args.repository, pr });
     return this.nextCreatedPr ?? { ...pr, pullRequestId: 9999 };
@@ -627,7 +681,7 @@ export class FakeAdoClient implements AdoClient {
     bypassReason?: string;
     lastMergeSourceCommitId?: string;
   }): Promise<GitPullRequest> {
-    this.throwIfInjected("completePullRequest");
+    this.throwIfInjected('completePullRequest');
     this.completedPrs.push({
       key: prKey({
         project: args.project,
@@ -644,7 +698,7 @@ export class FakeAdoClient implements AdoClient {
     repository: string;
     pullRequestId: number;
   }): Promise<GitPullRequest> {
-    this.throwIfInjected("abandonPullRequest");
+    this.throwIfInjected('abandonPullRequest');
     this.abandonedPrs.push(
       prKey({
         project: args.project,
@@ -662,7 +716,7 @@ export class FakeAdoClient implements AdoClient {
     autoCompleteSetById: string;
     completionOptions: GitPullRequestCompletionOptions;
   }): Promise<GitPullRequest> {
-    this.throwIfInjected("setPullRequestAutoComplete");
+    this.throwIfInjected('setPullRequestAutoComplete');
     this.autoCompleteSet.push({
       key: prKey({
         project: args.project,
@@ -688,6 +742,7 @@ export class FakeAdoClient implements AdoClient {
     templateParameters?: Record<string, string>;
     variables?: Record<string, { value: string; isSecret?: boolean }>;
   }> = [];
+
   private nextQueuedRun?: Run;
 
   private cancelledRuns: Array<{ project: string; runId: number }> = [];
@@ -700,6 +755,7 @@ export class FakeAdoClient implements AdoClient {
   setNextQueuedRun(run: Run): void {
     this.nextQueuedRun = run;
   }
+
   getQueuedRuns() {
     return this.queuedRuns;
   }
@@ -707,6 +763,7 @@ export class FakeAdoClient implements AdoClient {
   setNextCancelledRun(build: Build): void {
     this.nextCancelledRun = build;
   }
+
   getCancelledRuns() {
     return this.cancelledRuns;
   }
@@ -714,9 +771,11 @@ export class FakeAdoClient implements AdoClient {
   setNextTagsState(tags: string[]): void {
     this.nextTagsState = tags;
   }
+
   getAddedTags() {
     return this.addedTags;
   }
+
   getRemovedTags() {
     return this.removedTags;
   }
@@ -728,31 +787,31 @@ export class FakeAdoClient implements AdoClient {
     templateParameters?: Record<string, string>;
     variables?: Record<string, { value: string; isSecret?: boolean }>;
   }): Promise<Run> {
-    this.throwIfInjected("queuePipelineRun");
+    this.throwIfInjected('queuePipelineRun');
     this.queuedRuns.push(args);
     if (!this.nextQueuedRun) {
-      throw new Error("FakeAdoClient: setNextQueuedRun not called");
+      throw new Error('FakeAdoClient: setNextQueuedRun not called');
     }
     return this.nextQueuedRun;
   }
 
   async cancelPipelineRun(args: { project: string; runId: number }): Promise<Build> {
-    this.throwIfInjected("cancelPipelineRun");
+    this.throwIfInjected('cancelPipelineRun');
     this.cancelledRuns.push(args);
     if (!this.nextCancelledRun) {
-      throw new Error("FakeAdoClient: setNextCancelledRun not called");
+      throw new Error('FakeAdoClient: setNextCancelledRun not called');
     }
     return this.nextCancelledRun;
   }
 
   async addBuildTags(args: { project: string; runId: number; tags: string[] }): Promise<string[]> {
-    this.throwIfInjected("addBuildTags");
+    this.throwIfInjected('addBuildTags');
     this.addedTags.push(args);
     return this.nextTagsState ?? args.tags;
   }
 
   async removeBuildTag(args: { project: string; runId: number; tag: string }): Promise<string[]> {
-    this.throwIfInjected("removeBuildTag");
+    this.throwIfInjected('removeBuildTag');
     this.removedTags.push(args);
     return this.nextTagsState ?? [];
   }
@@ -774,14 +833,16 @@ export class FakeAdoClient implements AdoClient {
   private approvedGates: Array<{
     project: string;
     approvalId: number;
-    status: "approved" | "rejected";
+    status: 'approved' | 'rejected';
     comment?: string;
   }> = [];
+
   private nextUpdatedApproval?: ReleaseApproval;
 
   setNextCreatedRelease(release: Release): void {
     this.nextCreatedRelease = release;
   }
+
   getCreatedReleases() {
     return this.createdReleases;
   }
@@ -793,6 +854,7 @@ export class FakeAdoClient implements AdoClient {
   setNextCancelledRelease(release: Release): void {
     this.nextCancelledRelease = release;
   }
+
   getCancelledReleases() {
     return this.cancelledReleases;
   }
@@ -800,15 +862,16 @@ export class FakeAdoClient implements AdoClient {
   setNextUpdatedApproval(approval: ReleaseApproval): void {
     this.nextUpdatedApproval = approval;
   }
+
   getApprovedGates() {
     return this.approvedGates;
   }
 
   async createRelease(args: { project: string; metadata: ReleaseStartMetadata }): Promise<Release> {
-    this.throwIfInjected("createRelease");
+    this.throwIfInjected('createRelease');
     this.createdReleases.push(args);
     if (!this.nextCreatedRelease) {
-      throw new Error("FakeAdoClient: setNextCreatedRelease not called");
+      throw new Error('FakeAdoClient: setNextCreatedRelease not called');
     }
     return this.nextCreatedRelease;
   }
@@ -819,7 +882,7 @@ export class FakeAdoClient implements AdoClient {
     environmentId: number;
     update: ReleaseEnvironmentUpdateMetadata;
   }): Promise<unknown> {
-    this.throwIfInjected("updateReleaseEnvironment");
+    this.throwIfInjected('updateReleaseEnvironment');
     this.deployedEnvironments.push(args);
     return {};
   }
@@ -829,10 +892,10 @@ export class FakeAdoClient implements AdoClient {
     releaseId: number;
     comment?: string;
   }): Promise<Release> {
-    this.throwIfInjected("cancelRelease");
+    this.throwIfInjected('cancelRelease');
     this.cancelledReleases.push(args);
     if (!this.nextCancelledRelease) {
-      throw new Error("FakeAdoClient: setNextCancelledRelease not called");
+      throw new Error('FakeAdoClient: setNextCancelledRelease not called');
     }
     return this.nextCancelledRelease;
   }
@@ -840,13 +903,13 @@ export class FakeAdoClient implements AdoClient {
   async updateReleaseApproval(args: {
     project: string;
     approvalId: number;
-    status: "approved" | "rejected";
+    status: 'approved' | 'rejected';
     comment?: string;
   }): Promise<ReleaseApproval> {
-    this.throwIfInjected("updateReleaseApproval");
+    this.throwIfInjected('updateReleaseApproval');
     this.approvedGates.push(args);
     if (!this.nextUpdatedApproval) {
-      throw new Error("FakeAdoClient: setNextUpdatedApproval not called");
+      throw new Error('FakeAdoClient: setNextUpdatedApproval not called');
     }
     return this.nextUpdatedApproval;
   }
@@ -860,7 +923,7 @@ export class FakeAdoClient implements AdoClient {
   }> = [];
 
   setPendingApprovals(args: { project: string; releaseId?: number }, approvals: ReleaseApproval[]): void {
-    this.pendingApprovalsByKey.set(`${args.project}|${args.releaseId ?? "*"}`, approvals);
+    this.pendingApprovalsByKey.set(`${args.project}|${args.releaseId ?? '*'}`, approvals);
   }
 
   getPendingApprovalsCalls() {
@@ -872,12 +935,12 @@ export class FakeAdoClient implements AdoClient {
     releaseId?: number;
     assignedTo?: string;
   }): Promise<ReleaseApproval[]> {
-    this.throwIfInjected("listPendingApprovals");
+    this.throwIfInjected('listPendingApprovals');
     this.pendingApprovalsCalls.push(args);
     return (
-      this.pendingApprovalsByKey.get(`${args.project}|${args.releaseId ?? "*"}`) ??
-      this.pendingApprovalsByKey.get(`${args.project}|*`) ??
-      []
+      this.pendingApprovalsByKey.get(`${args.project}|${args.releaseId ?? '*'}`)
+      ?? this.pendingApprovalsByKey.get(`${args.project}|*`)
+      ?? []
     );
   }
 
@@ -894,6 +957,7 @@ export class FakeAdoClient implements AdoClient {
     definitionId: number;
     definition: BuildDefinition;
   }> = [];
+
   private nextUpdatedPipelineDef?: BuildDefinition;
 
   getRetriedStages() {
@@ -903,6 +967,7 @@ export class FakeAdoClient implements AdoClient {
   setNextUpdatedPipelineDef(def: BuildDefinition): void {
     this.nextUpdatedPipelineDef = def;
   }
+
   getPipelineDefUpdates() {
     return this.pipelineDefUpdates;
   }
@@ -913,7 +978,7 @@ export class FakeAdoClient implements AdoClient {
     stageName: string;
     forceRetryAllJobs?: boolean;
   }): Promise<void> {
-    this.throwIfInjected("retryBuildStage");
+    this.throwIfInjected('retryBuildStage');
     this.retriedStages.push(args);
   }
 
@@ -922,7 +987,7 @@ export class FakeAdoClient implements AdoClient {
     definitionId: number;
     definition: BuildDefinition;
   }): Promise<BuildDefinition> {
-    this.throwIfInjected("updatePipelineDefinition");
+    this.throwIfInjected('updatePipelineDefinition');
     this.pipelineDefUpdates.push(args);
     return this.nextUpdatedPipelineDef ?? args.definition;
   }
@@ -946,11 +1011,13 @@ export class FakeAdoClient implements AdoClient {
     project: string;
     definition: ReleaseDefinition;
   }> = [];
+
   private nextUpdatedReleaseDef?: ReleaseDefinition;
 
   setNextUpdatedReleaseDef(def: ReleaseDefinition): void {
     this.nextUpdatedReleaseDef = def;
   }
+
   getReleaseDefUpdates() {
     return this.releaseDefUpdates;
   }
@@ -959,36 +1026,47 @@ export class FakeAdoClient implements AdoClient {
   setWiqlIds(ids: number[]): void {
     this.wiqlIds = ids;
   }
+
   getWiqlCalls() {
     return this.wiqlCalls;
   }
+
   getWorkItemsSummaryCalls() {
     return this.workItemsSummaryCalls;
   }
+
   setWorkItemsSummary(project: string, items: WorkItem[]): void {
     this.workItemsSummary.set(project, items);
   }
+
   setWorkItem(project: string, id: number, item: WorkItem): void {
     this.workItemById.set(`${project} ${id}`, item);
   }
+
   setWorkItemComments(project: string, id: number, comments: WorkItemComment[]): void {
     this.workItemComments.set(`${project} ${id}`, comments);
   }
+
   setPrWorkItemRefs(project: string, repository: string, prId: number, ids: number[]): void {
     this.prWorkItemRefs.set(`${project} ${repository} ${prId}`, ids);
   }
+
   setTypeStates(project: string, type: string, states: string[]): void {
     this.typeStates.set(`${project} ${type}`, states);
   }
+
   setNextUpdatedWorkItem(item: WorkItem): void {
     this.nextUpdatedWorkItem = item;
   }
+
   getUpdatedWorkItems() {
     return this.updatedWorkItems;
   }
+
   setNextAddedComment(comment: WorkItemComment): void {
     this.nextAddedComment = comment;
   }
+
   getAddedWorkItemComments() {
     return this.addedWorkItemComments;
   }
@@ -997,34 +1075,36 @@ export class FakeAdoClient implements AdoClient {
     project: string;
     definition: ReleaseDefinition;
   }): Promise<ReleaseDefinition> {
-    this.throwIfInjected("updateReleaseDefinition");
+    this.throwIfInjected('updateReleaseDefinition');
     this.releaseDefUpdates.push(args);
     return this.nextUpdatedReleaseDef ?? args.definition;
   }
 
   // ---- phase-5 work item methods ----
   async queryWorkItemIds(args: { project: string; wiql: string; team?: string }): Promise<number[]> {
-    this.throwIfInjected("queryWorkItemIds");
+    this.throwIfInjected('queryWorkItemIds');
     this.wiqlCalls.push({ project: args.project, wiql: args.wiql, team: args.team });
     return this.wiqlIds;
   }
 
   async getWorkItemsSummary(args: { project: string; ids: number[] }): Promise<WorkItem[]> {
-    this.throwIfInjected("getWorkItemsSummary");
+    this.throwIfInjected('getWorkItemsSummary');
     this.workItemsSummaryCalls.push({ project: args.project, ids: args.ids });
     const all = this.workItemsSummary.get(args.project) ?? [];
-    return all.filter((w) => args.ids.includes((w as { id?: number }).id ?? -1));
+    return all.filter(item => args.ids.includes((item as { id?: number }).id ?? -1));
   }
 
   async getWorkItem(args: { project: string; id: number }): Promise<WorkItem> {
-    this.throwIfInjected("getWorkItem");
+    this.throwIfInjected('getWorkItem');
     const item = this.workItemById.get(`${args.project} ${args.id}`);
-    if (!item) throw new Error(`FakeAdoClient.getWorkItem: none configured for ${args.project} ${args.id}`);
+    if (!item) {
+      throw new Error(`FakeAdoClient.getWorkItem: none configured for ${args.project} ${args.id}`);
+    }
     return item;
   }
 
   async getWorkItemComments(args: { project: string; id: number; top?: number }): Promise<WorkItemComment[]> {
-    this.throwIfInjected("getWorkItemComments");
+    this.throwIfInjected('getWorkItemComments');
     return this.workItemComments.get(`${args.project} ${args.id}`) ?? [];
   }
 
@@ -1033,12 +1113,12 @@ export class FakeAdoClient implements AdoClient {
     repository: string;
     pullRequestId: number;
   }): Promise<number[]> {
-    this.throwIfInjected("getPullRequestWorkItemRefs");
+    this.throwIfInjected('getPullRequestWorkItemRefs');
     return this.prWorkItemRefs.get(`${args.project} ${args.repository} ${args.pullRequestId}`) ?? [];
   }
 
   async getWorkItemTypeStates(args: { project: string; type: string }): Promise<string[]> {
-    this.throwIfInjected("getWorkItemTypeStates");
+    this.throwIfInjected('getWorkItemTypeStates');
     return this.typeStates.get(`${args.project} ${args.type}`) ?? [];
   }
 
@@ -1047,7 +1127,7 @@ export class FakeAdoClient implements AdoClient {
     id: number;
     patch: JsonPatchOperation[];
   }): Promise<WorkItem> {
-    this.throwIfInjected("updateWorkItem");
+    this.throwIfInjected('updateWorkItem');
     this.updatedWorkItems.push(args);
     return this.nextUpdatedWorkItem ?? ({ id: args.id } as WorkItem);
   }
@@ -1057,7 +1137,7 @@ export class FakeAdoClient implements AdoClient {
     id: number;
     text: string;
   }): Promise<WorkItemComment> {
-    this.throwIfInjected("addWorkItemComment");
+    this.throwIfInjected('addWorkItemComment');
     this.addedWorkItemComments.push(args);
     return this.nextAddedComment ?? ({ text: args.text } as WorkItemComment);
   }

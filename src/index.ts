@@ -1,15 +1,16 @@
 #!/usr/bin/env node
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { runSetup } from "./setup.js";
-import { readConfig, ConfigNotFoundError } from "./config/configFile.js";
-import { getPat, accountFromBaseUrl, PatNotFoundError } from "./config/keyring.js";
-import { isReadOnly } from "./config/readOnly.js";
-import { SdkAdoClient } from "./ado/sdkClient.js";
-import { registerAllTools } from "./mcp/registerTools.js";
+import process from 'node:process';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { SdkAdoClient } from './ado/sdkClient.js';
+import { ConfigNotFoundError, readConfig } from './config/configFile.js';
+import { accountFromBaseUrl, getPat, PatNotFoundError } from './config/keyring.js';
+import { isReadOnly } from './config/readOnly.js';
+import { registerAllTools } from './mcp/registerTools.js';
+import { runSetup } from './setup.js';
 
 async function main(): Promise<void> {
-  if (process.argv[2] === "setup") {
+  if (process.argv[2] === 'setup') {
     await runSetup();
     return;
   }
@@ -19,7 +20,8 @@ async function main(): Promise<void> {
   try {
     config = await readConfig();
     pat = getPat(accountFromBaseUrl(config.baseUrl));
-  } catch (err) {
+  }
+  catch (err) {
     if (err instanceof ConfigNotFoundError || err instanceof PatNotFoundError) {
       process.stderr.write(`${err.message}\n`);
       process.exit(1);
@@ -34,19 +36,19 @@ async function main(): Promise<void> {
   });
 
   const server = new McpServer({
-    name: "azure-devops-mcp",
-    version: "0.0.1",
+    name: 'azure-devops-mcp',
+    version: '0.0.1',
   });
 
   const readOnly = isReadOnly();
   registerAllTools(server, client, { readOnly });
   if (readOnly) {
-    process.stderr.write("[azure-devops-mcp] read-only mode: write tools are not registered\n");
+    process.stderr.write('[azure-devops-mcp] read-only mode: write tools are not registered\n');
   }
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  process.stderr.write("[azure-devops-mcp] connected on stdio\n");
+  process.stderr.write('[azure-devops-mcp] connected on stdio\n');
 }
 
 main().catch((err) => {

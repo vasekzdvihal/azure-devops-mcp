@@ -1,24 +1,25 @@
-import type { AdoClient } from "../../ado/client.js";
+import type { AdoClient } from '../../ado/client.js';
 import type {
   GitPullRequest,
   GitPullRequestChange,
   GitPullRequestCommentThread,
   GitPullRequestIteration,
   PullRequestStatus,
-} from "../../ado/types.js";
-import { detectRepo } from "../../git/detectRepo.js";
-import { resolveRepo, RepoContextError, type RepoResolver } from "./repoResolution.js";
-import { shapeDiff } from "./diffShaper.js";
+} from '../../ado/types.js';
+import type { RepoResolver } from './repoResolution.js';
+import { detectRepo } from '../../git/detectRepo.js';
+import { shapeDiff } from './diffShaper.js';
+import { resolveRepo } from './repoResolution.js';
 
-export { RepoContextError } from "./repoResolution.js";
-export type { RepoResolver } from "./repoResolution.js";
+export { RepoContextError } from './repoResolution.js';
+export type { RepoResolver } from './repoResolution.js';
 
 const STATUS_FROM_ENUM: Record<number, string> = {
-  0: "notSet",
-  1: "active",
-  2: "abandoned",
-  3: "completed",
-  4: "all",
+  0: 'notSet',
+  1: 'active',
+  2: 'abandoned',
+  3: 'completed',
+  4: 'all',
 };
 
 const STATUS_TO_ENUM: Record<string, PullRequestStatus> = {
@@ -30,39 +31,39 @@ const STATUS_TO_ENUM: Record<string, PullRequestStatus> = {
 };
 
 const CHANGE_TYPE_FROM_ENUM: Record<number, string> = {
-  0: "none",
-  1: "add",
-  2: "edit",
-  4: "encoding",
-  8: "rename",
-  16: "delete",
-  32: "undelete",
-  64: "branch",
-  128: "merge",
-  256: "lock",
-  512: "rollback",
-  1024: "sourceRename",
-  2048: "targetRename",
+  0: 'none',
+  1: 'add',
+  2: 'edit',
+  4: 'encoding',
+  8: 'rename',
+  16: 'delete',
+  32: 'undelete',
+  64: 'branch',
+  128: 'merge',
+  256: 'lock',
+  512: 'rollback',
+  1024: 'sourceRename',
+  2048: 'targetRename',
 };
 
 const COMMENT_STATUS_FROM_ENUM: Record<number, string> = {
-  0: "unknown",
-  1: "active",
-  2: "fixed",
-  3: "wontFix",
-  4: "closed",
-  5: "byDesign",
-  6: "pending",
+  0: 'unknown',
+  1: 'active',
+  2: 'fixed',
+  3: 'wontFix',
+  4: 'closed',
+  5: 'byDesign',
+  6: 'pending',
 };
 
 // PullRequestAsyncStatus — the merge processing state of a PR.
 const MERGE_STATUS_FROM_ENUM: Record<number, string> = {
-  0: "notSet",
-  1: "queued",
-  2: "conflicts",
-  3: "succeeded",
-  4: "rejectedByPolicy",
-  5: "failure",
+  0: 'notSet',
+  1: 'queued',
+  2: 'conflicts',
+  3: 'succeeded',
+  4: 'rejectedByPolicy',
+  5: 'failure',
 };
 
 export interface PrSummary {
@@ -125,7 +126,7 @@ export class PullRequestsReadService {
     skip?: number;
   }): Promise<PrSummary[]> {
     const { project, repository } = await resolveRepo(args, this.resolver);
-    const statusStr = args.status ?? "active";
+    const statusStr = args.status ?? 'active';
     const status: PullRequestStatus | undefined = STATUS_TO_ENUM[statusStr];
     const prs = await this.client.listPullRequests({
       project,
@@ -232,11 +233,11 @@ export class PullRequestsReadService {
 function shapePrSummary(pr: GitPullRequest): PrSummary {
   return {
     id: pr.pullRequestId ?? 0,
-    title: pr.title ?? "",
-    status: STATUS_FROM_ENUM[pr.status ?? 0] ?? "unknown",
+    title: pr.title ?? '',
+    status: STATUS_FROM_ENUM[pr.status ?? 0] ?? 'unknown',
     author: pr.createdBy?.displayName,
-    sourceBranch: pr.sourceRefName?.replace(/^refs\/heads\//, ""),
-    targetBranch: pr.targetRefName?.replace(/^refs\/heads\//, ""),
+    sourceBranch: pr.sourceRefName?.replace(/^refs\/heads\//, ''),
+    targetBranch: pr.targetRefName?.replace(/^refs\/heads\//, ''),
     createdAt: pr.creationDate?.toISOString(),
     url: pr.url,
   };
@@ -247,37 +248,37 @@ function shapePrDetail(pr: GitPullRequest): PrDetail {
     ...shapePrSummary(pr),
     description: pr.description,
     isDraft: pr.isDraft,
-    reviewers: (pr.reviewers ?? []).map((r) => ({
-      name: r.displayName,
-      vote: r.vote ?? 0,
+    reviewers: (pr.reviewers ?? []).map(reviewer => ({
+      name: reviewer.displayName,
+      vote: reviewer.vote ?? 0,
     })),
     mergeStatus:
       pr.mergeStatus !== undefined
-        ? (MERGE_STATUS_FROM_ENUM[pr.mergeStatus] ?? "unknown")
+        ? (MERGE_STATUS_FROM_ENUM[pr.mergeStatus] ?? 'unknown')
         : undefined,
   };
 }
 
-function shapeChange(c: GitPullRequestChange): PrChange {
-  const ct =
-    typeof c.changeType === "number" ? CHANGE_TYPE_FROM_ENUM[c.changeType] : undefined;
+function shapeChange(change: GitPullRequestChange): PrChange {
+  const ct
+    = typeof change.changeType === 'number' ? CHANGE_TYPE_FROM_ENUM[change.changeType] : undefined;
   return {
-    path: c.item?.path ?? "",
-    changeType: ct ?? "other",
-    originalPath: c.originalPath,
+    path: change.item?.path ?? '',
+    changeType: ct ?? 'other',
+    originalPath: change.originalPath,
   };
 }
 
-function shapeThread(t: GitPullRequestCommentThread): PrCommentThread {
+function shapeThread(thread: GitPullRequestCommentThread): PrCommentThread {
   return {
-    threadId: t.id ?? 0,
-    status: COMMENT_STATUS_FROM_ENUM[t.status ?? 0] ?? "unknown",
-    filePath: t.threadContext?.filePath,
-    line: t.threadContext?.rightFileStart?.line,
-    comments: (t.comments ?? []).map((c) => ({
-      author: c.author?.displayName,
-      content: c.content,
-      publishedDate: c.publishedDate?.toISOString(),
+    threadId: thread.id ?? 0,
+    status: COMMENT_STATUS_FROM_ENUM[thread.status ?? 0] ?? 'unknown',
+    filePath: thread.threadContext?.filePath,
+    line: thread.threadContext?.rightFileStart?.line,
+    comments: (thread.comments ?? []).map(comment => ({
+      author: comment.author?.displayName,
+      content: comment.content,
+      publishedDate: comment.publishedDate?.toISOString(),
     })),
   };
 }

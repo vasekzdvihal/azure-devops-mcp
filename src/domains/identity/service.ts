@@ -1,5 +1,5 @@
-import type { AdoClient } from "../../ado/client.js";
-import type { Identity } from "../../ado/types.js";
+import type { AdoClient } from '../../ado/client.js';
+import type { Identity } from '../../ado/types.js';
 
 export interface WhoamiResponse {
   id: string;
@@ -17,9 +17,9 @@ export class IdentityService {
 }
 
 function shape(identity: Identity): WhoamiResponse {
-  const accountProp = identity.properties?.["Account"] as { $value?: string } | undefined;
+  const accountProp = identity.properties?.Account as { $value?: string } | undefined;
   return {
-    id: identity.id ?? "",
+    id: identity.id ?? '',
     displayName: identity.providerDisplayName,
     account: accountProp?.$value,
   };

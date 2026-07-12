@@ -1,15 +1,15 @@
-import type { ProjectsService } from "./service.js";
-import type { ToolDefinition } from "../identity/tools.js";
+import type { ToolDefinition } from '../identity/tools.js';
+import type { ProjectsService } from './service.js';
 
 export function buildProjectsTools(svc: ProjectsService): ToolDefinition[] {
   return [
     {
-      name: "list_projects",
+      name: 'list_projects',
       config: {
-        title: "List Azure DevOps projects",
+        title: 'List Azure DevOps projects',
         description:
-          "Lists all projects in the configured ADO collection (on-prem) or organization (cloud). " +
-          "Use this when you need the project name to pass to other tools, or to discover what's available.",
+          'Lists all projects in the configured ADO collection (on-prem) or organization (cloud). '
+          + 'Use this when you need the project name to pass to other tools, or to discover what\'s available.',
         inputSchema: {},
       },
       handler: async () => svc.list(),

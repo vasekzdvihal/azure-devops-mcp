@@ -1,12 +1,13 @@
-import type { AdoClient } from "../../ado/client.js";
-import type { GitBranchStats, GitCommitRef } from "../../ado/types.js";
-import { detectRepo } from "../../git/detectRepo.js";
+import type { AdoClient } from '../../ado/client.js';
+import type { GitBranchStats, GitCommitRef } from '../../ado/types.js';
+import type { RepoResolver } from '../pullRequests/repoResolution.js';
+import { detectRepo } from '../../git/detectRepo.js';
 import {
-  resolveRepo,
-  type RepoResolver,
-} from "../pullRequests/repoResolution.js";
 
-export { RepoContextError } from "../pullRequests/repoResolution.js";
+  resolveRepo,
+} from '../pullRequests/repoResolution.js';
+
+export { RepoContextError } from '../pullRequests/repoResolution.js';
 
 export interface BranchSummary {
   name: string;
@@ -63,35 +64,35 @@ export class CommitsReadService {
   }
 }
 
-function shapeBranch(b: GitBranchStats): BranchSummary {
+function shapeBranch(branch: GitBranchStats): BranchSummary {
   return {
-    name: b.name ?? "",
-    lastCommitId: b.commit?.commitId,
-    aheadCount: b.aheadCount,
-    behindCount: b.behindCount,
-    isBaseVersion: b.isBaseVersion,
+    name: branch.name ?? '',
+    lastCommitId: branch.commit?.commitId,
+    aheadCount: branch.aheadCount,
+    behindCount: branch.behindCount,
+    isBaseVersion: branch.isBaseVersion,
   };
 }
 
-function shapeCommit(c: GitCommitRef): CommitSummary {
+function shapeCommit(commit: GitCommitRef): CommitSummary {
   return {
-    commitId: c.commitId ?? "",
-    comment: c.comment,
-    author: c.author
+    commitId: commit.commitId ?? '',
+    comment: commit.comment,
+    author: commit.author
       ? {
-          name: c.author.name,
-          email: c.author.email,
-          date: c.author.date?.toISOString(),
+          name: commit.author.name,
+          email: commit.author.email,
+          date: commit.author.date?.toISOString(),
         }
       : undefined,
-    committer: c.committer
+    committer: commit.committer
       ? {
-          name: c.committer.name,
-          email: c.committer.email,
-          date: c.committer.date?.toISOString(),
+          name: commit.committer.name,
+          email: commit.committer.email,
+          date: commit.committer.date?.toISOString(),
         }
       : undefined,
-    changeCounts: c.changeCounts,
-    url: c.url,
+    changeCounts: commit.changeCounts,
+    url: commit.url,
   };
 }

@@ -1,10 +1,10 @@
-import type { AdoClient } from "../../ado/client.js";
+import type { AdoClient } from '../../ado/client.js';
 import type {
-  ReleaseStartMetadata,
-  ReleaseEnvironmentUpdateMetadata,
-  ReleaseDefinition,
   ConfigurationVariableValue,
-} from "../../ado/types.js";
+  ReleaseDefinitionEnvironment,
+  ReleaseEnvironmentUpdateMetadata,
+  ReleaseStartMetadata,
+} from '../../ado/types.js';
 
 // Reverse-mapping tables — VALUES verified against SDK ReleaseInterfaces.d.ts.
 //
@@ -14,32 +14,32 @@ import type {
 //                    Queued=32, Scheduled=64, PartiallySucceeded=128
 
 const RELEASE_STATUS_FROM_ENUM: Record<number, string> = {
-  0: "undefined",
-  1: "draft",
-  2: "active",
-  4: "abandoned",
+  0: 'undefined',
+  1: 'draft',
+  2: 'active',
+  4: 'abandoned',
 };
 
 const APPROVAL_STATUS_FROM_ENUM: Record<number, string> = {
-  0: "undefined",
-  1: "pending",
-  2: "approved",
-  4: "rejected",
-  6: "reassigned",
-  7: "canceled",
-  8: "skipped",
+  0: 'undefined',
+  1: 'pending',
+  2: 'approved',
+  4: 'rejected',
+  6: 'reassigned',
+  7: 'canceled',
+  8: 'skipped',
 };
 
 const ENVIRONMENT_STATUS_FROM_ENUM: Record<number, string> = {
-  0: "undefined",
-  1: "notStarted",
-  2: "inProgress",
-  4: "succeeded",
-  8: "canceled",
-  16: "rejected",
-  32: "queued",
-  64: "scheduled",
-  128: "partiallySucceeded",
+  0: 'undefined',
+  1: 'notStarted',
+  2: 'inProgress',
+  4: 'succeeded',
+  8: 'canceled',
+  16: 'rejected',
+  32: 'queued',
+  64: 'scheduled',
+  128: 'partiallySucceeded',
 };
 
 export interface ReleaseVariableInput {
@@ -53,32 +53,59 @@ export interface UpdateReleaseVariablesResult {
   variables: Record<string, { value: string | null; isSecret: boolean }>;
 }
 
+function mergeReleaseVariable(
+  prev: ConfigurationVariableValue | undefined,
+  value: ReleaseVariableInput,
+): ConfigurationVariableValue {
+  return {
+    value: value.value,
+    isSecret: value.isSecret ?? prev?.isSecret ?? false,
+    allowOverride: value.allowOverride ?? prev?.allowOverride,
+  };
+}
+
 function mergeReleaseVariables(
   existing: Record<string, ConfigurationVariableValue> | undefined,
   setOps: Record<string, ReleaseVariableInput> | undefined,
   removeOps: string[] | undefined,
 ): Record<string, ConfigurationVariableValue> {
   const merged: Record<string, ConfigurationVariableValue> = { ...(existing ?? {}) };
-  for (const name of removeOps ?? []) delete merged[name];
-  for (const [name, v] of Object.entries(setOps ?? {})) {
-    const prev = merged[name];
-    merged[name] = {
-      value: v.value,
-      isSecret: v.isSecret ?? prev?.isSecret ?? false,
-      allowOverride: v.allowOverride ?? prev?.allowOverride,
-    };
+  for (const name of removeOps ?? []) {
+    delete merged[name];
+  }
+  for (const [name, value] of Object.entries(setOps ?? {})) {
+    merged[name] = mergeReleaseVariable(merged[name], value);
   }
   return merged;
+}
+
+function findDefinitionEnvironment(
+  envs: ReleaseDefinitionEnvironment[],
+  environmentName: string,
+  definitionId: number,
+): ReleaseDefinitionEnvironment & { id: number } {
+  const target = envs.find(
+    env => env.name?.toLowerCase() === environmentName.toLowerCase(),
+  );
+  if (!target || typeof target.id !== 'number') {
+    const available = envs.map(env => env.name).filter(Boolean).join(', ');
+    throw new Error(
+      `Environment '${environmentName}' not found on release definition ${definitionId}. `
+      + `Available: ${available || '(none)'}`,
+    );
+  }
+  // The typeof check above narrows id, but TS can't carry that through `target`.
+  return target as ReleaseDefinitionEnvironment & { id: number };
 }
 
 function projectReleaseVariables(
   vars: Record<string, ConfigurationVariableValue> | undefined,
 ): Record<string, { value: string | null; isSecret: boolean }> {
   const out: Record<string, { value: string | null; isSecret: boolean }> = {};
-  for (const [name, v] of Object.entries(vars ?? {})) {
+  for (const [name, value] of Object.entries(vars ?? {})) {
     out[name] = {
-      value: v.isSecret ? null : (v.value ?? null),
-      isSecret: !!v.isSecret,
+      value: value.isSecret ? null : (value.value ?? null),
+      isSecret: !!value.isSecret,
     };
   }
   return out;
@@ -117,19 +144,19 @@ export class ReleasesWriteService {
     variables?: Record<string, { value: string; isSecret?: boolean }>;
     autoDeploy?: boolean;
   }): Promise<CreateReleaseResult> {
-    let shapedArtifacts: ReleaseStartMetadata["artifacts"] | undefined;
+    let shapedArtifacts: ReleaseStartMetadata['artifacts'] | undefined;
     if (args.artifacts && args.artifacts.length > 0) {
       shapedArtifacts = [];
-      for (const a of args.artifacts) {
+      for (const artifact of args.artifacts) {
         const build = await this.client.getBuild({
           project: args.project,
-          buildId: a.buildId,
+          buildId: artifact.buildId,
         });
         shapedArtifacts.push({
-          alias: a.alias,
+          alias: artifact.alias,
           instanceReference: {
-            id: String(a.buildId),
-            name: build.buildNumber ?? String(a.buildId),
+            id: String(artifact.buildId),
+            name: build.buildNumber ?? String(artifact.buildId),
           },
         });
       }
@@ -147,8 +174,8 @@ export class ReleasesWriteService {
         definitionId: args.definitionId,
       });
       const names = (definition.environments ?? [])
-        .map((e) => e.name)
-        .filter((n): n is string => !!n);
+        .map(env => env.name)
+        .filter((name): name is string => !!name);
       manualEnvironments = names.length > 0 ? names : undefined;
     }
 
@@ -168,12 +195,12 @@ export class ReleasesWriteService {
     return {
       releaseId: release.id ?? 0,
       name: release.name,
-      environments: (release.environments ?? []).map((e) => ({
-        id: e.id ?? 0,
-        name: e.name ?? "",
+      environments: (release.environments ?? []).map(env => ({
+        id: env.id ?? 0,
+        name: env.name ?? '',
         status:
-            typeof e.status === "number"
-              ? (ENVIRONMENT_STATUS_FROM_ENUM[e.status] ?? "unknown")
+            typeof env.status === 'number'
+              ? (ENVIRONMENT_STATUS_FROM_ENUM[env.status] ?? 'unknown')
               : undefined,
       })),
     };
@@ -191,17 +218,17 @@ export class ReleasesWriteService {
     });
 
     const env = (release.environments ?? []).find(
-      (e) => e.name?.toLowerCase() === args.environmentName.toLowerCase(),
+      env => env.name?.toLowerCase() === args.environmentName.toLowerCase(),
     );
 
-    if (!env || env.id == null) {
+    if (!env || typeof env.id !== 'number') {
       const available = (release.environments ?? [])
-        .map((e) => e.name)
+        .map(env => env.name)
         .filter(Boolean)
-        .join(", ");
+        .join(', ');
       throw new Error(
-        `Environment '${args.environmentName}' not found on release ${args.releaseId}. ` +
-          `Available: ${available || "(none)"}`,
+        `Environment '${args.environmentName}' not found on release ${args.releaseId}. `
+        + `Available: ${available || '(none)'}`,
       );
     }
 
@@ -228,7 +255,7 @@ export class ReleasesWriteService {
   async approveGate(args: {
     project: string;
     approvalId: number;
-    status: "approved" | "rejected";
+    status: 'approved' | 'rejected';
     comment?: string;
   }): Promise<ApproveGateResult> {
     const result = await this.client.updateReleaseApproval({
@@ -240,7 +267,7 @@ export class ReleasesWriteService {
 
     return {
       approvalId: result.id ?? args.approvalId,
-      status: APPROVAL_STATUS_FROM_ENUM[(result.status as number) ?? 0] ?? "unknown",
+      status: APPROVAL_STATUS_FROM_ENUM[(result.status as number) ?? 0] ?? 'unknown',
     };
   }
 
@@ -253,7 +280,7 @@ export class ReleasesWriteService {
 
     return {
       releaseId: release.id ?? args.releaseId,
-      status: RELEASE_STATUS_FROM_ENUM[(release.status as number) ?? 0] ?? "unknown",
+      status: RELEASE_STATUS_FROM_ENUM[(release.status as number) ?? 0] ?? 'unknown',
     };
   }
 
@@ -266,7 +293,7 @@ export class ReleasesWriteService {
     const setCount = Object.keys(args.set ?? {}).length;
     const removeCount = (args.remove ?? []).length;
     if (setCount + removeCount === 0) {
-      throw new Error("updateVariables: provide at least one of set or remove");
+      throw new Error('updateVariables: provide at least one of set or remove');
     }
 
     const definition = await this.client.getReleaseDefinition({
@@ -302,7 +329,7 @@ export class ReleasesWriteService {
     const setCount = Object.keys(args.set ?? {}).length;
     const removeCount = (args.remove ?? []).length;
     if (setCount + removeCount === 0) {
-      throw new Error("updateEnvironmentVariables: provide at least one of set or remove");
+      throw new Error('updateEnvironmentVariables: provide at least one of set or remove');
     }
 
     const definition = await this.client.getReleaseDefinition({
@@ -311,22 +338,13 @@ export class ReleasesWriteService {
     });
 
     const envs = definition.environments ?? [];
-    const target = envs.find(
-      (e) => e.name?.toLowerCase() === args.environmentName.toLowerCase(),
-    );
-    if (!target || target.id == null) {
-      const available = envs.map((e) => e.name).filter(Boolean).join(", ");
-      throw new Error(
-        `Environment '${args.environmentName}' not found on release definition ${args.definitionId}. ` +
-          `Available: ${available || "(none)"}`,
-      );
-    }
+    const target = findDefinitionEnvironment(envs, args.environmentName, args.definitionId);
 
     const mergedVars = mergeReleaseVariables(target.variables, args.set, args.remove);
 
     // Replace the target env's variables in place; other envs are untouched.
-    const nextEnvs = envs.map((e) =>
-      e.id === target.id ? { ...e, variables: mergedVars } : e,
+    const nextEnvs = envs.map(env =>
+      env.id === target.id ? { ...env, variables: mergedVars } : env,
     );
 
     const updated = await this.client.updateReleaseDefinition({
@@ -334,8 +352,8 @@ export class ReleasesWriteService {
       definition: { ...definition, environments: nextEnvs },
     });
 
-    const updatedTarget =
-      (updated.environments ?? []).find((e) => e.id === target.id) ?? target;
+    const updatedTarget
+      = (updated.environments ?? []).find(env => env.id === target.id) ?? target;
 
     return {
       definitionId: args.definitionId,

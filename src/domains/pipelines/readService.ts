@@ -1,24 +1,24 @@
-import type { AdoClient } from "../../ado/client.js";
+import type { AdoClient } from '../../ado/client.js';
 import type {
   Build,
   BuildDefinition,
   BuildResult,
   BuildStatus,
   TimelineRecord,
-} from "../../ado/types.js";
+} from '../../ado/types.js';
 
 // DefinitionTriggerType: 1=none, 2=CI, 4=batchedCI, 8=schedule, 16=gatedCheckIn,
 // 32=batchedGatedCheckIn, 64=pullRequest, 128=buildCompletion. The SDK exposes
 // these as numeric constants — we surface readable strings for the LLM.
 const TRIGGER_TYPE_FROM_ENUM: Record<number, string> = {
-  1: "none",
-  2: "continuousIntegration",
-  4: "batchedContinuousIntegration",
-  8: "schedule",
-  16: "gatedCheckIn",
-  32: "batchedGatedCheckIn",
-  64: "pullRequest",
-  128: "buildCompletion",
+  1: 'none',
+  2: 'continuousIntegration',
+  4: 'batchedContinuousIntegration',
+  8: 'schedule',
+  16: 'gatedCheckIn',
+  32: 'batchedGatedCheckIn',
+  64: 'pullRequest',
+  128: 'buildCompletion',
 };
 
 const BUILD_STATUS_TO_ENUM: Record<string, BuildStatus> = {
@@ -30,12 +30,12 @@ const BUILD_STATUS_TO_ENUM: Record<string, BuildStatus> = {
 };
 
 const BUILD_STATUS_FROM_ENUM: Record<number, string> = {
-  0: "none",
-  1: "inProgress",
-  2: "completed",
-  4: "cancelling",
-  8: "postponed",
-  32: "notStarted",
+  0: 'none',
+  1: 'inProgress',
+  2: 'completed',
+  4: 'cancelling',
+  8: 'postponed',
+  32: 'notStarted',
 };
 
 const BUILD_RESULT_TO_ENUM: Record<string, BuildResult> = {
@@ -46,35 +46,47 @@ const BUILD_RESULT_TO_ENUM: Record<string, BuildResult> = {
 };
 
 const BUILD_RESULT_FROM_ENUM: Record<number, string> = {
-  0: "none",
-  2: "succeeded",
-  4: "partiallySucceeded",
-  8: "failed",
-  32: "canceled",
+  0: 'none',
+  2: 'succeeded',
+  4: 'partiallySucceeded',
+  8: 'failed',
+  32: 'canceled',
 };
 
 // TimelineRecordState: 0=pending, 1=inProgress, 2=completed
+function toIso(date: Date | undefined): string | undefined {
+  return date?.toISOString();
+}
+
+function buildStatusLabel(status: BuildStatus | undefined): string {
+  return BUILD_STATUS_FROM_ENUM[status ?? 0] ?? 'unknown';
+}
+
+function buildResultLabel(result: BuildResult | undefined): string {
+  return BUILD_RESULT_FROM_ENUM[result ?? 0] ?? 'none';
+}
+
 const TIMELINE_STATE_FROM_ENUM: Record<number, string> = {
-  0: "pending",
-  1: "inProgress",
-  2: "completed",
+  0: 'pending',
+  1: 'inProgress',
+  2: 'completed',
 };
 
 // TaskResult: 0=succeeded, 1=succeededWithIssues, 2=failed, 3=canceled, 4=skipped, 5=abandoned
 const TIMELINE_RESULT_FROM_ENUM: Record<number, string> = {
-  0: "succeeded",
-  1: "succeededWithIssues",
-  2: "failed",
-  3: "canceled",
-  4: "skipped",
-  5: "abandoned",
+  0: 'succeeded',
+  1: 'succeededWithIssues',
+  2: 'failed',
+  3: 'canceled',
+  4: 'skipped',
+  5: 'abandoned',
 };
 
 export interface PipelineSummary {
   id: number;
   name: string;
   path?: string;
-  type: "classic" | "yaml" | "unknown";
+  type: 'classic' | 'yaml' | 'unknown';
   repositoryId?: string;
   defaultBranch?: string;
 }
@@ -182,7 +194,7 @@ export class PipelinesReadService {
       runId: args.runId,
     });
     const stages = (timeline?.records ?? [])
-      .filter((r) => r.type === "Stage")
+      .filter(record => record.type === 'Stage')
       .map(shapeTimelineStage);
     return {
       ...shapeRun(build),
@@ -193,67 +205,67 @@ export class PipelinesReadService {
   }
 }
 
-function shapePipeline(d: BuildDefinition): PipelineSummary {
+function shapePipeline(def: BuildDefinition): PipelineSummary {
   // DefinitionType enum: 1=xaml (ancient), 2=build. The classic-vs-yaml split
   // lives on `process.type`: 1=designer (classic), 2=yaml.
-  const procType = (d.process as { type?: number } | undefined)?.type;
-  const type: PipelineSummary["type"] =
-    procType === 2 ? "yaml" : procType === 1 ? "classic" : "unknown";
+  const procType = (def.process as { type?: number } | undefined)?.type;
+  const type: PipelineSummary['type']
+    = procType === 2 ? 'yaml' : procType === 1 ? 'classic' : 'unknown';
   return {
-    id: d.id ?? 0,
-    name: d.name ?? "",
-    path: d.path,
+    id: def.id ?? 0,
+    name: def.name ?? '',
+    path: def.path,
     type,
-    repositoryId: d.repository?.id,
-    defaultBranch: d.repository?.defaultBranch,
+    repositoryId: def.repository?.id,
+    defaultBranch: def.repository?.defaultBranch,
   };
 }
 
-function shapeRun(b: Build): PipelineRunSummary {
+function shapeRun(run: Build): PipelineRunSummary {
   return {
-    id: b.id ?? 0,
-    buildNumber: b.buildNumber,
-    pipelineId: b.definition?.id,
-    pipelineName: b.definition?.name,
-    status: BUILD_STATUS_FROM_ENUM[b.status ?? 0] ?? "unknown",
-    result: BUILD_RESULT_FROM_ENUM[b.result ?? 0] ?? "none",
-    sourceBranch: b.sourceBranch,
-    sourceVersion: b.sourceVersion,
-    requestedBy: b.requestedBy?.displayName,
-    requestedFor: b.requestedFor?.displayName,
-    queueTime: b.queueTime?.toISOString(),
-    startTime: b.startTime?.toISOString(),
-    finishTime: b.finishTime?.toISOString(),
+    id: run.id ?? 0,
+    buildNumber: run.buildNumber,
+    pipelineId: run.definition?.id,
+    pipelineName: run.definition?.name,
+    status: buildStatusLabel(run.status),
+    result: buildResultLabel(run.result),
+    sourceBranch: run.sourceBranch,
+    sourceVersion: run.sourceVersion,
+    requestedBy: run.requestedBy?.displayName,
+    requestedFor: run.requestedFor?.displayName,
+    queueTime: toIso(run.queueTime),
+    startTime: toIso(run.startTime),
+    finishTime: toIso(run.finishTime),
   };
 }
 
-function shapeDefinition(d: BuildDefinition): PipelineDefinitionDetail {
-  const summary = shapePipeline(d);
+function shapeDefinition(def: BuildDefinition): PipelineDefinitionDetail {
+  const summary = shapePipeline(def);
   // The YAML pipeline's source file lives on `process.yamlFilename`. The SDK
   // types it as `BuildProcess` (just `{ type }`), so we narrow at the seam.
-  const proc = d.process as { type?: number; yamlFilename?: string } | undefined;
+  const proc = def.process as { type?: number; yamlFilename?: string } | undefined;
   const yamlFilename = proc?.type === 2 ? proc.yamlFilename : undefined;
 
-  const variables: PipelineVariableInfo[] = Object.entries(d.variables ?? {}).map(
-    ([name, v]) => ({
+  const variables: PipelineVariableInfo[] = Object.entries(def.variables ?? {}).map(
+    ([name, value]) => ({
       name,
-      isSecret: !!v?.isSecret,
-      allowOverride: !!v?.allowOverride,
+      isSecret: !!value?.isSecret,
+      allowOverride: !!value?.allowOverride,
       // Secrets never include a value on the wire — drop the key rather than
       // surfacing `undefined` so consumers don't think they got "the value of
       // the secret was cleared".
-      ...(v?.isSecret ? {} : { value: v?.value }),
+      ...(value?.isSecret ? {} : { value: value?.value }),
     }),
   );
 
-  const variableGroupIds: number[] = (d.variableGroups ?? [])
-    .map((g) => (g as { id?: number }).id)
-    .filter((id): id is number => typeof id === "number");
+  const variableGroupIds: number[] = (def.variableGroups ?? [])
+    .map(group => (group as { id?: number }).id)
+    .filter((id): id is number => typeof id === 'number');
 
-  const triggers: PipelineTriggerInfo[] = (d.triggers ?? []).map((t) => {
-    const type = TRIGGER_TYPE_FROM_ENUM[t.triggerType ?? 0] ?? "unknown";
+  const triggers: PipelineTriggerInfo[] = (def.triggers ?? []).map((trigger) => {
+    const type = TRIGGER_TYPE_FROM_ENUM[trigger.triggerType ?? 0] ?? 'unknown';
     // Each trigger subtype carries different fields; widen for narrowing.
-    const ext = t as {
+    const ext = trigger as {
       branchFilters?: string[];
       pathFilters?: string[];
       schedules?: unknown[];
@@ -262,7 +274,7 @@ function shapeDefinition(d: BuildDefinition): PipelineDefinitionDetail {
       type,
       ...(ext.branchFilters ? { branchFilters: ext.branchFilters } : {}),
       ...(ext.pathFilters ? { pathFilters: ext.pathFilters } : {}),
-      ...(type === "schedule" && Array.isArray(ext.schedules)
+      ...(type === 'schedule' && Array.isArray(ext.schedules)
         ? { scheduleCount: ext.schedules.length }
         : {}),
     };
@@ -270,23 +282,23 @@ function shapeDefinition(d: BuildDefinition): PipelineDefinitionDetail {
 
   return {
     ...summary,
-    description: d.description,
+    description: def.description,
     ...(yamlFilename ? { yamlFilename } : {}),
-    ...(d.queue ? { queue: { id: d.queue.id, name: d.queue.name } } : {}),
+    ...(def.queue ? { queue: { id: def.queue.id, name: def.queue.name } } : {}),
     variables,
     variableGroupIds,
     triggers,
-    repositoryName: d.repository?.name,
-    repositoryType: d.repository?.type,
+    repositoryName: def.repository?.name,
+    repositoryType: def.repository?.type,
   };
 }
 
-function shapeTimelineStage(r: TimelineRecord): PipelineRunDetail["stages"][number] {
+function shapeTimelineStage(record: TimelineRecord): PipelineRunDetail['stages'][number] {
   return {
-    name: r.name ?? "",
-    status: TIMELINE_STATE_FROM_ENUM[r.state ?? 0] ?? "unknown",
-    result: TIMELINE_RESULT_FROM_ENUM[r.result ?? 0] ?? "unknown",
-    startTime: r.startTime?.toISOString(),
-    finishTime: r.finishTime?.toISOString(),
+    name: record.name ?? '',
+    status: TIMELINE_STATE_FROM_ENUM[record.state ?? 0] ?? 'unknown',
+    result: TIMELINE_RESULT_FROM_ENUM[record.result ?? 0] ?? 'unknown',
+    startTime: record.startTime?.toISOString(),
+    finishTime: record.finishTime?.toISOString(),
   };
 }

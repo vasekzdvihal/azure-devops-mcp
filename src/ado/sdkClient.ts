@@ -1,47 +1,52 @@
-// src/ado/sdkClient.ts
-import * as azdev from "azure-devops-node-api";
-import https from "node:https";
-import type { AdoClient } from "./client.js";
+import type { AdoClient } from './client.js';
 import type {
-  Identity,
-  TeamProjectReference,
-  GitRepository,
-  GitPullRequest,
-  GitPullRequestIteration,
-  GitPullRequestCommentThread,
-  GitPullRequestChange,
-  PullRequestStatus,
-  Comment,
-  CommentThreadStatus,
-  IdentityRefWithVote,
-  GitPullRequestCompletionOptions,
-  GitPullRequestMergeStrategy,
-  Release,
-  ReleaseDefinition,
-  Deployment,
-  DeploymentStatus,
-  ReleaseStatus,
-  ReleaseStartMetadata,
-  ReleaseEnvironmentUpdateMetadata,
-  ReleaseApproval,
   Build,
   BuildDefinition,
-  Timeline,
-  BuildStatus,
   BuildResult,
-  Run,
-  RunPipelineParameters,
+  BuildStatus,
+  Comment,
+  CommentThreadStatus,
+  Deployment,
+  DeploymentStatus,
   GitBranchStats,
   GitCommitRef,
+  GitPullRequest,
+  GitPullRequestChange,
+  GitPullRequestCommentThread,
+  GitPullRequestCompletionOptions,
+  GitPullRequestIteration,
+  GitPullRequestMergeStrategy,
   GitQueryCommitsCriteria,
+  GitRepository,
+  Identity,
+  IdentityRefWithVote,
+  JsonPatchOperation,
+  PullRequestStatus,
+  Release,
+  ReleaseApproval,
+  ReleaseDefinition,
+  ReleaseEnvironmentUpdateMetadata,
+  ReleaseStartMetadata,
+  ReleaseStatus,
+  Run,
+  RunPipelineParameters,
+  TeamProjectReference,
+  Timeline,
   WorkItem,
   WorkItemComment,
-  JsonPatchOperation,
-} from "./types.js";
-import { WorkItemExpand } from "./types.js";
-import { GitVersionType } from "azure-devops-node-api/interfaces/GitInterfaces.js";
-import { AdoError, mapSdkError, AdoNotFoundError, AdoUnknownError } from "./errors.js";
-import { buildHttpsAgent } from "./tlsAgent.js";
+} from './types.js';
+import https from 'node:https';
+// src/ado/sdkClient.ts
+import * as azdev from 'azure-devops-node-api';
+import { GitVersionType } from 'azure-devops-node-api/interfaces/GitInterfaces.js';
+import { AdoError, AdoNotFoundError, AdoUnknownError, mapSdkError } from './errors.js';
+import { buildHttpsAgent } from './tlsAgent.js';
+import { WorkItemExpand } from './types.js';
+
+// ADO ReleaseInterfaces.ApprovalStatus wire values.
+const APPROVAL_STATUS_APPROVED = 2;
+const APPROVAL_STATUS_REJECTED = 4;
+const DEFAULT_COMMENTS_TOP = 20;
 
 export interface SdkAdoClientOptions {
   baseUrl: string;
@@ -60,7 +65,9 @@ export class SdkAdoClient implements AdoClient {
     // swap Node's global https agent. Both the setup wizard and the server only
     // talk to one ADO instance per process, so this is safe.
     const agent = buildHttpsAgent(opts.caBundlePath);
-    if (agent) https.globalAgent = agent;
+    if (agent) {
+      https.globalAgent = agent;
+    }
 
     // Default socket timeout in typed-rest-client is 3 minutes — way too long
     // for a CLI tool when a firewall silently drops packets. 15s is plenty for
@@ -72,11 +79,16 @@ export class SdkAdoClient implements AdoClient {
     try {
       const conn = await this.api.connect();
       const user = conn.authenticatedUser;
-      if (!user) throw new AdoUnknownError("connect() returned no authenticatedUser");
+      if (!user) {
+        throw new AdoUnknownError('connect() returned no authenticatedUser');
+      }
       return user;
-    } catch (err) {
+    }
+    catch (err) {
       // Re-throw any of our own typed errors untouched; only map raw SDK errors.
-      if (err instanceof AdoError) throw err;
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -86,7 +98,8 @@ export class SdkAdoClient implements AdoClient {
       const core = await this.api.getCoreApi();
       const projects = await core.getProjects();
       return projects;
-    } catch (err) {
+    }
+    catch (err) {
       throw mapSdkError(err);
     }
   }
@@ -96,7 +109,8 @@ export class SdkAdoClient implements AdoClient {
       const git = await this.api.getGitApi();
       const repos = await git.getRepositories(args.project);
       return repos;
-    } catch (err) {
+    }
+    catch (err) {
       throw mapSdkError(err);
     }
   }
@@ -127,7 +141,8 @@ export class SdkAdoClient implements AdoClient {
         args.top,
       );
       return prs;
-    } catch (err) {
+    }
+    catch (err) {
       throw mapSdkError(err);
     }
   }
@@ -142,11 +157,16 @@ export class SdkAdoClient implements AdoClient {
       // getPullRequest (as opposed to getPullRequestById) takes the repo too,
       // which is useful for tenancy in on-prem.
       const pr = await git.getPullRequest(args.repository, args.pullRequestId, args.project);
-      if (!pr) throw new AdoNotFoundError(`PR ${args.pullRequestId} not found`);
+      if (!pr) {
+        throw new AdoNotFoundError(`PR ${args.pullRequestId} not found`);
+      }
       return pr;
-    } catch (err) {
+    }
+    catch (err) {
       // Re-throw any of our own typed errors untouched; only map raw SDK errors.
-      if (err instanceof AdoError) throw err;
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -168,7 +188,7 @@ export class SdkAdoClient implements AdoClient {
       if (iterations.length === 0) {
         return [];
       }
-      const latest = iterations.reduce((a, b) => ((a.id ?? 0) > (b.id ?? 0) ? a : b));
+      const latest = iterations.reduce((prev, curr) => ((prev.id ?? 0) > (curr.id ?? 0) ? prev : curr));
       const changes = await git.getPullRequestIterationChanges(
         args.repository,
         args.pullRequestId,
@@ -176,7 +196,8 @@ export class SdkAdoClient implements AdoClient {
         args.project,
       );
       return changes.changeEntries ?? [];
-    } catch (err) {
+    }
+    catch (err) {
       throw mapSdkError(err);
     }
   }
@@ -202,12 +223,15 @@ export class SdkAdoClient implements AdoClient {
         true, // includeContent
       );
       return item.content ?? null;
-    } catch (err) {
+    }
+    catch (err) {
       const mapped = mapSdkError(err);
       // 404 is a normal "file did not exist at this commit" signal (e.g. for the
       // base side of an added file). Translate to null so the diff service can
       // produce an "added" diff rather than throwing.
-      if (mapped instanceof AdoNotFoundError) return null;
+      if (mapped instanceof AdoNotFoundError) {
+        return null;
+      }
       throw mapped;
     }
   }
@@ -221,7 +245,8 @@ export class SdkAdoClient implements AdoClient {
       const git = await this.api.getGitApi();
       const threads = await git.getThreads(args.repository, args.pullRequestId, args.project);
       return threads;
-    } catch (err) {
+    }
+    catch (err) {
       throw mapSdkError(err);
     }
   }
@@ -239,7 +264,8 @@ export class SdkAdoClient implements AdoClient {
         args.project,
       );
       return iterations;
-    } catch (err) {
+    }
+    catch (err) {
       throw mapSdkError(err);
     }
   }
@@ -269,8 +295,11 @@ export class SdkAdoClient implements AdoClient {
       };
       const created = await git.createThread(thread, args.repository, args.pullRequestId, args.project);
       return created;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -293,8 +322,11 @@ export class SdkAdoClient implements AdoClient {
         args.project,
       );
       return created;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -317,8 +349,11 @@ export class SdkAdoClient implements AdoClient {
         args.project,
       );
       return updated;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -341,8 +376,11 @@ export class SdkAdoClient implements AdoClient {
         args.project,
       );
       return updated;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -369,8 +407,11 @@ export class SdkAdoClient implements AdoClient {
         args.project,
       );
       return updated;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -383,7 +424,7 @@ export class SdkAdoClient implements AdoClient {
   }): Promise<IdentityRefWithVote[]> {
     try {
       const git = await this.api.getGitApi();
-      const reviewers = args.reviewerIds.map((id) => ({ id }));
+      const reviewers = args.reviewerIds.map(id => ({ id }));
       const added = await git.createPullRequestReviewers(
         reviewers,
         args.repository,
@@ -391,8 +432,11 @@ export class SdkAdoClient implements AdoClient {
         args.project,
       );
       return added;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -411,8 +455,11 @@ export class SdkAdoClient implements AdoClient {
         args.reviewerId,
         args.project,
       );
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -436,13 +483,16 @@ export class SdkAdoClient implements AdoClient {
         ...(args.description !== undefined ? { description: args.description } : {}),
         ...(args.isDraft !== undefined ? { isDraft: args.isDraft } : {}),
         ...(args.reviewerIds && args.reviewerIds.length > 0
-          ? { reviewers: args.reviewerIds.map((id) => ({ id, vote: 0 })) }
+          ? { reviewers: args.reviewerIds.map(id => ({ id, vote: 0 })) }
           : {}),
       };
       const created = await git.createPullRequest(pr, args.repository, args.project);
       return created;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -498,8 +548,11 @@ export class SdkAdoClient implements AdoClient {
         args.project,
       );
       return completed;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -519,8 +572,11 @@ export class SdkAdoClient implements AdoClient {
         args.project,
       );
       return updated;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -545,8 +601,11 @@ export class SdkAdoClient implements AdoClient {
         args.project,
       );
       return updated;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -558,7 +617,8 @@ export class SdkAdoClient implements AdoClient {
       const rel = await this.api.getReleaseApi();
       const defs = await rel.getReleaseDefinitions(args.project);
       return defs;
-    } catch (err) {
+    }
+    catch (err) {
       const mapped = mapSdkError(err);
       // A 404 on the first release endpoint hit in a project is almost
       // certainly "classic releases are not enabled on this collection"
@@ -566,9 +626,9 @@ export class SdkAdoClient implements AdoClient {
       // project would have 404'd before reaching this code path.
       if (mapped instanceof AdoNotFoundError) {
         throw new AdoNotFoundError(
-          "Release API unavailable — this collection may not have classic releases enabled, " +
-            "or the project name is wrong. " +
-            mapped.message.replace(/^.*Details:\s*/, "Details: "),
+          `Release API unavailable — this collection may not have classic releases enabled, `
+          + `or the project name is wrong. ${
+            mapped.message.replace(/^.*Details:\s*/, 'Details: ')}`,
         );
       }
       throw mapped;
@@ -597,7 +657,8 @@ export class SdkAdoClient implements AdoClient {
         args.top,
       );
       return releases;
-    } catch (err) {
+    }
+    catch (err) {
       throw mapSdkError(err);
     }
   }
@@ -606,10 +667,15 @@ export class SdkAdoClient implements AdoClient {
     try {
       const rel = await this.api.getReleaseApi();
       const release = await rel.getRelease(args.project, args.releaseId);
-      if (!release) throw new AdoNotFoundError(`Release ${args.releaseId} not found`);
+      if (!release) {
+        throw new AdoNotFoundError(`Release ${args.releaseId} not found`);
+      }
       return release;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -621,11 +687,15 @@ export class SdkAdoClient implements AdoClient {
     try {
       const rel = await this.api.getReleaseApi();
       const def = await rel.getReleaseDefinition(args.project, args.definitionId);
-      if (!def)
+      if (!def) {
         throw new AdoNotFoundError(`Release definition ${args.definitionId} not found`);
+      }
       return def;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -652,7 +722,8 @@ export class SdkAdoClient implements AdoClient {
         args.top,
       );
       return deployments;
-    } catch (err) {
+    }
+    catch (err) {
       throw mapSdkError(err);
     }
   }
@@ -683,7 +754,8 @@ export class SdkAdoClient implements AdoClient {
         true, // includeAllProperties
       );
       return defs as BuildDefinition[];
-    } catch (err) {
+    }
+    catch (err) {
       throw mapSdkError(err);
     }
   }
@@ -719,7 +791,8 @@ export class SdkAdoClient implements AdoClient {
         args.branch,
       );
       return runs;
-    } catch (err) {
+    }
+    catch (err) {
       throw mapSdkError(err);
     }
   }
@@ -730,18 +803,24 @@ export class SdkAdoClient implements AdoClient {
   }): Promise<{ build: Build; timeline: Timeline | null }> {
     try {
       const build = await this.api.getBuildApi();
-      const b = await build.getBuild(args.project, args.runId);
-      if (!b) throw new AdoNotFoundError(`Pipeline run ${args.runId} not found`);
+      const result = await build.getBuild(args.project, args.runId);
+      if (!result) {
+        throw new AdoNotFoundError(`Pipeline run ${args.runId} not found`);
+      }
       // Timeline can be null for very old runs that never started a plan.
       let timeline: Timeline | null = null;
       try {
         timeline = await build.getBuildTimeline(args.project, args.runId);
-      } catch {
+      }
+      catch {
         timeline = null;
       }
-      return { build: b, timeline };
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+      return { build: result, timeline };
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -753,11 +832,15 @@ export class SdkAdoClient implements AdoClient {
     try {
       const build = await this.api.getBuildApi();
       const def = await build.getDefinition(args.project, args.definitionId);
-      if (!def)
+      if (!def) {
         throw new AdoNotFoundError(`Pipeline definition ${args.definitionId} not found`);
+      }
       return def;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -765,11 +848,16 @@ export class SdkAdoClient implements AdoClient {
   async getBuild(args: { project: string; buildId: number }): Promise<Build> {
     try {
       const build = await this.api.getBuildApi();
-      const b = await build.getBuild(args.project, args.buildId);
-      if (!b) throw new AdoNotFoundError(`Build ${args.buildId} not found`);
-      return b;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+      const result = await build.getBuild(args.project, args.buildId);
+      if (!result) {
+        throw new AdoNotFoundError(`Build ${args.buildId} not found`);
+      }
+      return result;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -793,8 +881,11 @@ export class SdkAdoClient implements AdoClient {
           : undefined,
       };
       return await pipelines.runPipeline(runParameters, args.project, args.pipelineId);
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -807,8 +898,11 @@ export class SdkAdoClient implements AdoClient {
         args.project,
         args.runId,
       );
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -817,8 +911,11 @@ export class SdkAdoClient implements AdoClient {
     try {
       const build = await this.api.getBuildApi();
       return await build.addBuildTags(args.tags, args.project, args.runId);
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -827,8 +924,11 @@ export class SdkAdoClient implements AdoClient {
     try {
       const build = await this.api.getBuildApi();
       return await build.deleteBuildTag(args.project, args.runId, args.tag);
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -850,8 +950,11 @@ export class SdkAdoClient implements AdoClient {
         args.stageName,
         args.project,
       );
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -864,8 +967,11 @@ export class SdkAdoClient implements AdoClient {
     try {
       const build = await this.api.getBuildApi();
       return await build.updateDefinition(args.definition, args.project, args.definitionId);
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -877,8 +983,11 @@ export class SdkAdoClient implements AdoClient {
     try {
       const rel = await this.api.getReleaseApi();
       return await rel.createRelease(args.metadata, args.project);
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -897,8 +1006,11 @@ export class SdkAdoClient implements AdoClient {
         args.releaseId,
         args.environmentId,
       );
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -915,8 +1027,11 @@ export class SdkAdoClient implements AdoClient {
         args.project,
         args.releaseId,
       );
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -924,20 +1039,23 @@ export class SdkAdoClient implements AdoClient {
   async updateReleaseApproval(args: {
     project: string;
     approvalId: number;
-    status: "approved" | "rejected";
+    status: 'approved' | 'rejected';
     comment?: string;
   }): Promise<ReleaseApproval> {
     try {
       const rel = await this.api.getReleaseApi();
-      // ApprovalStatus: Approved=2, Rejected=4
-      const numericStatus = args.status === "approved" ? 2 : 4;
+      const numericStatus
+        = args.status === 'approved' ? APPROVAL_STATUS_APPROVED : APPROVAL_STATUS_REJECTED;
       return await rel.updateReleaseApproval(
         { status: numericStatus, comments: args.comment } as ReleaseApproval,
         args.project,
         args.approvalId,
       );
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -957,8 +1075,11 @@ export class SdkAdoClient implements AdoClient {
       );
       // PagedList behaves array-like; coerce to a plain array for stable typing.
       return Array.from(result ?? []);
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -970,8 +1091,11 @@ export class SdkAdoClient implements AdoClient {
     try {
       const rel = await this.api.getReleaseApi();
       return await rel.updateReleaseDefinition(args.definition, args.project);
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -986,7 +1110,8 @@ export class SdkAdoClient implements AdoClient {
       const git = await this.api.getGitApi();
       const branches = await git.getBranches(args.repository, args.project);
       return branches;
-    } catch (err) {
+    }
+    catch (err) {
       throw mapSdkError(err);
     }
   }
@@ -1018,7 +1143,8 @@ export class SdkAdoClient implements AdoClient {
         args.top,
       );
       return commits;
-    } catch (err) {
+    }
+    catch (err) {
       throw mapSdkError(err);
     }
   }
@@ -1033,29 +1159,37 @@ export class SdkAdoClient implements AdoClient {
         : { project: args.project };
       const result = await wit.queryByWiql({ query: args.wiql }, teamContext);
       return (result.workItems ?? [])
-        .map((w) => w.id)
-        .filter((id): id is number => typeof id === "number");
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+        .map(item => item.id)
+        .filter((id): id is number => typeof id === 'number');
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
 
   async getWorkItemsSummary(args: { project: string; ids: number[] }): Promise<WorkItem[]> {
     try {
-      if (args.ids.length === 0) return [];
+      if (args.ids.length === 0) {
+        return [];
+      }
       const wit = await this.api.getWorkItemTrackingApi();
       const items = await wit.getWorkItems(
         args.ids,
-        ["System.Id", "System.WorkItemType", "System.Title", "System.State", "System.AssignedTo"],
+        ['System.Id', 'System.WorkItemType', 'System.Title', 'System.State', 'System.AssignedTo'],
         undefined,
         undefined,
         undefined,
         args.project,
       );
       return items ?? [];
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -1064,10 +1198,15 @@ export class SdkAdoClient implements AdoClient {
     try {
       const wit = await this.api.getWorkItemTrackingApi();
       const item = await wit.getWorkItem(args.id, undefined, undefined, WorkItemExpand.All, args.project);
-      if (!item) throw new AdoNotFoundError(`Work item ${args.id} not found`);
+      if (!item) {
+        throw new AdoNotFoundError(`Work item ${args.id} not found`);
+      }
       return item;
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -1079,10 +1218,13 @@ export class SdkAdoClient implements AdoClient {
   }): Promise<WorkItemComment[]> {
     try {
       const wit = await this.api.getWorkItemTrackingApi();
-      const list = await wit.getComments(args.project, args.id, args.top ?? 20);
+      const list = await wit.getComments(args.project, args.id, args.top ?? DEFAULT_COMMENTS_TOP);
       return list.comments ?? [];
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -1100,10 +1242,13 @@ export class SdkAdoClient implements AdoClient {
         args.project,
       );
       return (refs ?? [])
-        .map((r) => (r.id ? Number(r.id) : NaN))
-        .filter((id) => Number.isInteger(id));
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+        .map(ref => (ref.id ? Number(ref.id) : NaN))
+        .filter(id => Number.isInteger(id));
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -1113,10 +1258,13 @@ export class SdkAdoClient implements AdoClient {
       const wit = await this.api.getWorkItemTrackingApi();
       const states = await wit.getWorkItemTypeStates(args.project, args.type);
       return (states ?? [])
-        .map((s) => s.name)
-        .filter((n): n is string => typeof n === "string");
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+        .map(state => state.name)
+        .filter((name): name is string => typeof name === 'string');
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -1129,8 +1277,11 @@ export class SdkAdoClient implements AdoClient {
     try {
       const wit = await this.api.getWorkItemTrackingApi();
       return await wit.updateWorkItem(null, args.patch, args.id, args.project);
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -1143,8 +1294,11 @@ export class SdkAdoClient implements AdoClient {
     try {
       const wit = await this.api.getWorkItemTrackingApi();
       return await wit.addComment({ text: args.text }, args.project, args.id);
-    } catch (err) {
-      if (err instanceof AdoError) throw err;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }

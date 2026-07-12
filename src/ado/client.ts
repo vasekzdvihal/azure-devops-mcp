@@ -1,37 +1,37 @@
 import type {
-  Identity,
-  TeamProjectReference,
-  GitRepository,
-  GitPullRequest,
-  GitPullRequestIteration,
-  GitPullRequestCommentThread,
-  GitPullRequestChange,
-  PullRequestStatus,
-  Comment,
-  CommentThreadStatus,
-  IdentityRefWithVote,
-  GitPullRequestCompletionOptions,
-  GitPullRequestMergeStrategy,
-  Release,
-  ReleaseDefinition,
-  Deployment,
-  DeploymentStatus,
-  ReleaseStatus,
-  ReleaseStartMetadata,
-  ReleaseEnvironmentUpdateMetadata,
-  ReleaseApproval,
   Build,
   BuildDefinition,
-  Timeline,
-  BuildStatus,
   BuildResult,
-  Run,
+  BuildStatus,
+  Comment,
+  CommentThreadStatus,
+  Deployment,
+  DeploymentStatus,
   GitBranchStats,
   GitCommitRef,
+  GitPullRequest,
+  GitPullRequestChange,
+  GitPullRequestCommentThread,
+  GitPullRequestCompletionOptions,
+  GitPullRequestIteration,
+  GitPullRequestMergeStrategy,
+  GitRepository,
+  Identity,
+  IdentityRefWithVote,
+  JsonPatchOperation,
+  PullRequestStatus,
+  Release,
+  ReleaseApproval,
+  ReleaseDefinition,
+  ReleaseEnvironmentUpdateMetadata,
+  ReleaseStartMetadata,
+  ReleaseStatus,
+  Run,
+  TeamProjectReference,
+  Timeline,
   WorkItem,
   WorkItemComment,
-  JsonPatchOperation,
-} from "./types.js";
+} from './types.js';
 
 /**
  * The AdoClient is the seam between our domain services and Azure DevOps.
@@ -40,14 +40,14 @@ import type {
  */
 export interface AdoClient {
   // identity
-  whoami(): Promise<Identity>;
+  whoami: () => Promise<Identity>;
 
   // projects & repos
-  listProjects(): Promise<TeamProjectReference[]>;
-  listRepositories(args: { project: string }): Promise<GitRepository[]>;
+  listProjects: () => Promise<TeamProjectReference[]>;
+  listRepositories: (args: { project: string }) => Promise<GitRepository[]>;
 
   // pull requests — discovery
-  listPullRequests(args: {
+  listPullRequests: (args: {
     project: string;
     repository: string;
     status?: PullRequestStatus;
@@ -56,20 +56,20 @@ export interface AdoClient {
     targetRefName?: string;
     top?: number;
     skip?: number;
-  }): Promise<GitPullRequest[]>;
+  }) => Promise<GitPullRequest[]>;
 
-  getPullRequest(args: {
+  getPullRequest: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
-  }): Promise<GitPullRequest>;
+  }) => Promise<GitPullRequest>;
 
   // pull requests — changes & diff
-  listPullRequestChanges(args: {
+  listPullRequestChanges: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
-  }): Promise<GitPullRequestChange[]>;
+  }) => Promise<GitPullRequestChange[]>;
 
   /**
    * Fetches a file's content (as UTF-8 string) at a given commit. Used by the
@@ -79,88 +79,88 @@ export interface AdoClient {
    * Returns null when the path doesn't exist at that commit (e.g. file added
    * in this PR — the base side returns null).
    */
-  getFileContent(args: {
+  getFileContent: (args: {
     project: string;
     repository: string;
     path: string;
     commitSha: string;
-  }): Promise<string | null>;
+  }) => Promise<string | null>;
 
   // pull requests — comments & iterations
-  listPullRequestThreads(args: {
+  listPullRequestThreads: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
-  }): Promise<GitPullRequestCommentThread[]>;
+  }) => Promise<GitPullRequestCommentThread[]>;
 
-  listPullRequestIterations(args: {
+  listPullRequestIterations: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
-  }): Promise<GitPullRequestIteration[]>;
+  }) => Promise<GitPullRequestIteration[]>;
 
   // pull request writes — comments
-  createPullRequestThread(args: {
+  createPullRequestThread: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
     content: string;
     filePath?: string;
     line?: number;
-  }): Promise<GitPullRequestCommentThread>;
+  }) => Promise<GitPullRequestCommentThread>;
 
-  addPullRequestComment(args: {
+  addPullRequestComment: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
     threadId: number;
     content: string;
-  }): Promise<Comment>;
+  }) => Promise<Comment>;
 
-  updatePullRequestThreadStatus(args: {
+  updatePullRequestThreadStatus: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
     threadId: number;
     status: CommentThreadStatus;
-  }): Promise<GitPullRequestCommentThread>;
+  }) => Promise<GitPullRequestCommentThread>;
 
   // pull request writes — vote
-  setPullRequestVote(args: {
+  setPullRequestVote: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
     reviewerId: string;
     vote: number; // 10 / 5 / 0 / -5 / -10 — see writeService for mapping
-  }): Promise<IdentityRefWithVote>;
+  }) => Promise<IdentityRefWithVote>;
 
   // pull request writes — metadata
-  updatePullRequest(args: {
+  updatePullRequest: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
     title?: string;
     description?: string;
     isDraft?: boolean;
-  }): Promise<GitPullRequest>;
+  }) => Promise<GitPullRequest>;
 
   // pull request writes — reviewers
-  addPullRequestReviewers(args: {
+  addPullRequestReviewers: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
     reviewerIds: string[];
-  }): Promise<IdentityRefWithVote[]>;
+  }) => Promise<IdentityRefWithVote[]>;
 
-  removePullRequestReviewer(args: {
+  removePullRequestReviewer: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
     reviewerId: string;
-  }): Promise<void>;
+  }) => Promise<void>;
 
   // pull request lifecycle (Phase 2.1)
-  createPullRequest(args: {
+  createPullRequest: (args: {
     project: string;
     repository: string;
     sourceRefName: string; // "refs/heads/<branch>"
@@ -169,9 +169,9 @@ export interface AdoClient {
     description?: string;
     isDraft?: boolean;
     reviewerIds?: string[];
-  }): Promise<GitPullRequest>;
+  }) => Promise<GitPullRequest>;
 
-  completePullRequest(args: {
+  completePullRequest: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
@@ -185,80 +185,80 @@ export interface AdoClient {
      * The service fetches this if the caller didn't pass it explicitly.
      */
     lastMergeSourceCommitId?: string;
-  }): Promise<GitPullRequest>;
+  }) => Promise<GitPullRequest>;
 
-  abandonPullRequest(args: {
+  abandonPullRequest: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
-  }): Promise<GitPullRequest>;
+  }) => Promise<GitPullRequest>;
 
-  setPullRequestAutoComplete(args: {
+  setPullRequestAutoComplete: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
     autoCompleteSetById: string; // identity id whose name shows on the auto-complete badge
     completionOptions: GitPullRequestCompletionOptions;
-  }): Promise<GitPullRequest>;
+  }) => Promise<GitPullRequest>;
 
   // releases (classic Release pipelines)
-  listReleaseDefinitions(args: { project: string }): Promise<ReleaseDefinition[]>;
+  listReleaseDefinitions: (args: { project: string }) => Promise<ReleaseDefinition[]>;
 
-  listReleases(args: {
+  listReleases: (args: {
     project: string;
     definitionId?: number;
     status?: ReleaseStatus;
     top?: number;
-  }): Promise<Release[]>;
+  }) => Promise<Release[]>;
 
-  getRelease(args: { project: string; releaseId: number }): Promise<Release>;
+  getRelease: (args: { project: string; releaseId: number }) => Promise<Release>;
 
-  getReleaseDefinition(args: {
+  getReleaseDefinition: (args: {
     project: string;
     definitionId: number;
-  }): Promise<ReleaseDefinition>;
+  }) => Promise<ReleaseDefinition>;
 
-  listDeployments(args: {
+  listDeployments: (args: {
     project: string;
     definitionId?: number;
     deploymentStatus?: DeploymentStatus;
     top?: number;
-  }): Promise<Deployment[]>;
+  }) => Promise<Deployment[]>;
 
   // pipelines (classic-build + YAML, both via BuildApi)
-  listPipelines(args: {
+  listPipelines: (args: {
     project: string;
     repositoryId?: string;
-  }): Promise<BuildDefinition[]>;
+  }) => Promise<BuildDefinition[]>;
 
-  listPipelineRuns(args: {
+  listPipelineRuns: (args: {
     project: string;
     pipelineId?: number;
     branch?: string;
     status?: BuildStatus;
     result?: BuildResult;
     top?: number;
-  }): Promise<Build[]>;
+  }) => Promise<Build[]>;
 
-  getPipelineRun(args: {
+  getPipelineRun: (args: {
     project: string;
     runId: number;
-  }): Promise<{ build: Build; timeline: Timeline | null }>;
+  }) => Promise<{ build: Build; timeline: Timeline | null }>;
 
-  getPipelineDefinition(args: {
+  getPipelineDefinition: (args: {
     project: string;
     definitionId: number;
-  }): Promise<BuildDefinition>;
+  }) => Promise<BuildDefinition>;
 
-  getBuild(args: { project: string; buildId: number }): Promise<Build>;
+  getBuild: (args: { project: string; buildId: number }) => Promise<Build>;
 
   // commits & branches
-  listBranches(args: {
+  listBranches: (args: {
     project: string;
     repository: string;
-  }): Promise<GitBranchStats[]>;
+  }) => Promise<GitBranchStats[]>;
 
-  listCommits(args: {
+  listCommits: (args: {
     project: string;
     repository: string;
     branch?: string;
@@ -266,118 +266,118 @@ export interface AdoClient {
     toDate?: string;
     author?: string;
     top?: number;
-  }): Promise<GitCommitRef[]>;
+  }) => Promise<GitCommitRef[]>;
 
   // pipeline writes (Phase 4.1)
-  queuePipelineRun(args: {
+  queuePipelineRun: (args: {
     project: string;
     pipelineId: number;
     branch?: string;
     templateParameters?: Record<string, string>;
     variables?: Record<string, { value: string; isSecret?: boolean }>;
-  }): Promise<Run>;
+  }) => Promise<Run>;
 
-  cancelPipelineRun(args: { project: string; runId: number }): Promise<Build>;
+  cancelPipelineRun: (args: { project: string; runId: number }) => Promise<Build>;
 
-  addBuildTags(args: { project: string; runId: number; tags: string[] }): Promise<string[]>;
-  removeBuildTag(args: { project: string; runId: number; tag: string }): Promise<string[]>;
+  addBuildTags: (args: { project: string; runId: number; tags: string[] }) => Promise<string[]>;
+  removeBuildTag: (args: { project: string; runId: number; tag: string }) => Promise<string[]>;
 
   // release writes (Phase 4.1)
-  createRelease(args: {
+  createRelease: (args: {
     project: string;
     metadata: ReleaseStartMetadata;
-  }): Promise<Release>;
+  }) => Promise<Release>;
 
-  updateReleaseEnvironment(args: {
+  updateReleaseEnvironment: (args: {
     project: string;
     releaseId: number;
     environmentId: number;
     update: ReleaseEnvironmentUpdateMetadata;
-  }): Promise<unknown>;
+  }) => Promise<unknown>;
 
-  cancelRelease(args: {
+  cancelRelease: (args: {
     project: string;
     releaseId: number;
     comment?: string;
-  }): Promise<Release>;
+  }) => Promise<Release>;
 
-  updateReleaseApproval(args: {
+  updateReleaseApproval: (args: {
     project: string;
     approvalId: number;
-    status: "approved" | "rejected";
+    status: 'approved' | 'rejected';
     comment?: string;
-  }): Promise<ReleaseApproval>;
+  }) => Promise<ReleaseApproval>;
 
   // release reads (Phase 4.1)
-  listPendingApprovals(args: {
+  listPendingApprovals: (args: {
     project: string;
     releaseId?: number;
     assignedTo?: string;
-  }): Promise<ReleaseApproval[]>;
+  }) => Promise<ReleaseApproval[]>;
 
   // pipeline writes (Phase 4.2)
-  retryBuildStage(args: {
+  retryBuildStage: (args: {
     project: string;
     runId: number;
     stageName: string;
     forceRetryAllJobs?: boolean;
-  }): Promise<void>;
+  }) => Promise<void>;
 
-  updatePipelineDefinition(args: {
+  updatePipelineDefinition: (args: {
     project: string;
     definitionId: number;
     definition: BuildDefinition;
-  }): Promise<BuildDefinition>;
+  }) => Promise<BuildDefinition>;
 
   // release writes (Phase 4.2)
-  updateReleaseDefinition(args: {
+  updateReleaseDefinition: (args: {
     project: string;
     definition: ReleaseDefinition;
-  }): Promise<ReleaseDefinition>;
+  }) => Promise<ReleaseDefinition>;
 
   // work items
   /** Run a WIQL query and return matching work-item ids (already extracted). */
-  queryWorkItemIds(args: {
+  queryWorkItemIds: (args: {
     project: string;
     wiql: string;
     /** Team name — required by the @CurrentIteration macro; ignored otherwise. */
     team?: string;
-  }): Promise<number[]>;
+  }) => Promise<number[]>;
 
   /** Batch-fetch lightweight work items (default fields) for a list of ids. */
-  getWorkItemsSummary(args: { project: string; ids: number[] }): Promise<WorkItem[]>;
+  getWorkItemsSummary: (args: { project: string; ids: number[] }) => Promise<WorkItem[]>;
 
   /** Full work item: all fields + relations (expand: All). Comments fetched separately. */
-  getWorkItem(args: { project: string; id: number }): Promise<WorkItem>;
+  getWorkItem: (args: { project: string; id: number }) => Promise<WorkItem>;
 
   /** Recent comments for a work item (newer comments API). */
-  getWorkItemComments(args: {
+  getWorkItemComments: (args: {
     project: string;
     id: number;
     top?: number;
-  }): Promise<WorkItemComment[]>;
+  }) => Promise<WorkItemComment[]>;
 
   /** Work-item ids linked to a PR, via the Git artifact-ref endpoint. */
-  getPullRequestWorkItemRefs(args: {
+  getPullRequestWorkItemRefs: (args: {
     project: string;
     repository: string;
     pullRequestId: number;
-  }): Promise<number[]>;
+  }) => Promise<number[]>;
 
   /** Allowed state names for a work-item type (used to pre-validate transitions). */
-  getWorkItemTypeStates(args: { project: string; type: string }): Promise<string[]>;
+  getWorkItemTypeStates: (args: { project: string; type: string }) => Promise<string[]>;
 
   /** Apply a JSON Patch document to a work item. */
-  updateWorkItem(args: {
+  updateWorkItem: (args: {
     project: string;
     id: number;
     patch: JsonPatchOperation[];
-  }): Promise<WorkItem>;
+  }) => Promise<WorkItem>;
 
   /** Append a discussion comment. */
-  addWorkItemComment(args: {
+  addWorkItemComment: (args: {
     project: string;
     id: number;
     text: string;
-  }): Promise<WorkItemComment>;
+  }) => Promise<WorkItemComment>;
 }

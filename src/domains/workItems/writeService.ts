@@ -1,6 +1,6 @@
-import type { AdoClient } from "../../ado/client.js";
-import { Operation } from "../../ado/types.js";
-import type { JsonPatchOperation } from "../../ado/types.js";
+import type { AdoClient } from '../../ado/client.js';
+import type { JsonPatchOperation } from '../../ado/types.js';
+import { Operation } from '../../ado/types.js';
 
 export interface LinkResult {
   workItemId: number;
@@ -50,8 +50,8 @@ export class WorkItemsWriteService {
     const patch: JsonPatchOperation[] = [
       {
         op: Operation.Add,
-        path: "/relations/-",
-        value: { rel: "ArtifactLink", url, attributes: { name: "Pull Request" } },
+        path: '/relations/-',
+        value: { rel: 'ArtifactLink', url, attributes: { name: 'Pull Request' } },
       },
     ];
     await this.client.updateWorkItem({ project: args.project, id: args.workItemId, patch });
@@ -65,15 +65,15 @@ export class WorkItemsWriteService {
   }): Promise<UpdateStateResult> {
     // Resolve the work item's type so we can validate the target state.
     const item = await this.client.getWorkItem({ project: args.project, id: args.workItemId });
-    const type = ((item.fields ?? {})["System.WorkItemType"] as string | undefined) ?? "";
+    const type = ((item.fields ?? {})['System.WorkItemType'] as string | undefined) ?? '';
     const allowed = await this.client.getWorkItemTypeStates({ project: args.project, type });
     if (!allowed.includes(args.state)) {
       throw new Error(
-        `Invalid state '${args.state}' for work-item type '${type}'. Valid states: ${allowed.join(", ")}.`,
+        `Invalid state '${args.state}' for work-item type '${type}'. Valid states: ${allowed.join(', ')}.`,
       );
     }
     const patch: JsonPatchOperation[] = [
-      { op: Operation.Add, path: "/fields/System.State", value: args.state },
+      { op: Operation.Add, path: '/fields/System.State', value: args.state },
     ];
     await this.client.updateWorkItem({ project: args.project, id: args.workItemId, patch });
     return { workItemId: args.workItemId, state: args.state };
@@ -84,11 +84,11 @@ export class WorkItemsWriteService {
     workItemId: number;
     text: string;
   }): Promise<AddCommentResult> {
-    const c = await this.client.addWorkItemComment({
+    const comment = await this.client.addWorkItemComment({
       project: args.project,
       id: args.workItemId,
       text: args.text,
     });
-    return { workItemId: args.workItemId, commentId: (c as { id?: number }).id };
+    return { workItemId: args.workItemId, commentId: (comment as { id?: number }).id };
   }
 }

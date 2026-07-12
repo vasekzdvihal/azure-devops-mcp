@@ -1,5 +1,5 @@
-import { z } from "zod";
-import type { IdentityService } from "./service.js";
+import type { z } from 'zod';
+import type { IdentityService } from './service.js';
 
 export interface ToolDefinition {
   name: string;
@@ -15,12 +15,12 @@ export interface ToolDefinition {
 export function buildIdentityTools(svc: IdentityService): ToolDefinition[] {
   return [
     {
-      name: "whoami",
+      name: 'whoami',
       config: {
-        title: "Who am I?",
+        title: 'Who am I?',
         description:
-          "Returns the Azure DevOps identity associated with the configured PAT. " +
-          "Use this to verify the connection or to learn the current user's id and display name.",
+          'Returns the Azure DevOps identity associated with the configured PAT. '
+          + 'Use this to verify the connection or to learn the current user\'s id and display name.',
         inputSchema: {}, // no inputs
       },
       handler: async () => svc.whoami(),

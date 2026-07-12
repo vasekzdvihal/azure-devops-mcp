@@ -1,6 +1,8 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { parseRemoteUrl, type ParsedRemote } from "./parseRemoteUrl.js";
+import type { ParsedRemote } from './parseRemoteUrl.js';
+import { execFile } from 'node:child_process';
+import process from 'node:process';
+import { promisify } from 'node:util';
+import { parseRemoteUrl } from './parseRemoteUrl.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,12 +21,13 @@ export async function detectRepo(cwd: string = process.cwd()): Promise<ParsedRem
   let url: string;
   try {
     const { stdout } = await execFileAsync(
-      "git",
-      ["config", "--get", "remote.origin.url"],
-      { cwd, encoding: "utf8" },
+      'git',
+      ['config', '--get', 'remote.origin.url'],
+      { cwd, encoding: 'utf8' },
     );
     url = stdout.trim();
-  } catch {
+  }
+  catch {
     return null;
   }
   return parseRemoteUrl(url);
