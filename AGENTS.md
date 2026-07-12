@@ -3,7 +3,7 @@
 MCP server for Azure DevOps (Server + Services). TypeScript + ESM (NodeNext) on Node ≥20. Published to npm as `@vasekzdvihal/azure-devops-mcp`.
 
 ## Commands
-- pnpm (pinned via `packageManager`). `.nvmrc` is 22 for local dev, but `engines` stays `>=20` on purpose — published package; raising it is a breaking change for consumers.
+- pnpm (pinned via `packageManager`). `.nvmrc` is 22 for local dev, but `engines` stays `>=20` on purpose — published package; raising it is a breaking change for consumers. Lint itself needs Node ≥22 (eslint-plugin-unicorn uses iterator helpers), so CI lints on 22 only.
 - `pnpm run setup` — runs `tsx src/index.ts setup`, NOT `tsx src/setup.ts` (the entry point invokes `runSetup()`). Must be `pnpm run setup`; bare `pnpm setup` is pnpm's own built-in command.
 - `pnpm typecheck` — `tsc --noEmit` only checks `src/` (`rootDir: "src"`). A clean typecheck does NOT mean `test/` is correct; the runtime test pass is the actual signal.
 - `pnpm test` — vitest, compiles tests separately.

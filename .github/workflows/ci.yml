@@ -8,6 +8,9 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]
     steps:
       - uses: actions/checkout@v4
 
@@ -15,12 +18,15 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
+      # eslint-plugin-unicorn needs iterator helpers (Node >=22); the published
+      # package itself still supports Node 20, which the rest of this job covers.
       - run: pnpm lint
+        if: matrix.node-version == 22
 
       - run: pnpm typecheck
 
