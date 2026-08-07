@@ -1,13 +1,31 @@
 #!/usr/bin/env node
+import type { Config } from './config/schema.js';
 import process from 'node:process';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { SdkAdoClient } from './ado/sdkClient.js';
-import { ConfigNotFoundError, readConfig } from './config/configFile.js';
-import { accountFromBaseUrl, getPat, PatNotFoundError } from './config/keyring.js';
+import { readConfig } from './config/configFile.js';
+import { configFromEnv } from './config/envConfig.js';
 import { isReadOnly } from './config/readOnly.js';
 import { registerAllTools } from './mcp/registerTools.js';
 import { runSetup } from './setup.js';
+
+// Startup problems with a clear user-facing fix — print the message, skip the
+// stack. PatNotFoundError is matched by name: importing its class would load
+// the keyring native module, which the env-config path must never touch.
+const FRIENDLY_STARTUP_ERRORS = new Set(['EnvConfigError', 'ConfigNotFoundError', 'PatNotFoundError']);
+
+async function resolveConfigAndPat(): Promise<{ config: Config; pat: string }> {
+  const fromEnv = configFromEnv();
+  if (fromEnv) {
+    return fromEnv;
+  }
+  // Keyring is imported lazily so headless/container environments configured
+  // via env vars never load the native module.
+  const config = await readConfig();
+  const { accountFromBaseUrl, getPat } = await import('./config/keyring.js');
+  return { config, pat: getPat(accountFromBaseUrl(config.baseUrl)) };
+}
 
 async function main(): Promise<void> {
   if (process.argv[2] === 'setup') {
@@ -15,14 +33,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  let config;
+  let config: Config;
   let pat: string;
   try {
-    config = await readConfig();
-    pat = getPat(accountFromBaseUrl(config.baseUrl));
+    ({ config, pat } = await resolveConfigAndPat());
   }
   catch (err) {
-    if (err instanceof ConfigNotFoundError || err instanceof PatNotFoundError) {
+    if (err instanceof Error && FRIENDLY_STARTUP_ERRORS.has(err.name)) {
       process.stderr.write(`${err.message}\n`);
       process.exit(1);
     }

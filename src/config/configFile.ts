@@ -8,7 +8,7 @@ const OWNER_ONLY_FILE_MODE = 0o600;
 
 export class ConfigNotFoundError extends Error {
   constructor() {
-    super('Azure DevOps MCP config not found. Run: npx -y @vasekzdvihal/azure-devops-mcp setup');
+    super('Azure DevOps MCP config not found. Run: npx -y @vasekzdvihal/azure-devops-mcp setup — or, for headless/Docker use, set AZURE_DEVOPS_BASE_URL, AZURE_DEVOPS_KIND and AZURE_DEVOPS_PAT.');
     this.name = 'ConfigNotFoundError';
   }
 }
