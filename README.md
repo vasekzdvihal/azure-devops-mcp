@@ -16,6 +16,19 @@ You'll be prompted for:
 
 The wizard tests the connection before writing anything. Config goes to `~/.config/azure-devops-mcp/config.json` (mode `0600`); PAT goes to your OS keyring.
 
+### Headless / Docker (env vars)
+
+Where there's no OS keyring — containers, CI, servers — configure entirely via environment variables instead of the wizard:
+
+| Variable | Required | Value |
+| --- | --- | --- |
+| `AZURE_DEVOPS_BASE_URL` | yes | e.g. `https://dev.azure.com/myorg` or `https://tfs.company.com/tfs/DefaultCollection` |
+| `AZURE_DEVOPS_KIND` | yes | `services` (cloud) or `server` (on-prem) |
+| `AZURE_DEVOPS_PAT` | yes | the Personal Access Token |
+| `AZURE_DEVOPS_CA_BUNDLE` | no | path to a PEM file for an internal CA |
+
+Env vars are a complete, exclusive config source: if any of them is set, all required ones must be set, and the config file + keyring are never consulted (a stale file can't redirect your env PAT to a different host). Empty values count as unset. If none are set, the server falls back to the setup-wizard config.
+
 ## Required PAT scopes
 
 | Mode | Required scopes |

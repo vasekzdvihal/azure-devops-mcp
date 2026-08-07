@@ -4,7 +4,7 @@ const SERVICE_NAME = 'azure-devops-mcp';
 
 export class PatNotFoundError extends Error {
   constructor(account: string) {
-    super(`No PAT found in OS keyring for account "${account}". Run: npx -y @vasekzdvihal/azure-devops-mcp setup`);
+    super(`No PAT found in OS keyring for account "${account}". Run: npx -y @vasekzdvihal/azure-devops-mcp setup — or, for headless/Docker use, set AZURE_DEVOPS_BASE_URL, AZURE_DEVOPS_KIND and AZURE_DEVOPS_PAT.`);
     this.name = 'PatNotFoundError';
   }
 }
