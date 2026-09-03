@@ -18,6 +18,12 @@ export interface AddCommentResult {
   commentId?: number;
 }
 
+export interface DeleteCommentResult {
+  workItemId: number;
+  commentId: number;
+  deleted: true;
+}
+
 // vstfs artifact URI for a PR. Project + repo are GUIDs; the three segments are
 // joined by URL-encoded slashes (%2F), per the ADO artifact-link format.
 export function buildPrArtifactUri(projectId: string, repoId: string, prId: number): string {
@@ -90,5 +96,18 @@ export class WorkItemsWriteService {
       text: args.text,
     });
     return { workItemId: args.workItemId, commentId: (comment as { id?: number }).id };
+  }
+
+  async deleteComment(args: {
+    project: string;
+    workItemId: number;
+    commentId: number;
+  }): Promise<DeleteCommentResult> {
+    await this.client.deleteWorkItemComment({
+      project: args.project,
+      id: args.workItemId,
+      commentId: args.commentId,
+    });
+    return { workItemId: args.workItemId, commentId: args.commentId, deleted: true };
   }
 }

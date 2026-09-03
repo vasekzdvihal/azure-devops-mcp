@@ -1,6 +1,6 @@
 # Azure DevOps MCP
 
-Azure DevOps MCP server for Claude Code and other MCP hosts. Supports both **Azure DevOps Server** (on-prem) and **Azure DevOps Services** (cloud). Ships read tools for PRs, releases, pipelines, and commit history; plus the full PR review write workflow — comment, reply, resolve threads, vote, edit PR metadata, manage reviewers. Read-only mode is available for users who want a restricted surface.
+Azure DevOps MCP server for Claude Code and other MCP hosts. Supports both **Azure DevOps Server** (on-prem) and **Azure DevOps Services** (cloud). Ships read tools for PRs, releases, pipelines, and commit history; plus the full PR review write workflow — comment, reply, delete comments, resolve threads, vote, edit PR metadata, manage reviewers. Read-only mode is available for users who want a restricted surface.
 
 ## Setup
 
@@ -102,6 +102,8 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `list_branches` | Branches in a repo with last commit id + ahead/behind. Auto-detects repo from cwd. |
 | `list_commits` | Commits on a branch. Filter by fromDate, toDate, author, top. Auto-detects repo from cwd. |
 | `list_pending_approvals` | List pending release approvals; companion to `approve_release_gate`. |
+| `list_work_items` | Lists work items with convenience filters: `myActive`, `linkedToPr`, `currentIteration`, `tag`. |
+| `get_work_item` | Full work item detail: all fields, relations, and recent comments (with ids). |
 
 ### Write tools (suppressed in read-only mode)
 
@@ -109,6 +111,7 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | --- | --- |
 | `add_pull_request_comment` | Post a new comment thread. Optional `filePath` + `line` for line-anchored review notes. Body is markdown. |
 | `reply_to_pull_request_thread` | Append a comment to an existing thread. |
+| `delete_pull_request_comment` | Permanently delete one comment from a thread (deleting the first comment removes the whole thread). Confirms before calling. |
 | `update_pull_request_thread_status` | Resolve a thread (`fixed`) or change its status (`wontFix` / `closed` / `byDesign` / `pending`). |
 | `vote_on_pull_request` | Cast or update your vote: `approve` / `approveWithSuggestions` / `wait` / `reject` / `reset`. |
 | `update_pull_request` | Edit PR title and/or description (markdown). |
@@ -126,6 +129,15 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `deploy_release_stage` | Manually deploy one environment of a release (confirms before calling). |
 | `approve_release_gate` | Approve or reject a pending release approval (confirms before calling). |
 | `cancel_release` | Abandon an in-flight release. |
+| `retry_pipeline_stage` | Re-run a single stage of a completed YAML run (all jobs by default). |
+| `update_pipeline_variables` | Add, change, or remove pipeline-definition variables; existing secrets are preserved. |
+| `update_pipeline_triggers` | Replace a pipeline definition's trigger list (fetch the current one with `get_pipeline_definition` first). |
+| `update_release_variables` | Add, change, or remove release-definition variables; existing secrets are preserved. |
+| `update_release_environment_variables` | Per-environment variable overrides on a release definition. |
+| `link_work_item_to_pr` | Add an artifact link between a work item and a pull request. |
+| `update_work_item_state` | Move a work item to a new state; validated against the type's allowed states first. |
+| `add_work_item_comment` | Append a discussion comment to a work item (markdown). |
+| `delete_work_item_comment` | Permanently delete one discussion comment from a work item. Confirms before calling. |
 
 ## Troubleshooting
 

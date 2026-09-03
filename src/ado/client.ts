@@ -125,6 +125,15 @@ export interface AdoClient {
     status: CommentThreadStatus;
   }) => Promise<GitPullRequestCommentThread>;
 
+  /** Delete one comment from a PR thread. Deleting the first comment removes the whole thread. */
+  deletePullRequestComment: (args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    threadId: number;
+    commentId: number;
+  }) => Promise<void>;
+
   // pull request writes — vote
   setPullRequestVote: (args: {
     project: string;
@@ -380,4 +389,11 @@ export interface AdoClient {
     id: number;
     text: string;
   }) => Promise<WorkItemComment>;
+
+  /** Delete a discussion comment. */
+  deleteWorkItemComment: (args: {
+    project: string;
+    id: number;
+    commentId: number;
+  }) => Promise<void>;
 }

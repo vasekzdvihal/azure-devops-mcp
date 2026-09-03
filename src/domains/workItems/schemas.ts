@@ -45,6 +45,16 @@ export const UpdateWorkItemStateInput = {
     ),
 };
 
+export const DeleteWorkItemCommentInput = {
+  project: z.string().min(1).describe('ADO project name.'),
+  workItemId: z.number().int().positive().describe('Work item id.'),
+  commentId: z
+    .number()
+    .int()
+    .positive()
+    .describe('The comment id to delete. Get it from `get_work_item` (comments section).'),
+};
+
 export const AddWorkItemCommentInput = {
   project: z.string().min(1).describe('ADO project name.'),
   workItemId: z.number().int().positive().describe('Work item id.'),

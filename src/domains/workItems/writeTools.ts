@@ -2,6 +2,7 @@ import type { ToolDefinition } from '../identity/tools.js';
 import type { WorkItemsWriteService } from './writeService.js';
 import {
   AddWorkItemCommentInput,
+  DeleteWorkItemCommentInput,
   LinkWorkItemToPrInput,
   UpdateWorkItemStateInput,
 } from './schemas.js';
@@ -41,6 +42,17 @@ export function buildWorkItemsWriteTools(svc: WorkItemsWriteService): ToolDefini
         inputSchema: AddWorkItemCommentInput,
       },
       handler: async args => svc.addComment(args as Parameters<typeof svc.addComment>[0]),
+    },
+    {
+      name: 'delete_work_item_comment',
+      config: {
+        title: 'Delete a work item comment',
+        description:
+          'Permanently deletes one discussion comment (by `commentId`) from a work item. This '
+          + 'cannot be undone — always confirm with the user before calling.',
+        inputSchema: DeleteWorkItemCommentInput,
+      },
+      handler: async args => svc.deleteComment(args as Parameters<typeof svc.deleteComment>[0]),
     },
   ];
 }

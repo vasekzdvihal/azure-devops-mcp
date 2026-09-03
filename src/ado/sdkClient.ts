@@ -331,6 +331,31 @@ export class SdkAdoClient implements AdoClient {
     }
   }
 
+  async deletePullRequestComment(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    threadId: number;
+    commentId: number;
+  }): Promise<void> {
+    try {
+      const git = await this.api.getGitApi();
+      await git.deleteComment(
+        args.repository,
+        args.pullRequestId,
+        args.threadId,
+        args.commentId,
+        args.project,
+      );
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
   async updatePullRequestThreadStatus(args: {
     project: string;
     repository: string;
@@ -1294,6 +1319,23 @@ export class SdkAdoClient implements AdoClient {
     try {
       const wit = await this.api.getWorkItemTrackingApi();
       return await wit.addComment({ text: args.text }, args.project, args.id);
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  async deleteWorkItemComment(args: {
+    project: string;
+    id: number;
+    commentId: number;
+  }): Promise<void> {
+    try {
+      const wit = await this.api.getWorkItemTrackingApi();
+      await wit.deleteComment(args.project, args.id, args.commentId);
     }
     catch (err) {
       if (err instanceof AdoError) {
