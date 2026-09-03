@@ -281,6 +281,28 @@ Released as v0.4.0.
 
 ---
 
+## ✅ Phase 5.1 — Comment deletion
+
+**Status:** shipped 2026-09-03 in v0.11.0.
+
+**Goal:** let the LLM retract its own (or, with sufficient permissions, anyone's) comments on pull requests and work items — the one write in the comment lifecycle that was missing.
+
+**Tools shipped:**
+
+| Tool | Notes |
+| --- | --- |
+| `delete_pull_request_comment` | `GitApi.deleteComment` by thread + comment id; deleting the first comment removes the whole thread |
+| `delete_work_item_comment` | `WorkItemTrackingApi.deleteComment` by comment id |
+
+**Key decisions / notes:**
+
+- **Both carry the "always confirm before calling" line** — deletion is irreversible, matching the `vote_on_pull_request` / `deploy_release_stage` precedent.
+- **Tool result is `{ ..., deleted: true }`** rather than `void`, so the model gets an explicit acknowledgement it can echo back.
+- **No new PAT scopes.** Code (write) and Work Items (write) already cover the delete endpoints.
+- **Docs catch-up.** The README tool tables were missing every Phase 4.2 and Phase 5 tool; this phase added them.
+
+---
+
 ## Out of scope (and likely to stay that way)
 
 - **Wiki, artifacts, test plans, dashboards, packaging, audit, security scanning, repo settings.** Each could be its own phase, but each is a niche compared to the PR/pipeline/release/work-item core. We'd add them only if a specific colleague asks for one.

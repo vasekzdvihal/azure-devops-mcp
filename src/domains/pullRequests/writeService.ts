@@ -77,6 +77,13 @@ export interface AddCommentResult {
   status: string;
 }
 
+export interface DeleteCommentResult {
+  pullRequestId: number;
+  threadId: number;
+  commentId: number;
+  deleted: true;
+}
+
 export interface UpdateThreadStatusResult {
   threadId: number;
   status: string;
@@ -152,6 +159,29 @@ export class PullRequestsWriteService {
       content: args.content,
     });
     return { commentId: comment.id };
+  }
+
+  async deleteComment(args: {
+    project?: string;
+    repository?: string;
+    pullRequestId: number;
+    threadId: number;
+    commentId: number;
+  }): Promise<DeleteCommentResult> {
+    const { project, repository } = await resolveRepo(args, this.resolver);
+    await this.client.deletePullRequestComment({
+      project,
+      repository,
+      pullRequestId: args.pullRequestId,
+      threadId: args.threadId,
+      commentId: args.commentId,
+    });
+    return {
+      pullRequestId: args.pullRequestId,
+      threadId: args.threadId,
+      commentId: args.commentId,
+      deleted: true,
+    };
   }
 
   async updateThreadStatus(args: {

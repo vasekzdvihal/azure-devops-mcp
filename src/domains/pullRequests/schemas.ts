@@ -75,6 +75,16 @@ export const ReplyToPullRequestThreadInput = {
   content: z.string().min(1).describe('Markdown reply body.'),
 };
 
+export const DeletePullRequestCommentInput = {
+  ...PullRequestId,
+  threadId: z.number().int().positive().describe('The thread id that contains the comment.'),
+  commentId: z
+    .number()
+    .int()
+    .positive()
+    .describe('The comment id to delete. Get it from `list_pull_request_comments`.'),
+};
+
 export const UpdatePullRequestThreadStatusInput = {
   ...PullRequestId,
   threadId: z.number().int().positive().describe('The thread id to update.'),

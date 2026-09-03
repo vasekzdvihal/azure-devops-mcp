@@ -123,6 +123,7 @@ export class FakeAdoClient implements AdoClient {
   private createdThreads: Array<{ key: string; thread: GitPullRequestCommentThread }> = [];
   private createdComments: Array<{ key: string; threadId: number; comment: Comment }> = [];
   private threadStatusUpdates: Array<{ key: string; threadId: number; status: CommentThreadStatus }> = [];
+  private deletedComments: Array<{ key: string; threadId: number; commentId: number }> = [];
   private voteUpdates: Array<{ key: string; reviewerId: string; vote: number }> = [];
   private prUpdates: Array<{ key: string; update: Partial<GitPullRequest> }> = [];
   private reviewerAdds: Array<{ key: string; reviewerIds: string[] }> = [];
@@ -228,6 +229,10 @@ export class FakeAdoClient implements AdoClient {
 
   getThreadStatusUpdates(): ReadonlyArray<{ key: string; threadId: number; status: CommentThreadStatus }> {
     return this.threadStatusUpdates;
+  }
+
+  getDeletedComments(): ReadonlyArray<{ key: string; threadId: number; commentId: number }> {
+    return this.deletedComments;
   }
 
   getVoteUpdates(): ReadonlyArray<{ key: string; reviewerId: string; vote: number }> {
@@ -430,6 +435,21 @@ export class FakeAdoClient implements AdoClient {
       comment,
     });
     return this.nextCreatedComment ?? comment;
+  }
+
+  async deletePullRequestComment(args: {
+    project: string;
+    repository: string;
+    pullRequestId: number;
+    threadId: number;
+    commentId: number;
+  }): Promise<void> {
+    this.throwIfInjected('deletePullRequestComment');
+    this.deletedComments.push({
+      key: prKey({ project: args.project, repository: args.repository, pullRequestId: args.pullRequestId }),
+      threadId: args.threadId,
+      commentId: args.commentId,
+    });
   }
 
   async updatePullRequestThreadStatus(args: {
@@ -1004,6 +1024,7 @@ export class FakeAdoClient implements AdoClient {
   private updatedWorkItems: Array<{ project: string; id: number; patch: JsonPatchOperation[] }> = [];
   private nextUpdatedWorkItem?: WorkItem;
   private addedWorkItemComments: Array<{ project: string; id: number; text: string }> = [];
+  private deletedWorkItemComments: Array<{ project: string; id: number; commentId: number }> = [];
   private nextAddedComment?: WorkItemComment;
 
   // ---- phase-4.2 release write state ----
@@ -1069,6 +1090,10 @@ export class FakeAdoClient implements AdoClient {
 
   getAddedWorkItemComments() {
     return this.addedWorkItemComments;
+  }
+
+  getDeletedWorkItemComments(): ReadonlyArray<{ project: string; id: number; commentId: number }> {
+    return this.deletedWorkItemComments;
   }
 
   async updateReleaseDefinition(args: {
@@ -1140,5 +1165,14 @@ export class FakeAdoClient implements AdoClient {
     this.throwIfInjected('addWorkItemComment');
     this.addedWorkItemComments.push(args);
     return this.nextAddedComment ?? ({ text: args.text } as WorkItemComment);
+  }
+
+  async deleteWorkItemComment(args: {
+    project: string;
+    id: number;
+    commentId: number;
+  }): Promise<void> {
+    this.throwIfInjected('deleteWorkItemComment');
+    this.deletedWorkItemComments.push(args);
   }
 }

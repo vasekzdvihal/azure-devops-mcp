@@ -260,3 +260,22 @@ describe('pullRequestsWriteService.setAutoComplete', () => {
     ).rejects.toThrow(/Unknown merge strategy/);
   });
 });
+
+describe('pullRequestsWriteService.deleteComment', () => {
+  it('deletes the named comment in the named thread and reports what was deleted', async () => {
+    const { svc, fake } = makeSvc();
+    const result = await svc.deleteComment({ pullRequestId: 1, threadId: 7, commentId: 3 });
+    const deleted = fake.getDeletedComments();
+    expect(deleted).toHaveLength(1);
+    expect(deleted[0]?.threadId).toBe(7);
+    expect(deleted[0]?.commentId).toBe(3);
+    expect(deleted[0]?.key).toContain('MyProject');
+    expect(result).toEqual({ pullRequestId: 1, threadId: 7, commentId: 3, deleted: true });
+  });
+
+  it('propagates client errors unchanged', async () => {
+    const { svc, fake } = makeSvc();
+    fake.injectError('deletePullRequestComment', new Error('boom'));
+    await expect(svc.deleteComment({ pullRequestId: 1, threadId: 7, commentId: 3 })).rejects.toThrow('boom');
+  });
+});

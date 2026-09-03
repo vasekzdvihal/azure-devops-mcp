@@ -81,3 +81,12 @@ describe('workItemsWriteService.addComment', () => {
     expect(result.commentId).toBe(99);
   });
 });
+
+describe('workItemsWriteService.deleteComment', () => {
+  it('forwards project, work item id and comment id and reports what was deleted', async () => {
+    const { svc, fake } = makeSvc();
+    const result = await svc.deleteComment({ project: 'Proj', workItemId: 10, commentId: 99 });
+    expect(fake.getDeletedWorkItemComments()).toEqual([{ project: 'Proj', id: 10, commentId: 99 }]);
+    expect(result).toEqual({ workItemId: 10, commentId: 99, deleted: true });
+  });
+});

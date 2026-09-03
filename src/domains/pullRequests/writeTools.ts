@@ -6,6 +6,7 @@ import {
   AddPullRequestReviewersInput,
   CompletePullRequestInput,
   CreatePullRequestInput,
+  DeletePullRequestCommentInput,
   RemovePullRequestReviewerInput,
   ReplyToPullRequestThreadInput,
   SetPullRequestAutoCompleteInput,
@@ -41,6 +42,20 @@ export function buildPullRequestWriteTools(svc: PullRequestsWriteService): ToolD
       },
       handler: async args =>
         svc.replyToThread(args as Parameters<typeof svc.replyToThread>[0]),
+    },
+    {
+      name: 'delete_pull_request_comment',
+      config: {
+        title: 'Delete a pull request comment',
+        description:
+          'Permanently deletes one comment (by `threadId` + `commentId`) from a pull request. '
+          + 'Deleting the first comment of a thread removes the whole thread, replies included. '
+          + 'This cannot be undone — always confirm with the user before calling. Use '
+          + '`list_pull_request_comments` to find the ids.',
+        inputSchema: DeletePullRequestCommentInput,
+      },
+      handler: async args =>
+        svc.deleteComment(args as Parameters<typeof svc.deleteComment>[0]),
     },
     {
       name: 'update_pull_request_thread_status',
