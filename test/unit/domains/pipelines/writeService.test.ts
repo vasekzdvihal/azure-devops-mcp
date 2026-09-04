@@ -382,3 +382,18 @@ describe('pipelinesWriteService.createPipeline', () => {
     ).rejects.toThrow('boom');
   });
 });
+
+describe('pipelinesWriteService.deletePipeline', () => {
+  it('forwards project + pipelineId and reports deleted: true', async () => {
+    const { svc, fake } = makeSvc();
+    const result = await svc.deletePipeline({ project: 'Proj', pipelineId: 12 });
+    expect(fake.getDeletedPipelines()).toEqual([{ project: 'Proj', definitionId: 12 }]);
+    expect(result).toEqual({ pipelineId: 12, deleted: true });
+  });
+
+  it('propagates client errors unchanged', async () => {
+    const { svc, fake } = makeSvc();
+    fake.injectError('deletePipelineDefinition', new Error('boom'));
+    await expect(svc.deletePipeline({ project: 'Proj', pipelineId: 12 })).rejects.toThrow('boom');
+  });
+});

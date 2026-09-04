@@ -291,4 +291,12 @@ export class PipelinesWriteService {
       yamlPath,
     };
   }
+
+  async deletePipeline(args: { project: string; pipelineId: number }): Promise<DeletePipelineResult> {
+    await this.client.deletePipelineDefinition({
+      project: args.project,
+      definitionId: args.pipelineId,
+    });
+    return { pipelineId: args.pipelineId, deleted: true };
+  }
 }
