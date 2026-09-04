@@ -1,6 +1,6 @@
 # Azure DevOps MCP
 
-Azure DevOps MCP server for Claude Code and other MCP hosts. Supports both **Azure DevOps Server** (on-prem) and **Azure DevOps Services** (cloud). Ships read tools for PRs, releases, pipelines, and commit history; plus the full PR review write workflow — comment, reply, delete comments, resolve threads, vote, edit PR metadata, manage reviewers. Read-only mode is available for users who want a restricted surface.
+Azure DevOps MCP server for Claude Code and other MCP hosts. Supports both **Azure DevOps Server** (on-prem) and **Azure DevOps Services** (cloud). Ships read tools for PRs, releases, pipelines, and commit history; plus the full PR review write workflow — comment, reply, delete comments, resolve threads, vote, edit PR metadata, manage reviewers. Pipeline and release definitions can be created (YAML pipelines; release definitions by cloning) and deleted. Read-only mode is available for users who want a restricted surface.
 
 ## Setup
 
@@ -140,6 +140,10 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `update_work_item_state` | Move a work item to a new state; validated against the type's allowed states first. |
 | `add_work_item_comment` | Append a discussion comment to a work item (markdown). |
 | `delete_work_item_comment` | Permanently delete one discussion comment from a work item. Confirms before calling. |
+| `create_pipeline` | Create a YAML pipeline from a repository name + yaml path. Reversible via `delete_pipeline`. |
+| `delete_pipeline` | Soft-delete a pipeline definition (recycle bin, 30 days). Confirms before calling. |
+| `create_release_definition` | Clone an existing release definition under a new name; optional folder, variables, and artifact rebinding. Confirms before calling. |
+| `delete_release_definition` | Soft-delete a release definition; `forceDelete` cancels in-flight deployments. Confirms before calling. Needs Release "manage" scope. |
 
 ## Troubleshooting
 
