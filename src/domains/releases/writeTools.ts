@@ -5,6 +5,7 @@ import {
   CancelReleaseInput,
   CreateReleaseDefinitionInput,
   CreateReleaseInput,
+  DeleteReleaseDefinitionInput,
   DeployReleaseStageInput,
   UpdateReleaseEnvironmentVariablesInput,
   UpdateReleaseVariablesInput,
@@ -114,6 +115,21 @@ export function buildReleaseWriteTools(svc: ReleasesWriteService): ToolDefinitio
       },
       handler: async args =>
         svc.createDefinition(args as Parameters<typeof svc.createDefinition>[0]),
+    },
+    {
+      name: 'delete_release_definition',
+      config: {
+        title: 'Delete a release definition',
+        description:
+          '**Always confirm with the user before calling — this removes the release pipeline and '
+          + 'all its releases from the project.** ADO soft-deletes it (restorable from the web UI). '
+          + 'Refuses with an error while a deployment from this definition is in progress unless '
+          + '`forceDelete` is true, which cancels in-flight deployments first. Requires the Release '
+          + '"manage" PAT scope.',
+        inputSchema: DeleteReleaseDefinitionInput,
+      },
+      handler: async args =>
+        svc.deleteDefinition(args as Parameters<typeof svc.deleteDefinition>[0]),
     },
   ];
 }

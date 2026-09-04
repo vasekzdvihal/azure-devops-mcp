@@ -504,3 +504,31 @@ describe('releasesWriteService.createDefinition', () => {
     ).rejects.toThrow('not found');
   });
 });
+
+describe('releasesWriteService.deleteDefinition', () => {
+  it('forwards ids, comment and forceDelete and reports deleted: true', async () => {
+    const { svc, fake } = makeSvc();
+    const result = await svc.deleteDefinition({
+      project: 'p',
+      definitionId: 42,
+      comment: 'obsolete',
+      forceDelete: true,
+    });
+    expect(fake.getDeletedReleaseDefs()).toEqual([
+      { project: 'p', definitionId: 42, comment: 'obsolete', forceDelete: true },
+    ]);
+    expect(result).toEqual({ definitionId: 42, deleted: true });
+  });
+
+  it('defaults forceDelete to false', async () => {
+    const { svc, fake } = makeSvc();
+    await svc.deleteDefinition({ project: 'p', definitionId: 42 });
+    expect(fake.getDeletedReleaseDefs()[0]?.forceDelete).toBe(false);
+  });
+
+  it('propagates client errors unchanged', async () => {
+    const { svc, fake } = makeSvc();
+    fake.injectError('deleteReleaseDefinition', new Error('boom'));
+    await expect(svc.deleteDefinition({ project: 'p', definitionId: 42 })).rejects.toThrow('boom');
+  });
+});

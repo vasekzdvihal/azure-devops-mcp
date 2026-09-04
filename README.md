@@ -34,7 +34,9 @@ Env vars are a complete, exclusive config source: if any of them is set, all req
 | Mode | Required scopes |
 | --- | --- |
 | Read-only (read tools only) | **Code (read)**, **Identity (read)**, **Build (read)**, **Release (read)**, **Work Items (read)** |
-| Full (default — read + write tools) | **Code (read & write)**, **Pull Request (read & write)**, **Identity (read)**, **Build (read & execute)**, **Release (read, write, & execute)**, **Work Items (read & write)** |
+| Full (default — read + write tools) | **Code (read & write)**, **Pull Request (read & write)**, **Identity (read)**, **Build (read & execute)**, **Release (read, write, execute, & manage)**, **Work Items (read & write)** |
+
+The "manage" tier of Release is needed only by `delete_release_definition`; every other release tool works with "read, write, & execute".
 
 A read-only PAT is the actual security guarantee — ADO enforces scope at the API regardless of what the MCP server exposes. The read-only mode env var (below) is an additional layer for users who can't or don't want to scope down their PAT.
 

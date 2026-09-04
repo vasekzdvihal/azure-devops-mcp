@@ -479,4 +479,19 @@ export class ReleasesWriteService {
       variables: projectReleaseVariables(updatedTarget.variables),
     };
   }
+
+  async deleteDefinition(args: {
+    project: string;
+    definitionId: number;
+    comment?: string;
+    forceDelete?: boolean;
+  }): Promise<DeleteReleaseDefinitionResult> {
+    await this.client.deleteReleaseDefinition({
+      project: args.project,
+      definitionId: args.definitionId,
+      comment: args.comment,
+      forceDelete: args.forceDelete ?? false,
+    });
+    return { definitionId: args.definitionId, deleted: true };
+  }
 }
