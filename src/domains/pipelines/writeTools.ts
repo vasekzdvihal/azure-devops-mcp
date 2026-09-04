@@ -2,6 +2,7 @@ import type { ToolDefinition } from '../identity/tools.js';
 import type { PipelinesWriteService } from './writeService.js';
 import {
   CancelPipelineRunInput,
+  CreatePipelineInput,
   QueuePipelineRunInput,
   RetryPipelineStageInput,
   UpdateBuildTagsInput,
@@ -92,6 +93,21 @@ export function buildPipelineWriteTools(svc: PipelinesWriteService): ToolDefinit
       },
       handler: async args =>
         svc.updateTriggers(args as Parameters<typeof svc.updateTriggers>[0]),
+    },
+    {
+      name: 'create_pipeline',
+      config: {
+        title: 'Create a YAML pipeline',
+        description:
+          'Creates a new pipeline definition that runs the YAML file at `yamlPath` in the named '
+          + 'Azure Repos repository. Creating a pipeline runs nothing and is reversible with '
+          + '`delete_pipeline`. ADO does not verify that the YAML file exists at creation time — '
+          + 'the first run fails instead, so chain `queue_pipeline_run` to validate. Returns the new '
+          + 'pipeline id and URL.',
+        inputSchema: CreatePipelineInput,
+      },
+      handler: async args =>
+        svc.createPipeline(args as Parameters<typeof svc.createPipeline>[0]),
     },
   ];
 }
