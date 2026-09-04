@@ -75,7 +75,7 @@ function fixture(): ReleaseDefinition {
         executionPolicy: { concurrencyCount: 1, queueDepthCount: 0 },
         environmentOptions: { emailNotificationType: 'OnlyOnFailure' } as never,
         demands: [],
-        schedules: [],
+        schedules: [{ daysToRelease: 1, jobId: 'job-guid', startHours: 3, startMinutes: 0, timeZoneId: 'UTC' }],
         properties: {},
         variables: { REGION: { value: 'eu' } },
         variableGroups: [4],
@@ -158,12 +158,19 @@ describe('stripForClone — per environment', () => {
     expect(envs.map(env => env.environmentTriggers)).toEqual([[], []]);
   });
 
-  it('keeps rank, owner, name, variables, variableGroups, conditions, policies, options, demands, schedules, properties', () => {
+  it('keeps rank, owner, name, variables, variableGroups, conditions, policies, options, demands, properties', () => {
     const [inStaging] = fixture().environments ?? [];
     const [outStaging] = stripForClone(fixture()).environments ?? [];
-    for (const key of ['rank', 'owner', 'name', 'variables', 'variableGroups', 'conditions', 'retentionPolicy', 'executionPolicy', 'environmentOptions', 'demands', 'schedules', 'properties'] as const) {
+    for (const key of ['rank', 'owner', 'name', 'variables', 'variableGroups', 'conditions', 'retentionPolicy', 'executionPolicy', 'environmentOptions', 'demands', 'properties'] as const) {
       expect(outStaging?.[key], key).toEqual(inStaging?.[key]);
     }
+  });
+
+  it('removes the server-assigned jobId from each schedule but keeps the schedule', () => {
+    const [staging] = stripForClone(fixture()).environments ?? [];
+    expect(staging?.schedules).toHaveLength(1);
+    expect(staging?.schedules?.[0]).not.toHaveProperty('jobId');
+    expect(staging?.schedules?.[0]).toMatchObject({ daysToRelease: 1, startHours: 3, timeZoneId: 'UTC' });
   });
 
   it('keeps deployPhases including queueId and workflowTasks byte-for-byte', () => {

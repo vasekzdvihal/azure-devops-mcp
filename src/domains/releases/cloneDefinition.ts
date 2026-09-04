@@ -8,9 +8,10 @@ import { ReleaseDefinitionSource } from '../../ado/types.js';
  * the top level; every environment/approval/gate id is reset to 0 (matching the REST 7.1
  * "Definitions - Create" sample); `deployStep`, `badgeUrl`, `currentRelease` are dropped;
  * `environmentTriggers` are emptied because they reference the *source* definition's
- * environment ids. Everything else — deploy phases, tasks, queue ids, approvals, conditions,
- * artifacts, triggers, variables — is preserved verbatim. Returns a new object; the input is
- * not mutated.
+ * environment ids; `schedules[].jobId` (the server-assigned scheduler job id) is removed from
+ * every schedule, though the schedule itself is kept. Everything else — deploy phases, tasks,
+ * queue ids, approvals, conditions, artifacts, triggers, variables — is preserved verbatim.
+ * Returns a new object; the input is not mutated.
  */
 export function stripForClone(def: ReleaseDefinition): ReleaseDefinition {
   // Structured clone keeps Dates/nested objects intact and guarantees no aliasing with input.
@@ -41,6 +42,13 @@ function stripEnvironment(env: ReleaseDefinitionEnvironment): ReleaseDefinitionE
   delete out.currentRelease;
   delete out.deployStep;
   out.environmentTriggers = [];
+
+  if (out.schedules) {
+    out.schedules = out.schedules.map((schedule) => {
+      const { jobId: _jobId, ...rest } = schedule;
+      return rest;
+    });
+  }
 
   if (out.preDeployApprovals?.approvals) {
     out.preDeployApprovals = {

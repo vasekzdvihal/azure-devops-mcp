@@ -110,9 +110,9 @@ Applied to the fetched `ReleaseDefinition` before POST. Verified against the ADO
 
 Top level — **remove**: `id`, `revision`, `url`, `_links`, `createdBy`, `createdOn`, `modifiedBy`, `modifiedOn`, `lastRelease`, `isDeleted`, `comment`. **Set**: `source = ReleaseDefinitionSource.RestApi`.
 
-Per environment — **set** `id = 0`; **remove** `badgeUrl`, `currentRelease`, `deployStep` (it carries a server id and is regenerated); **set** every `preDeployApprovals.approvals[].id`, `postDeployApprovals.approvals[].id`, `preDeploymentGates.id`, `postDeploymentGates.id` to `0`; **empty** `environmentTriggers` (its entries reference the source definition's environment ids and would point at the wrong definition).
+Per environment — **set** `id = 0`; **remove** `badgeUrl`, `currentRelease`, `deployStep` (it carries a server id and is regenerated); **set** every `preDeployApprovals.approvals[].id`, `postDeployApprovals.approvals[].id`, `preDeploymentGates.id`, `postDeploymentGates.id` to `0`; **empty** `environmentTriggers` (its entries reference the source definition's environment ids and would point at the wrong definition); **remove** `jobId` from every entry of `schedules` (it is the server-assigned scheduler job id; the schedule itself is kept).
 
-**Keep untouched**: `rank`, `owner`, `name`, `variables`, `variableGroups`, `deployPhases` (including `deploymentInput.queueId` and `workflowTasks` — this is the whole point of cloning), `conditions` (they reference environments by name, and names are not changed), `retentionPolicy`, `executionPolicy`, `environmentOptions`, `demands`, `schedules`, `properties`.
+**Keep untouched**: `rank`, `owner`, `name`, `variables`, `variableGroups`, `deployPhases` (including `deploymentInput.queueId` and `workflowTasks` — this is the whole point of cloning), `conditions` (they reference environments by name, and names are not changed), `retentionPolicy`, `executionPolicy`, `environmentOptions`, `demands`, `schedules` (minus `jobId`), `properties`.
 
 Top-level `triggers` are kept: `artifactSource` triggers reference `artifactAlias`, which survives the clone. `artifacts` are kept, with `definitionReference` rewritten only for aliases named in `artifactSources`.
 
