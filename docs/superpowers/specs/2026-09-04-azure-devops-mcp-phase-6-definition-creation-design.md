@@ -1,7 +1,7 @@
 # Phase 6 — Pipeline & release definition creation (design)
 
 **Date:** 2026-09-04
-**Status:** draft, pending review
+**Status:** approved 2026-09-04 (Lavish review); defaults taken on both open decisions — keep `delete_release_definition` with the Release manage scope, artifact overrides rebind existing aliases only
 **Prior phase:** Phase 5.1 (comment deletion, shipped 2026-09-03 in v0.11.0)
 **Target version:** 0.12.0
 
