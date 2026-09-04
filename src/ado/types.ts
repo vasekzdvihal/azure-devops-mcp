@@ -1,4 +1,7 @@
 // Build (classic build + YAML pipelines)
+// Pipelines (YAML runs via PipelinesApi)
+import { ConfigurationType } from 'azure-devops-node-api/interfaces/PipelinesInterfaces.js';
+
 export type {
   Build,
   BuildDefinition,
@@ -43,12 +46,30 @@ export type {
 export type { Identity } from 'azure-devops-node-api/interfaces/IdentitiesInterfaces.js';
 
 export type { ConnectionData } from 'azure-devops-node-api/interfaces/LocationsInterfaces.js';
-
-// Pipelines (YAML runs via PipelinesApi)
+export { ConfigurationType };
 export type {
+  CreatePipelineParameters,
+  Pipeline,
   Run,
   RunPipelineParameters,
 } from 'azure-devops-node-api/interfaces/PipelinesInterfaces.js';
+
+/**
+ * The SDK types `CreatePipelineConfigurationParameters` as `{ type? }` only, but the REST
+ * endpoint requires `path` + `repository` for a YAML pipeline. This local widening is
+ * structurally compatible with the SDK's parameter type (superset), so it can be passed
+ * to `PipelinesApi.createPipeline` without a cast.
+ */
+export interface CreateYamlPipelineParameters {
+  name: string;
+  folder: string;
+  configuration: {
+    type: ConfigurationType;
+    path: string;
+    repository: { id: string; name: string; type: 'azureReposGit' };
+  };
+}
+
 // Release (classic release pipelines)
 export type {
   ApprovalStatus,
@@ -66,6 +87,8 @@ export type {
   ReleaseStartMetadata,
   ReleaseStatus,
 } from 'azure-devops-node-api/interfaces/ReleaseInterfaces.js';
+// ReleaseDefinitionSource is used as a *value* (source = ReleaseDefinitionSource.RestApi).
+export { ReleaseDefinitionSource } from 'azure-devops-node-api/interfaces/ReleaseInterfaces.js';
 
 // Work items (WorkItemTrackingApi)
 export type {
