@@ -3,6 +3,7 @@ import type { ReleasesWriteService } from './writeService.js';
 import {
   ApproveReleaseGateInput,
   CancelReleaseInput,
+  CreateReleaseDefinitionInput,
   CreateReleaseInput,
   DeployReleaseStageInput,
   UpdateReleaseEnvironmentVariablesInput,
@@ -96,6 +97,23 @@ export function buildReleaseWriteTools(svc: ReleasesWriteService): ToolDefinitio
       },
       handler: async args =>
         svc.updateEnvironmentVariables(args as Parameters<typeof svc.updateEnvironmentVariables>[0]),
+    },
+    {
+      name: 'create_release_definition',
+      config: {
+        title: 'Create a release definition by cloning an existing one',
+        description:
+          '**Always confirm with the user before calling — this creates a new release pipeline '
+          + 'visible to the whole project.** Copies the stages, deploy tasks, approvals, variables, '
+          + 'and triggers of `cloneFromDefinitionId` under a new `name`. Optional `path` (folder), '
+          + '`description`, `variables`, and `artifactSources` (rebind an existing artifact alias to '
+          + 'another build pipeline) customise the copy. Creation deploys nothing; use '
+          + '`create_release` afterwards. Returns the new definition id, its stage names, and its '
+          + 'artifact bindings.',
+        inputSchema: CreateReleaseDefinitionInput,
+      },
+      handler: async args =>
+        svc.createDefinition(args as Parameters<typeof svc.createDefinition>[0]),
     },
   ];
 }

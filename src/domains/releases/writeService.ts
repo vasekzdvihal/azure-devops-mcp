@@ -1,10 +1,12 @@
 import type { AdoClient } from '../../ado/client.js';
 import type {
+  Artifact,
   ConfigurationVariableValue,
   ReleaseDefinitionEnvironment,
   ReleaseEnvironmentUpdateMetadata,
   ReleaseStartMetadata,
 } from '../../ado/types.js';
+import { stripForClone } from './cloneDefinition.js';
 
 // Reverse-mapping tables — VALUES verified against SDK ReleaseInterfaces.d.ts.
 //
@@ -98,6 +100,52 @@ function findDefinitionEnvironment(
   return target as ReleaseDefinitionEnvironment & { id: number };
 }
 
+function findArtifactByAlias(
+  artifacts: Artifact[],
+  alias: string,
+  definitionId: number,
+): Artifact {
+  const target = artifacts.find(artifact => artifact.alias === alias);
+  if (!target) {
+    const available = artifacts.map(artifact => artifact.alias).filter(Boolean).join(', ');
+    throw new Error(
+      `Artifact alias '${alias}' not found on release definition ${definitionId}. `
+      + `Available: ${available || '(none)'}`,
+    );
+  }
+  return target;
+}
+
+// Rebinds named artifact aliases to different build pipelines, resolving each pipeline's name
+// via the ADO API. Validates every alias up front so an unknown alias fails fast without
+// leaving a partial rewrite behind.
+async function rebindArtifacts(args: {
+  client: AdoClient;
+  project: string;
+  cloneFromDefinitionId: number;
+  artifacts: Artifact[];
+  overrides: { alias: string; buildDefinitionId: number }[];
+}): Promise<void> {
+  const { client, project, cloneFromDefinitionId, artifacts, overrides } = args;
+  for (const override of overrides) {
+    findArtifactByAlias(artifacts, override.alias, cloneFromDefinitionId);
+  }
+  for (const override of overrides) {
+    const artifact = findArtifactByAlias(artifacts, override.alias, cloneFromDefinitionId);
+    const buildDef = await client.getPipelineDefinition({
+      project,
+      definitionId: override.buildDefinitionId,
+    });
+    artifact.definitionReference = {
+      ...(artifact.definitionReference ?? {}),
+      definition: {
+        id: String(override.buildDefinitionId),
+        name: buildDef.name ?? String(override.buildDefinitionId),
+      },
+    };
+  }
+}
+
 function projectReleaseVariables(
   vars: Record<string, ConfigurationVariableValue> | undefined,
 ): Record<string, { value: string | null; isSecret: boolean }> {
@@ -131,6 +179,20 @@ export interface ApproveGateResult {
 export interface CancelReleaseResult {
   releaseId: number;
   status: string;
+}
+
+export interface CreateReleaseDefinitionResult {
+  definitionId: number;
+  name: string;
+  path?: string;
+  url?: string;
+  environments: string[];
+  artifacts: Array<{ alias: string; sourcePipeline?: string }>;
+}
+
+export interface DeleteReleaseDefinitionResult {
+  definitionId: number;
+  deleted: true;
 }
 
 export class ReleasesWriteService {
@@ -281,6 +343,61 @@ export class ReleasesWriteService {
     return {
       releaseId: release.id ?? args.releaseId,
       status: RELEASE_STATUS_FROM_ENUM[(release.status as number) ?? 0] ?? 'unknown',
+    };
+  }
+
+  async createDefinition(args: {
+    project: string;
+    cloneFromDefinitionId: number;
+    name: string;
+    description?: string;
+    path?: string;
+    artifactSources?: { alias: string; buildDefinitionId: number }[];
+    variables?: Record<string, ReleaseVariableInput>;
+  }): Promise<CreateReleaseDefinitionResult> {
+    const source = await this.client.getReleaseDefinition({
+      project: args.project,
+      definitionId: args.cloneFromDefinitionId,
+    });
+
+    const clone = stripForClone(source);
+    clone.name = args.name;
+    if (args.description !== undefined) {
+      clone.description = args.description;
+    }
+    if (args.path !== undefined) {
+      clone.path = args.path;
+    }
+
+    await rebindArtifacts({
+      client: this.client,
+      project: args.project,
+      cloneFromDefinitionId: args.cloneFromDefinitionId,
+      artifacts: clone.artifacts ?? [],
+      overrides: args.artifactSources ?? [],
+    });
+
+    if (args.variables) {
+      clone.variables = mergeReleaseVariables(clone.variables, args.variables, undefined);
+    }
+
+    const created = await this.client.createReleaseDefinition({
+      project: args.project,
+      definition: clone,
+    });
+
+    return {
+      definitionId: created.id ?? 0,
+      name: created.name ?? args.name,
+      path: created.path,
+      url: created.url,
+      environments: (created.environments ?? [])
+        .map(env => env.name)
+        .filter((name): name is string => !!name),
+      artifacts: (created.artifacts ?? []).map(artifact => ({
+        alias: artifact.alias ?? '',
+        sourcePipeline: artifact.definitionReference?.definition?.name,
+      })),
     };
   }
 
