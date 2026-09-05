@@ -7,6 +7,7 @@ import type {
 } from '../../../../src/ado/types.js';
 import { describe, expect, it } from 'vitest';
 import { ReleaseDefinitionSource } from '../../../../src/ado/types.js';
+import { CreateReleaseDefinitionInput } from '../../../../src/domains/releases/schemas.js';
 import { ReleasesWriteService } from '../../../../src/domains/releases/writeService.js';
 import { FakeAdoClient } from '../../../fakes/FakeAdoClient.js';
 
@@ -15,6 +16,13 @@ function makeSvc() {
   const svc = new ReleasesWriteService(fake);
   return { svc, fake };
 }
+
+describe('createReleaseDefinitionInput.path description', () => {
+  it('documents folder syntax with single backslashes', () => {
+    expect(CreateReleaseDefinitionInput.path.description).toContain('\'\\Web\'');
+    expect(CreateReleaseDefinitionInput.path.description).not.toContain('\\\\');
+  });
+});
 
 // Give a definition some named stages so the default (inert) create path can
 // enumerate them for `manualEnvironments`.
@@ -373,6 +381,7 @@ function sourceDefinition(): ReleaseDefinition {
           definition: { id: '15', name: 'web-ci' },
           project: { id: 'p-guid', name: 'p' },
         },
+        sourceId: 'p-guid:15',
       },
       {
         alias: '_assets',
@@ -381,6 +390,7 @@ function sourceDefinition(): ReleaseDefinition {
           definition: { id: '16', name: 'assets-ci' },
           project: { id: 'p-guid', name: 'p' },
         },
+        sourceId: 'p-guid:16',
       },
     ],
     environments: [
@@ -464,7 +474,9 @@ describe('releasesWriteService.createDefinition', () => {
     expect(artifacts[0]?.definitionReference?.definition).toEqual({ id: '99', name: 'web-ci-v2' });
     expect(artifacts[0]?.definitionReference?.project).toEqual({ id: 'p-guid', name: 'p' });
     expect(artifacts[0]?.type).toBe('Build');
+    expect(artifacts[0]).not.toHaveProperty('sourceId');
     expect(artifacts[1]?.definitionReference?.definition).toEqual({ id: '16', name: 'assets-ci' });
+    expect(artifacts[1]?.sourceId).toBe('p-guid:16');
   });
 
   it('rejects an unknown artifact alias and lists the valid ones without posting', async () => {
@@ -481,7 +493,7 @@ describe('releasesWriteService.createDefinition', () => {
     expect(fake.getCreatedReleaseDefs()).toHaveLength(0);
   });
 
-  it('merges variables over the clone and preserves an untouched secret', async () => {
+  it('merges variables over the clone; an untouched secret keeps its name and flag with a null value', async () => {
     const { svc, fake } = makeSvc();
     fake.setReleaseDefinition('p', 42, sourceDefinition());
     await svc.createDefinition({

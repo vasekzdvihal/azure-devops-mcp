@@ -26,7 +26,10 @@ function fixture(): ReleaseDefinition {
     properties: {},
     variables: { ENV: { value: 'prod' }, KEY: { value: null as unknown as string, isSecret: true } },
     variableGroups: [3],
-    triggers: [{ triggerType: 1, artifactAlias: '_web-ci' } as never],
+    triggers: [
+      { triggerType: 1, artifactAlias: '_web-ci' } as never,
+      { triggerType: 2, schedule: { daysToRelease: 31, jobId: 'sched-job-guid', startHours: 2, startMinutes: 0, timeZoneId: 'UTC' } } as never,
+    ],
     artifacts: [
       {
         alias: '_web-ci',
@@ -112,7 +115,7 @@ describe('stripForClone — top level', () => {
     const out = stripForClone(input);
     expect(out.name).toBe(input.name);
     expect(out.path).toBe(input.path);
-    expect(out.triggers).toEqual(input.triggers);
+    expect(out.triggers?.[0]).toEqual(input.triggers?.[0]);
     expect(out.artifacts).toEqual(input.artifacts);
     expect(out.variables).toEqual(input.variables);
     expect(out.variableGroups).toEqual(input.variableGroups);
@@ -126,6 +129,16 @@ describe('stripForClone — top level', () => {
     const snapshot = JSON.stringify(input);
     stripForClone(input);
     expect(JSON.stringify(input)).toBe(snapshot);
+  });
+
+  it('removes jobId from a scheduled release trigger but keeps the trigger and its schedule', () => {
+    const triggers = stripForClone(fixture()).triggers ?? [];
+    expect(triggers).toHaveLength(2);
+    expect(triggers[0]).toEqual({ triggerType: 1, artifactAlias: '_web-ci' });
+    const scheduled = triggers[1] as { triggerType: number; schedule: Record<string, unknown> };
+    expect(scheduled.triggerType).toBe(2);
+    expect(scheduled.schedule).not.toHaveProperty('jobId');
+    expect(scheduled.schedule).toMatchObject({ daysToRelease: 31, startHours: 2, timeZoneId: 'UTC' });
   });
 });
 

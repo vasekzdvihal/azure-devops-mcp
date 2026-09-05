@@ -167,7 +167,7 @@ export const CreateReleaseDefinitionInput = {
     .string()
     .min(1)
     .optional()
-    .describe('Folder for the new definition, e.g. \'\\\\Web\'. Defaults to the source definition\'s folder.'),
+    .describe('Folder for the new definition, e.g. \'\\Web\'. Defaults to the source definition\'s folder.'),
   artifactSources: z
     .array(
       z.object({
@@ -192,7 +192,9 @@ export const CreateReleaseDefinitionInput = {
     .optional()
     .describe(
       'Definition-level variables to set on the clone, merged over the copied variables. '
-      + 'Copied secrets are preserved unless explicitly overridden.',
+      + 'Secret variables are copied by NAME only: ADO never returns secret values, so every '
+      + 'secret on the clone is empty until re-entered in the web UI (or set here with '
+      + '`isSecret: true`).',
     ),
 };
 

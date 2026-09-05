@@ -99,7 +99,7 @@ Service logic:
 2. Deep-copy, then apply the **clone-strip rules** (below).
 3. Set `name`, `description`, `path`.
 4. For each `artifactSources` entry: find the artifact by alias, `getPipelineDefinition({ project, definitionId: buildDefinitionId })` to get its name, set `definitionReference.definition = { id: String(buildDefinitionId), name }`. Leave `project` reference and `type: 'Build'` unchanged.
-5. Merge `variables` (secret-preservation rule from Phase 4.2 applies).
+5. Merge `variables` (secret-preservation rule from Phase 4.2 applies). Note: secrets arrive from GET with `value: null` and are posted that way — the clone's secrets are empty until re-entered.
 6. `createReleaseDefinition`. Return `{ definitionId, name, path, url, environments: string[], artifacts: Array<{ alias, sourcePipeline }> }`.
 
 Description carries: "Always confirm with the user before calling — creates a new release pipeline visible to the whole project. Creation deploys nothing; use `create_release` afterwards."
@@ -114,7 +114,7 @@ Per environment — **set** `id = 0`; **remove** `badgeUrl`, `currentRelease`, `
 
 **Keep untouched**: `rank`, `owner`, `name`, `variables`, `variableGroups`, `deployPhases` (including `deploymentInput.queueId` and `workflowTasks` — this is the whole point of cloning), `conditions` (they reference environments by name, and names are not changed), `retentionPolicy`, `executionPolicy`, `environmentOptions`, `demands`, `schedules` (minus `jobId`), `properties`.
 
-Top-level `triggers` are kept: `artifactSource` triggers reference `artifactAlias`, which survives the clone. `artifacts` are kept, with `definitionReference` rewritten only for aliases named in `artifactSources`.
+Top-level `triggers` are kept: `artifactSource` triggers reference `artifactAlias`, which survives the clone; a `schedule`-type trigger loses its `schedule.jobId` for the same reason as environment schedules. `artifacts` are kept, with `definitionReference` rewritten only for aliases named in `artifactSources`. When an alias is rebound via `artifactSources`, that artifact's `sourceId` (the server-computed `<projectId>:<buildDefinitionId>` composite) is removed so ADO recomputes it from the new `definitionReference`; untouched artifacts keep theirs.
 
 Environment renames are **not** supported in this phase. Renaming an environment would require rewriting `conditions[]` entries of type `environmentState` that reference the old name; leaving that out keeps the strip rules mechanical.
 

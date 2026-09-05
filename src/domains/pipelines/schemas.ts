@@ -177,7 +177,7 @@ export const CreatePipelineInput = {
     .string()
     .min(1)
     .optional()
-    .describe('Pipeline folder, e.g. \'\\\\Backend\'. Defaults to the root folder \'\\\\\'.'),
+    .describe('Pipeline folder, e.g. \'\\Backend\'. Defaults to the root folder \'\\\'.'),
 };
 
 export const DeletePipelineInput = {

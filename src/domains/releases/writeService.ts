@@ -105,6 +105,7 @@ function findArtifactByAlias(
   alias: string,
   definitionId: number,
 ): Artifact {
+  // Exact match on purpose: ADO artifact aliases are case-significant, unlike environment names.
   const target = artifacts.find(artifact => artifact.alias === alias);
   if (!target) {
     const available = artifacts.map(artifact => artifact.alias).filter(Boolean).join(', ');
@@ -117,8 +118,8 @@ function findArtifactByAlias(
 }
 
 // Rebinds named artifact aliases to different build pipelines, resolving each pipeline's name
-// via the ADO API. Validates every alias up front so an unknown alias fails fast without
-// leaving a partial rewrite behind.
+// via the ADO API. Validates every alias up front so an unknown alias fails before any
+// getPipelineDefinition round-trip.
 async function rebindArtifacts(args: {
   client: AdoClient;
   project: string;
@@ -143,6 +144,9 @@ async function rebindArtifacts(args: {
         name: buildDef.name ?? String(override.buildDefinitionId),
       },
     };
+    // sourceId is the server-computed <projectId>:<buildDefinitionId> composite for the OLD
+    // binding; deleting it lets ADO recompute it from the new definitionReference on create.
+    delete artifact.sourceId;
   }
 }
 

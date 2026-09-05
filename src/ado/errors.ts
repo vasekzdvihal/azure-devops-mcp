@@ -116,7 +116,7 @@ function detectMissingScope(shape: { message?: string }): string | null {
     return 'Build (read & execute)';
   }
   if (message.includes('requires the \'release\'') || message.includes('requires the \'release (')) {
-    return 'Release (read, write, & execute)';
+    return 'Release (read, write, & execute — plus "manage" for delete_release_definition)';
   }
   return null;
 }

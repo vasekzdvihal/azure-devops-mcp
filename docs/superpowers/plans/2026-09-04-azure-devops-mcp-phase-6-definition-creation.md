@@ -1622,9 +1622,11 @@ git commit -m "docs: Phase 6 README + roadmap; bump to 0.12.0"
 
 Not automatable; do it once from the worktree with the built `dist/index.js` pointed at by a local MCP config, or with a small script using `SdkAdoClient` directly. Record the outcome in the PR description.
 
-- [ ] **Step 1:** `create_pipeline` against a throwaway repo with a trivial `azure-pipelines.yml`; open the pipeline in the UI; `queue_pipeline_run` on it; confirm it runs.
+- [ ] **Step 1:** `create_pipeline` against a throwaway repo with a trivial `azure-pipelines.yml`; open the pipeline in the UI; `queue_pipeline_run` on it; confirm it runs. Confirm in the UI that ADO stored it as a YAML configuration bound to the right repository and path; if ADO rejected the numeric `type` (400) or stored a non-YAML configuration, change `SdkAdoClient.createPipeline` to send the literal string `'yaml'` with a one-line comment.
 - [ ] **Step 2:** `create_release_definition` cloning a real, small definition; open the new definition in the UI; confirm stages, tasks, agent pool, approvals, and artifact binding are intact; `create_release` from it (inert by default); confirm the release lists the expected stages.
 - [ ] **Step 3:** `delete_release_definition` on the clone (expect success without `forceDelete` since nothing is deploying); `delete_pipeline` on the test pipeline. Confirm both appear in the respective recycle bins.
+- [ ] **Step 3b:** clone a definition that has a scheduled release trigger and an `artifactSources` rebind; confirm in the UI that the clone's schedule is independent and the rebound artifact shows the NEW build pipeline.
+- [ ] **Step 3c:** clone a definition with a secret variable; confirm the secret is blank on the clone (expected) and the tool copy says so.
 - [ ] **Step 4:** If ADO rejects the cloned payload (400 with a field name), add that field to `stripForClone`, add a test row for it, and re-run Steps 2–3. Note the extra rule in the ROADMAP entry.
 
 ---

@@ -1,5 +1,10 @@
-import type { ReleaseDefinition, ReleaseDefinitionEnvironment } from '../../ado/types.js';
-import { ReleaseDefinitionSource } from '../../ado/types.js';
+import type {
+  ReleaseDefinition,
+  ReleaseDefinitionEnvironment,
+  ReleaseTriggerBase,
+  ScheduledReleaseTrigger,
+} from '../../ado/types.js';
+import { ReleaseDefinitionSource, ReleaseTriggerType } from '../../ado/types.js';
 
 /**
  * Prepare a fetched release definition for POST as a *new* definition.
@@ -9,9 +14,10 @@ import { ReleaseDefinitionSource } from '../../ado/types.js';
  * "Definitions - Create" sample); `deployStep`, `badgeUrl`, `currentRelease` are dropped;
  * `environmentTriggers` are emptied because they reference the *source* definition's
  * environment ids; `schedules[].jobId` (the server-assigned scheduler job id) is removed from
- * every schedule, though the schedule itself is kept. Everything else — deploy phases, tasks,
- * queue ids, approvals, conditions, artifacts, triggers, variables — is preserved verbatim.
- * Returns a new object; the input is not mutated.
+ * every environment schedule, though the schedule itself is kept; a top-level `schedule`-type
+ * trigger loses its `schedule.jobId` for the same reason. Everything else — deploy phases,
+ * tasks, queue ids, approvals, conditions, artifacts, other trigger types, variables — is
+ * preserved verbatim. Returns a new object; the input is not mutated.
  */
 export function stripForClone(def: ReleaseDefinition): ReleaseDefinition {
   // Structured clone keeps Dates/nested objects intact and guarantees no aliasing with input.
@@ -31,7 +37,21 @@ export function stripForClone(def: ReleaseDefinition): ReleaseDefinition {
   copy.source = ReleaseDefinitionSource.RestApi;
 
   copy.environments = (copy.environments ?? []).map(stripEnvironment);
+  copy.triggers = (copy.triggers ?? []).map(stripTrigger);
   return copy;
+}
+
+function isScheduledTrigger(trigger: ReleaseTriggerBase): trigger is ScheduledReleaseTrigger {
+  return trigger.triggerType === ReleaseTriggerType.Schedule;
+}
+
+function stripTrigger(trigger: ReleaseTriggerBase): ReleaseTriggerBase {
+  if (!isScheduledTrigger(trigger) || !trigger.schedule) {
+    return trigger;
+  }
+  const { jobId: _jobId, ...restSchedule } = trigger.schedule;
+  const stripped: ScheduledReleaseTrigger = { ...trigger, schedule: restSchedule };
+  return stripped;
 }
 
 function stripEnvironment(env: ReleaseDefinitionEnvironment): ReleaseDefinitionEnvironment {

@@ -1,6 +1,7 @@
 import type { Build, BuildDefinition, Run } from '../../../../src/ado/types.js';
 import { describe, expect, it } from 'vitest';
 import { AdoConflictError, AdoNotFoundError } from '../../../../src/ado/errors.js';
+import { CreatePipelineInput } from '../../../../src/domains/pipelines/schemas.js';
 import { PipelinesWriteService } from '../../../../src/domains/pipelines/writeService.js';
 import { FakeAdoClient } from '../../../fakes/FakeAdoClient.js';
 
@@ -9,6 +10,13 @@ function makeSvc() {
   const svc = new PipelinesWriteService(fake);
   return { svc, fake };
 }
+
+describe('createPipelineInput.folder description', () => {
+  it('documents folder syntax with single backslashes', () => {
+    expect(CreatePipelineInput.folder.description).toContain('\'\\Backend\'');
+    expect(CreatePipelineInput.folder.description).not.toContain('\\\\');
+  });
+});
 
 describe('pipelinesWriteService.queueRun', () => {
   it('passes project + pipelineId through and converts branch shorthand to refs/heads/<name>', async () => {

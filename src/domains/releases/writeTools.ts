@@ -109,8 +109,9 @@ export function buildReleaseWriteTools(svc: ReleasesWriteService): ToolDefinitio
           + 'and triggers of `cloneFromDefinitionId` under a new `name`. Optional `path` (folder), '
           + '`description`, `variables`, and `artifactSources` (rebind an existing artifact alias to '
           + 'another build pipeline) customise the copy. Creation deploys nothing; use '
-          + '`create_release` afterwards. Returns the new definition id, its stage names, and its '
-          + 'artifact bindings.',
+          + '`create_release` afterwards. Secret variables come across empty (ADO does not expose '
+          + 'their values) — tell the user to re-enter them. Returns the new definition id, its '
+          + 'stage names, and its artifact bindings.',
         inputSchema: CreateReleaseDefinitionInput,
       },
       handler: async args =>

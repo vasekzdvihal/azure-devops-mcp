@@ -106,6 +106,7 @@ describe('mapSdkError — scope hint branch', () => {
     const mapped = mapSdkError(err);
     expect(mapped).toBeInstanceOf(AdoScopeError);
     expect((mapped as AdoScopeError).scope).toMatch(/Release/);
+    expect((mapped as AdoScopeError).scope).toMatch(/manage/);
   });
 
   it('403 without scope hint → falls through to AdoAuthError', () => {

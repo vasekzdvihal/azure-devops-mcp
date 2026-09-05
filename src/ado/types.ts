@@ -1,7 +1,6 @@
-// Build (classic build + YAML pipelines)
-// Pipelines (YAML runs via PipelinesApi)
 import { ConfigurationType } from 'azure-devops-node-api/interfaces/PipelinesInterfaces.js';
 
+// Build (classic build + YAML pipelines)
 export type {
   Build,
   BuildDefinition,
@@ -47,8 +46,8 @@ export type { Identity } from 'azure-devops-node-api/interfaces/IdentitiesInterf
 
 export type { ConnectionData } from 'azure-devops-node-api/interfaces/LocationsInterfaces.js';
 export { ConfigurationType };
+// Pipelines (YAML runs via PipelinesApi)
 export type {
-  CreatePipelineParameters,
   Pipeline,
   Run,
   RunPipelineParameters,
@@ -86,9 +85,12 @@ export type {
   ReleaseEnvironmentUpdateMetadata,
   ReleaseStartMetadata,
   ReleaseStatus,
+  ReleaseTriggerBase,
+  ScheduledReleaseTrigger,
 } from 'azure-devops-node-api/interfaces/ReleaseInterfaces.js';
-// ReleaseDefinitionSource is used as a *value* (source = ReleaseDefinitionSource.RestApi).
-export { ReleaseDefinitionSource } from 'azure-devops-node-api/interfaces/ReleaseInterfaces.js';
+// ReleaseDefinitionSource and ReleaseTriggerType are used as *values*
+// (source = ReleaseDefinitionSource.RestApi; trigger.triggerType === ReleaseTriggerType.Schedule).
+export { ReleaseDefinitionSource, ReleaseTriggerType } from 'azure-devops-node-api/interfaces/ReleaseInterfaces.js';
 
 // Work items (WorkItemTrackingApi)
 export type {
