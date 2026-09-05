@@ -2,6 +2,8 @@ import type { ToolDefinition } from '../identity/tools.js';
 import type { PipelinesWriteService } from './writeService.js';
 import {
   CancelPipelineRunInput,
+  CreatePipelineInput,
+  DeletePipelineInput,
   QueuePipelineRunInput,
   RetryPipelineStageInput,
   UpdateBuildTagsInput,
@@ -92,6 +94,34 @@ export function buildPipelineWriteTools(svc: PipelinesWriteService): ToolDefinit
       },
       handler: async args =>
         svc.updateTriggers(args as Parameters<typeof svc.updateTriggers>[0]),
+    },
+    {
+      name: 'create_pipeline',
+      config: {
+        title: 'Create a YAML pipeline',
+        description:
+          'Creates a new pipeline definition that runs the YAML file at `yamlPath` in the named '
+          + 'Azure Repos repository. Creating a pipeline runs nothing and is reversible with '
+          + '`delete_pipeline`. ADO does not verify that the YAML file exists at creation time — '
+          + 'the first run fails instead, so chain `queue_pipeline_run` to validate. Returns the new '
+          + 'pipeline id and URL.',
+        inputSchema: CreatePipelineInput,
+      },
+      handler: async args =>
+        svc.createPipeline(args as Parameters<typeof svc.createPipeline>[0]),
+    },
+    {
+      name: 'delete_pipeline',
+      config: {
+        title: 'Delete a pipeline definition',
+        description:
+          '**Always confirm with the user before calling — this removes the pipeline and its run '
+          + 'history from the project.** ADO moves it to the recycle bin, from which it can be '
+          + 'restored in the web UI for 30 days. Use `list_pipelines` to find the id.',
+        inputSchema: DeletePipelineInput,
+      },
+      handler: async args =>
+        svc.deletePipeline(args as Parameters<typeof svc.deletePipeline>[0]),
     },
   ];
 }

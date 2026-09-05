@@ -10,7 +10,7 @@ export class AdoAuthError extends AdoError {
       + `The PAT may be expired, revoked, or missing required scopes. `
       + `Check that your PAT is valid and has the required scopes: `
       + `read access needs Code (read), Identity (read), Build (read), Release (read), Work Items (read); `
-      + `write access also needs Code (write), Pull Request (write), Build (read & execute), Release (read, write, & execute), Work Items (read & write). `
+      + `write access also needs Code (write), Pull Request (write), Build (read & execute), Release (read, write, execute, & manage), Work Items (read & write). `
       + `Re-run setup with a new PAT.${
         detail ? ` Details: ${detail}` : ''}`,
     );
@@ -104,6 +104,9 @@ function detectMissingScope(shape: { message?: string }): string | null {
   if (message.includes('vso.build_execute')) {
     return 'Build (read & execute)';
   }
+  if (message.includes('vso.release_manage')) {
+    return 'Release (read, write, execute, & manage)';
+  }
   if (message.includes('vso.release_execute')) {
     return 'Release (read, write, & execute)';
   }
@@ -113,7 +116,7 @@ function detectMissingScope(shape: { message?: string }): string | null {
     return 'Build (read & execute)';
   }
   if (message.includes('requires the \'release\'') || message.includes('requires the \'release (')) {
-    return 'Release (read, write, & execute)';
+    return 'Release (read, write, & execute — plus "manage" for delete_release_definition)';
   }
   return null;
 }

@@ -3,7 +3,9 @@ import type { ReleasesWriteService } from './writeService.js';
 import {
   ApproveReleaseGateInput,
   CancelReleaseInput,
+  CreateReleaseDefinitionInput,
   CreateReleaseInput,
+  DeleteReleaseDefinitionInput,
   DeployReleaseStageInput,
   UpdateReleaseEnvironmentVariablesInput,
   UpdateReleaseVariablesInput,
@@ -96,6 +98,39 @@ export function buildReleaseWriteTools(svc: ReleasesWriteService): ToolDefinitio
       },
       handler: async args =>
         svc.updateEnvironmentVariables(args as Parameters<typeof svc.updateEnvironmentVariables>[0]),
+    },
+    {
+      name: 'create_release_definition',
+      config: {
+        title: 'Create a release definition by cloning an existing one',
+        description:
+          '**Always confirm with the user before calling — this creates a new release pipeline '
+          + 'visible to the whole project.** Copies the stages, deploy tasks, approvals, variables, '
+          + 'and triggers of `cloneFromDefinitionId` under a new `name`. Optional `path` (folder), '
+          + '`description`, `variables`, and `artifactSources` (rebind an existing artifact alias to '
+          + 'another build pipeline) customise the copy. Creation deploys nothing; use '
+          + '`create_release` afterwards. Secret variables come across empty (ADO does not expose '
+          + 'their values) — tell the user to re-enter them. Returns the new definition id, its '
+          + 'stage names, and its artifact bindings.',
+        inputSchema: CreateReleaseDefinitionInput,
+      },
+      handler: async args =>
+        svc.createDefinition(args as Parameters<typeof svc.createDefinition>[0]),
+    },
+    {
+      name: 'delete_release_definition',
+      config: {
+        title: 'Delete a release definition',
+        description:
+          '**Always confirm with the user before calling — this removes the release pipeline and '
+          + 'all its releases from the project.** ADO soft-deletes it (restorable from the web UI). '
+          + 'Refuses with an error while a deployment from this definition is in progress unless '
+          + '`forceDelete` is true, which cancels in-flight deployments first. Requires the Release '
+          + '"manage" PAT scope.',
+        inputSchema: DeleteReleaseDefinitionInput,
+      },
+      handler: async args =>
+        svc.deleteDefinition(args as Parameters<typeof svc.deleteDefinition>[0]),
     },
   ];
 }

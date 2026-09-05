@@ -151,6 +151,70 @@ const VariableSetEntry = z.object({
     .describe('Whether this variable can be overridden at queue time.'),
 });
 
+export const CreateReleaseDefinitionInput = {
+  project: z.string().min(1).describe('ADO project name.'),
+  cloneFromDefinitionId: z
+    .number()
+    .int()
+    .positive()
+    .describe(
+      'Existing release definition to clone. Its stages, deploy tasks, approvals, and triggers '
+      + 'are copied. Use `list_release_definitions` to find the id.',
+    ),
+  name: z.string().min(1).describe('Name for the new release definition. Must be unique in the project.'),
+  description: z.string().optional(),
+  path: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Folder for the new definition, e.g. \'\\Web\'. Defaults to the source definition\'s folder.'),
+  artifactSources: z
+    .array(
+      z.object({
+        alias: z
+          .string()
+          .min(1)
+          .describe('An artifact alias that exists on the source definition (e.g. \'_web-ci\').'),
+        buildDefinitionId: z
+          .number()
+          .int()
+          .positive()
+          .describe('Build pipeline (definition) id to bind this alias to. Use `list_pipelines`.'),
+      }),
+    )
+    .optional()
+    .describe(
+      'Rebind existing artifact aliases to different build pipelines. Aliases not listed keep '
+      + 'their source binding. Adding or removing aliases is not supported.',
+    ),
+  variables: z
+    .record(z.string().min(1), VariableSetEntry)
+    .optional()
+    .describe(
+      'Definition-level variables to set on the clone, merged over the copied variables. '
+      + 'Secret variables are copied by NAME only: ADO never returns secret values, so every '
+      + 'secret on the clone is empty until re-entered in the web UI (or set here with '
+      + '`isSecret: true`).',
+    ),
+};
+
+export const DeleteReleaseDefinitionInput = {
+  project: z.string().min(1).describe('ADO project name.'),
+  definitionId: z
+    .number()
+    .int()
+    .positive()
+    .describe('The release definition id. Use `list_release_definitions` to discover ids.'),
+  comment: z.string().optional().describe('Optional comment recorded with the deletion.'),
+  forceDelete: z
+    .boolean()
+    .optional()
+    .describe(
+      'When false (default), ADO refuses to delete while a deployment from this definition is in '
+      + 'progress. Set true to cancel in-flight deployments and delete anyway.',
+    ),
+};
+
 export const UpdateReleaseVariablesInput = {
   project: z.string().min(1),
   definitionId: z.number().int().positive().describe('Release definition id'),

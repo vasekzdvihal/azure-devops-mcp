@@ -106,6 +106,7 @@ describe('mapSdkError — scope hint branch', () => {
     const mapped = mapSdkError(err);
     expect(mapped).toBeInstanceOf(AdoScopeError);
     expect((mapped as AdoScopeError).scope).toMatch(/Release/);
+    expect((mapped as AdoScopeError).scope).toMatch(/manage/);
   });
 
   it('403 without scope hint → falls through to AdoAuthError', () => {
@@ -131,5 +132,14 @@ describe('mapSdkError — scope hint branch', () => {
     const mapped = mapSdkError(err);
     expect(mapped).toBeInstanceOf(AdoAuthError);
     expect(mapped).not.toBeInstanceOf(AdoScopeError);
+  });
+
+  it('403 with body mentioning vso.release_manage → AdoScopeError naming the manage tier', () => {
+    const err = Object.assign(new Error('The token lacks scope vso.release_manage'), {
+      statusCode: 403,
+    });
+    const mapped = mapSdkError(err);
+    expect(mapped).toBeInstanceOf(AdoScopeError);
+    expect((mapped as AdoScopeError).scope).toBe('Release (read, write, execute, & manage)');
   });
 });

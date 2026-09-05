@@ -1,6 +1,7 @@
 import type { Build, BuildDefinition, Run } from '../../../../src/ado/types.js';
 import { describe, expect, it } from 'vitest';
-import { AdoConflictError } from '../../../../src/ado/errors.js';
+import { AdoConflictError, AdoNotFoundError } from '../../../../src/ado/errors.js';
+import { CreatePipelineInput } from '../../../../src/domains/pipelines/schemas.js';
 import { PipelinesWriteService } from '../../../../src/domains/pipelines/writeService.js';
 import { FakeAdoClient } from '../../../fakes/FakeAdoClient.js';
 
@@ -9,6 +10,13 @@ function makeSvc() {
   const svc = new PipelinesWriteService(fake);
   return { svc, fake };
 }
+
+describe('createPipelineInput.folder description', () => {
+  it('documents folder syntax with single backslashes', () => {
+    expect(CreatePipelineInput.folder.description).toContain('\'\\Backend\'');
+    expect(CreatePipelineInput.folder.description).not.toContain('\\\\');
+  });
+});
 
 describe('pipelinesWriteService.queueRun', () => {
   it('passes project + pipelineId through and converts branch shorthand to refs/heads/<name>', async () => {
@@ -316,5 +324,84 @@ describe('pipelinesWriteService.updateTriggers', () => {
     fake.setPipelineDefinition('p', 7, { id: 7, revision: 1, triggers: [{ triggerType: 2 }] } as BuildDefinition);
     await svc.updateTriggers({ project: 'p', pipelineId: 7, triggers: [] });
     expect(fake.getPipelineDefUpdates()[0]!.definition.triggers).toEqual([]);
+  });
+});
+
+describe('pipelinesWriteService.createPipeline', () => {
+  it('resolves the repository name to its id (case-insensitive) and posts a yaml configuration', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setRepositories('Proj', [
+      { id: 'aaaa-1111', name: 'Other' },
+      { id: 'bbbb-2222', name: 'Web.Frontend' },
+    ]);
+    fake.setNextCreatedPipeline({ id: 77, name: 'web-ci', folder: '\\', url: 'https://x/pipelines/77' });
+    const result = await svc.createPipeline({
+      project: 'Proj',
+      name: 'web-ci',
+      repository: 'web.frontend',
+      yamlPath: 'pipelines/ci.yml',
+    });
+    const call = fake.getCreatedPipelines()[0]!;
+    expect(call.project).toBe('Proj');
+    expect(call.repositoryId).toBe('bbbb-2222');
+    expect(call.repositoryName).toBe('Web.Frontend');
+    expect(call.yamlPath).toBe('/pipelines/ci.yml');
+    expect(call.folder).toBe('\\');
+    expect(result).toEqual({
+      pipelineId: 77,
+      name: 'web-ci',
+      folder: '\\',
+      url: 'https://x/pipelines/77',
+      repository: 'Web.Frontend',
+      yamlPath: '/pipelines/ci.yml',
+    });
+  });
+
+  it('keeps an already-rooted yamlPath and passes an explicit folder through', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setRepositories('Proj', [{ id: 'bbbb-2222', name: 'Web' }]);
+    await svc.createPipeline({
+      project: 'Proj',
+      name: 'x',
+      repository: 'Web',
+      yamlPath: '/azure-pipelines.yml',
+      folder: '\\Backend',
+    });
+    const call = fake.getCreatedPipelines()[0]!;
+    expect(call.yamlPath).toBe('/azure-pipelines.yml');
+    expect(call.folder).toBe('\\Backend');
+  });
+
+  it('throws AdoNotFoundError naming project + repo when the repository does not exist', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setRepositories('Proj', [{ id: 'bbbb-2222', name: 'Web' }]);
+    const input = { project: 'Proj', name: 'x', repository: 'Nope', yamlPath: 'a.yml' };
+    await expect(svc.createPipeline(input)).rejects.toBeInstanceOf(AdoNotFoundError);
+    await expect(svc.createPipeline(input)).rejects.toThrow(/Repository 'Nope' not found in project 'Proj'/);
+    expect(fake.getCreatedPipelines()).toHaveLength(0);
+  });
+
+  it('propagates client errors unchanged', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setRepositories('Proj', [{ id: 'bbbb-2222', name: 'Web' }]);
+    fake.injectError('createPipeline', new Error('boom'));
+    await expect(
+      svc.createPipeline({ project: 'Proj', name: 'x', repository: 'Web', yamlPath: 'a.yml' }),
+    ).rejects.toThrow('boom');
+  });
+});
+
+describe('pipelinesWriteService.deletePipeline', () => {
+  it('forwards project + pipelineId and reports deleted: true', async () => {
+    const { svc, fake } = makeSvc();
+    const result = await svc.deletePipeline({ project: 'Proj', pipelineId: 12 });
+    expect(fake.getDeletedPipelines()).toEqual([{ project: 'Proj', definitionId: 12 }]);
+    expect(result).toEqual({ pipelineId: 12, deleted: true });
+  });
+
+  it('propagates client errors unchanged', async () => {
+    const { svc, fake } = makeSvc();
+    fake.injectError('deletePipelineDefinition', new Error('boom'));
+    await expect(svc.deletePipeline({ project: 'Proj', pipelineId: 12 })).rejects.toThrow('boom');
   });
 });

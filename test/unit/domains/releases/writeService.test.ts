@@ -1,5 +1,13 @@
-import type { Build, Release, ReleaseApproval, ReleaseDefinition } from '../../../../src/ado/types.js';
+import type {
+  Build,
+  BuildDefinition,
+  Release,
+  ReleaseApproval,
+  ReleaseDefinition,
+} from '../../../../src/ado/types.js';
 import { describe, expect, it } from 'vitest';
+import { ReleaseDefinitionSource } from '../../../../src/ado/types.js';
+import { CreateReleaseDefinitionInput } from '../../../../src/domains/releases/schemas.js';
 import { ReleasesWriteService } from '../../../../src/domains/releases/writeService.js';
 import { FakeAdoClient } from '../../../fakes/FakeAdoClient.js';
 
@@ -8,6 +16,13 @@ function makeSvc() {
   const svc = new ReleasesWriteService(fake);
   return { svc, fake };
 }
+
+describe('createReleaseDefinitionInput.path description', () => {
+  it('documents folder syntax with single backslashes', () => {
+    expect(CreateReleaseDefinitionInput.path.description).toContain('\'\\Web\'');
+    expect(CreateReleaseDefinitionInput.path.description).not.toContain('\\\\');
+  });
+});
 
 // Give a definition some named stages so the default (inert) create path can
 // enumerate them for `manualEnvironments`.
@@ -347,5 +362,185 @@ describe('releasesWriteService.updateEnvironmentVariables', () => {
         environmentName: 'Dev',
       }),
     ).rejects.toThrow(/at least one of set or remove/);
+  });
+});
+
+function sourceDefinition(): ReleaseDefinition {
+  return {
+    id: 42,
+    revision: 3,
+    name: 'Web - Prod',
+    path: '\\Web',
+    url: 'https://vsrm/x/definitions/42',
+    variables: { ENV: { value: 'prod' }, KEY: { value: null as unknown as string, isSecret: true } },
+    artifacts: [
+      {
+        alias: '_web-ci',
+        type: 'Build',
+        definitionReference: {
+          definition: { id: '15', name: 'web-ci' },
+          project: { id: 'p-guid', name: 'p' },
+        },
+        sourceId: 'p-guid:15',
+      },
+      {
+        alias: '_assets',
+        type: 'Build',
+        definitionReference: {
+          definition: { id: '16', name: 'assets-ci' },
+          project: { id: 'p-guid', name: 'p' },
+        },
+        sourceId: 'p-guid:16',
+      },
+    ],
+    environments: [
+      { id: 101, name: 'Staging', rank: 1, deployStep: { id: 5 }, environmentTriggers: [{ definitionEnvironmentId: 101 }] },
+      { id: 102, name: 'Production', rank: 2 },
+    ],
+  } as unknown as ReleaseDefinition;
+}
+
+describe('releasesWriteService.createDefinition', () => {
+  it('clones the source under the new name with stripped ids and posts it', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setReleaseDefinition('p', 42, sourceDefinition());
+    fake.setNextCreatedReleaseDef({
+      id: 57,
+      name: 'Web - Prod (copy)',
+      path: '\\Web',
+      url: 'https://vsrm/x/definitions/57',
+      environments: [{ id: 1, name: 'Staging' }, { id: 2, name: 'Production' }],
+      artifacts: [{ alias: '_web-ci', definitionReference: { definition: { id: '15', name: 'web-ci' } } }, { alias: '_assets', definitionReference: { definition: { id: '16', name: 'assets-ci' } } }],
+    } as unknown as ReleaseDefinition);
+
+    const result = await svc.createDefinition({
+      project: 'p',
+      cloneFromDefinitionId: 42,
+      name: 'Web - Prod (copy)',
+    });
+
+    const posted = fake.getCreatedReleaseDefs()[0]!;
+    expect(posted.project).toBe('p');
+    expect(posted.definition.name).toBe('Web - Prod (copy)');
+    expect(posted.definition.path).toBe('\\Web');
+    expect(posted.definition).not.toHaveProperty('id');
+    expect(posted.definition).not.toHaveProperty('revision');
+    expect(posted.definition.source).toBe(ReleaseDefinitionSource.RestApi);
+    expect(posted.definition.environments?.map(env => env.id)).toEqual([0, 0]);
+    expect(posted.definition.environments?.[0]).not.toHaveProperty('deployStep');
+    expect(posted.definition.environments?.[0]?.environmentTriggers).toEqual([]);
+    // Untouched artifacts survive.
+    expect(posted.definition.artifacts?.[1]?.definitionReference?.definition).toEqual({ id: '16', name: 'assets-ci' });
+
+    expect(result).toEqual({
+      definitionId: 57,
+      name: 'Web - Prod (copy)',
+      path: '\\Web',
+      url: 'https://vsrm/x/definitions/57',
+      environments: ['Staging', 'Production'],
+      artifacts: [
+        { alias: '_web-ci', sourcePipeline: 'web-ci' },
+        { alias: '_assets', sourcePipeline: 'assets-ci' },
+      ],
+    });
+  });
+
+  it('applies description and path overrides', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setReleaseDefinition('p', 42, sourceDefinition());
+    await svc.createDefinition({
+      project: 'p',
+      cloneFromDefinitionId: 42,
+      name: 'X',
+      description: 'cloned by test',
+      path: '\\Experiments',
+    });
+    const posted = fake.getCreatedReleaseDefs()[0]!.definition;
+    expect(posted.description).toBe('cloned by test');
+    expect(posted.path).toBe('\\Experiments');
+  });
+
+  it('rebinds only the named artifact alias to another build definition, resolving its name', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setReleaseDefinition('p', 42, sourceDefinition());
+    fake.setPipelineDefinition('p', 99, { id: 99, name: 'web-ci-v2' } as BuildDefinition);
+    await svc.createDefinition({
+      project: 'p',
+      cloneFromDefinitionId: 42,
+      name: 'X',
+      artifactSources: [{ alias: '_web-ci', buildDefinitionId: 99 }],
+    });
+    const artifacts = fake.getCreatedReleaseDefs()[0]!.definition.artifacts ?? [];
+    expect(artifacts[0]?.definitionReference?.definition).toEqual({ id: '99', name: 'web-ci-v2' });
+    expect(artifacts[0]?.definitionReference?.project).toEqual({ id: 'p-guid', name: 'p' });
+    expect(artifacts[0]?.type).toBe('Build');
+    expect(artifacts[0]).not.toHaveProperty('sourceId');
+    expect(artifacts[1]?.definitionReference?.definition).toEqual({ id: '16', name: 'assets-ci' });
+    expect(artifacts[1]?.sourceId).toBe('p-guid:16');
+  });
+
+  it('rejects an unknown artifact alias and lists the valid ones without posting', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setReleaseDefinition('p', 42, sourceDefinition());
+    await expect(
+      svc.createDefinition({
+        project: 'p',
+        cloneFromDefinitionId: 42,
+        name: 'X',
+        artifactSources: [{ alias: '_nope', buildDefinitionId: 99 }],
+      }),
+    ).rejects.toThrow(/Artifact alias '_nope' not found on release definition 42\. Available: _web-ci, _assets/);
+    expect(fake.getCreatedReleaseDefs()).toHaveLength(0);
+  });
+
+  it('merges variables over the clone; an untouched secret keeps its name and flag with a null value', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setReleaseDefinition('p', 42, sourceDefinition());
+    await svc.createDefinition({
+      project: 'p',
+      cloneFromDefinitionId: 42,
+      name: 'X',
+      variables: { ENV: { value: 'staging' }, NEW: { value: '1' } },
+    });
+    const vars = fake.getCreatedReleaseDefs()[0]!.definition.variables ?? {};
+    expect(vars.ENV).toEqual({ value: 'staging', isSecret: false, allowOverride: undefined });
+    expect(vars.NEW).toEqual({ value: '1', isSecret: false, allowOverride: undefined });
+    expect(vars.KEY).toEqual({ value: null, isSecret: true });
+  });
+
+  it('propagates a missing source definition', async () => {
+    const { svc, fake } = makeSvc();
+    fake.injectError('getReleaseDefinition', new Error('not found'));
+    await expect(
+      svc.createDefinition({ project: 'p', cloneFromDefinitionId: 1, name: 'X' }),
+    ).rejects.toThrow('not found');
+  });
+});
+
+describe('releasesWriteService.deleteDefinition', () => {
+  it('forwards ids, comment and forceDelete and reports deleted: true', async () => {
+    const { svc, fake } = makeSvc();
+    const result = await svc.deleteDefinition({
+      project: 'p',
+      definitionId: 42,
+      comment: 'obsolete',
+      forceDelete: true,
+    });
+    expect(fake.getDeletedReleaseDefs()).toEqual([
+      { project: 'p', definitionId: 42, comment: 'obsolete', forceDelete: true },
+    ]);
+    expect(result).toEqual({ definitionId: 42, deleted: true });
+  });
+
+  it('defaults forceDelete to false', async () => {
+    const { svc, fake } = makeSvc();
+    await svc.deleteDefinition({ project: 'p', definitionId: 42 });
+    expect(fake.getDeletedReleaseDefs()[0]?.forceDelete).toBe(false);
+  });
+
+  it('propagates client errors unchanged', async () => {
+    const { svc, fake } = makeSvc();
+    fake.injectError('deleteReleaseDefinition', new Error('boom'));
+    await expect(svc.deleteDefinition({ project: 'p', definitionId: 42 })).rejects.toThrow('boom');
   });
 });

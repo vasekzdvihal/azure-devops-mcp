@@ -152,3 +152,39 @@ export const UpdatePipelineTriggersInput = {
       + 'replaces existing triggers wholesale — omitted triggers are removed.',
     ),
 };
+
+export const CreatePipelineInput = {
+  project: z.string().min(1).describe('ADO project name.'),
+  name: z
+    .string()
+    .min(1)
+    .describe('Pipeline name. Must be unique within the folder.'),
+  repository: z
+    .string()
+    .min(1)
+    .describe(
+      'Azure Repos git repository NAME (not id) that contains the YAML file. Resolved to the '
+      + 'repository id automatically (case-insensitive match).',
+    ),
+  yamlPath: z
+    .string()
+    .min(1)
+    .describe(
+      'Path of the pipeline YAML file inside the repository, e.g. \'azure-pipelines.yml\' or '
+      + '\'pipelines/deploy.yml\'. A leading \'/\' is added if missing.',
+    ),
+  folder: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Pipeline folder, e.g. \'\\Backend\'. Defaults to the root folder \'\\\'.'),
+};
+
+export const DeletePipelineInput = {
+  project: z.string().min(1).describe('ADO project name.'),
+  pipelineId: z
+    .number()
+    .int()
+    .positive()
+    .describe('The pipeline (build definition) id. Use `list_pipelines` to discover ids.'),
+};
