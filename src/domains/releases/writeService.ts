@@ -128,7 +128,12 @@ async function rebindArtifacts(args: {
   overrides: { alias: string; buildDefinitionId: number }[];
 }): Promise<void> {
   const { client, project, cloneFromDefinitionId, artifacts, overrides } = args;
+  const seen = new Set<string>();
   for (const override of overrides) {
+    if (seen.has(override.alias)) {
+      throw new Error(`Artifact alias '${override.alias}' is listed more than once in artifactSources.`);
+    }
+    seen.add(override.alias);
     findArtifactByAlias(artifacts, override.alias, cloneFromDefinitionId);
   }
   for (const override of overrides) {
@@ -191,7 +196,7 @@ export interface CreateReleaseDefinitionResult {
   path?: string;
   url?: string;
   environments: string[];
-  artifacts: Array<{ alias: string; sourcePipeline?: string }>;
+  artifacts: Array<{ alias: string; sourceDefinitionId?: string; sourceDefinitionName?: string }>;
 }
 
 export interface DeleteReleaseDefinitionResult {
@@ -400,7 +405,8 @@ export class ReleasesWriteService {
         .filter((name): name is string => !!name),
       artifacts: (created.artifacts ?? []).map(artifact => ({
         alias: artifact.alias ?? '',
-        sourcePipeline: artifact.definitionReference?.definition?.name,
+        sourceDefinitionId: artifact.definitionReference?.definition?.id,
+        sourceDefinitionName: artifact.definitionReference?.definition?.name,
       })),
     };
   }

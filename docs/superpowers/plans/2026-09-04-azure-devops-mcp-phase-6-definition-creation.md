@@ -985,7 +985,7 @@ git commit -m "feat(releases): stripForClone — release definition clone rules"
   export interface CreateReleaseDefinitionResult {
     definitionId: number; name: string; path?: string; url?: string;
     environments: string[];
-    artifacts: Array<{ alias: string; sourcePipeline?: string }>;
+    artifacts: Array<{ alias: string; sourceDefinitionId?: string; sourceDefinitionName?: string }>;
   }
   ```
 
@@ -1066,8 +1066,8 @@ describe('releasesWriteService.createDefinition', () => {
       url: 'https://vsrm/x/definitions/57',
       environments: ['Staging', 'Production'],
       artifacts: [
-        { alias: '_web-ci', sourcePipeline: 'web-ci' },
-        { alias: '_assets', sourcePipeline: 'assets-ci' },
+        { alias: '_web-ci', sourceDefinitionId: '15', sourceDefinitionName: 'web-ci' },
+        { alias: '_assets', sourceDefinitionId: '16', sourceDefinitionName: 'assets-ci' },
       ],
     });
   });
@@ -1238,7 +1238,7 @@ export interface CreateReleaseDefinitionResult {
   path?: string;
   url?: string;
   environments: string[];
-  artifacts: Array<{ alias: string; sourcePipeline?: string }>;
+  artifacts: Array<{ alias: string; sourceDefinitionId?: string; sourceDefinitionName?: string }>;
 }
 
 export interface DeleteReleaseDefinitionResult {
@@ -1333,7 +1333,8 @@ Append inside `ReleasesWriteService`:
         .filter((name): name is string => !!name),
       artifacts: (created.artifacts ?? []).map(a => ({
         alias: a.alias ?? '',
-        sourcePipeline: a.definitionReference?.definition?.name,
+        sourceDefinitionId: a.definitionReference?.definition?.id,
+        sourceDefinitionName: a.definitionReference?.definition?.name,
       })),
     };
   }

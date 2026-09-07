@@ -100,7 +100,7 @@ Service logic:
 3. Set `name`, `description`, `path`.
 4. For each `artifactSources` entry: find the artifact by alias, `getPipelineDefinition({ project, definitionId: buildDefinitionId })` to get its name, set `definitionReference.definition = { id: String(buildDefinitionId), name }`. Leave `project` reference and `type: 'Build'` unchanged.
 5. Merge `variables` (secret-preservation rule from Phase 4.2 applies). Note: secrets arrive from GET with `value: null` and are posted that way — the clone's secrets are empty until re-entered.
-6. `createReleaseDefinition`. Return `{ definitionId, name, path, url, environments: string[], artifacts: Array<{ alias, sourcePipeline }> }`.
+6. `createReleaseDefinition`. Return `{ definitionId, name, path, url, environments: string[], artifacts: Array<{ alias, sourceDefinitionId, sourceDefinitionName }> }`.
 
 Description carries: "Always confirm with the user before calling — creates a new release pipeline visible to the whole project. Creation deploys nothing; use `create_release` afterwards."
 

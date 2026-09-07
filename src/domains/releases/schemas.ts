@@ -179,13 +179,19 @@ export const CreateReleaseDefinitionInput = {
           .number()
           .int()
           .positive()
-          .describe('Build pipeline (definition) id to bind this alias to. Use `list_pipelines`.'),
+          .describe(
+            'Build pipeline (definition) id to bind this alias to. Use `list_pipelines`. '
+            + 'The build pipeline must live in the same project as the release definition; '
+            + 'cross-project artifact sources are not supported.',
+          ),
       }),
     )
     .optional()
     .describe(
       'Rebind existing artifact aliases to different build pipelines. Aliases not listed keep '
-      + 'their source binding. Adding or removing aliases is not supported.',
+      + 'their source binding. Adding or removing aliases is not supported. The build pipeline '
+      + 'must live in the same project as the release definition; cross-project artifact sources '
+      + 'are not supported.',
     ),
   variables: z
     .record(z.string().min(1), VariableSetEntry)

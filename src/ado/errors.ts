@@ -98,25 +98,33 @@ function asSdkErrorShape(err: unknown): SdkErrorShape {
   return {};
 }
 
-function detectMissingScope(shape: { message?: string }): string | null {
+interface MissingScope {
+  scope: string;
+  hint?: string;
+}
+
+const RELEASE_MANAGE_HINT
+  = 'If this was delete_release_definition, the PAT also needs the Release "manage" tier.';
+
+function detectMissingScope(shape: { message?: string }): MissingScope | null {
   const message = String(shape.message ?? '').toLowerCase();
   // Unambiguous: the vso.* token names only appear when ADO is telling you the scope is missing.
   if (message.includes('vso.build_execute')) {
-    return 'Build (read & execute)';
+    return { scope: 'Build (read & execute)' };
   }
   if (message.includes('vso.release_manage')) {
-    return 'Release (read, write, execute, & manage)';
+    return { scope: 'Release (read, write, execute, & manage)' };
   }
   if (message.includes('vso.release_execute')) {
-    return 'Release (read, write, & execute)';
+    return { scope: 'Release (read, write, & execute)' };
   }
   // ADO's typical scope-hint wording. The single-quoted bare word match was too broad —
   // ADO uses single-quoted identifiers in many non-scope messages too.
   if (message.includes('requires the \'build\'') || message.includes('requires the \'build (')) {
-    return 'Build (read & execute)';
+    return { scope: 'Build (read & execute)' };
   }
   if (message.includes('requires the \'release\'') || message.includes('requires the \'release (')) {
-    return 'Release (read, write, & execute — plus "manage" for delete_release_definition)';
+    return { scope: 'Release (read, write, & execute)', hint: RELEASE_MANAGE_HINT };
   }
   return null;
 }
@@ -128,9 +136,9 @@ const HTTP_CONFLICT = 409;
 
 function mapStatusCode(shape: SdkErrorShape, detail: string | undefined): AdoError | null {
   if (shape.statusCode === HTTP_UNAUTHORIZED || shape.statusCode === HTTP_FORBIDDEN) {
-    const scope = detectMissingScope(shape);
-    if (scope) {
-      return new AdoScopeError(scope, detail);
+    const missingScope = detectMissingScope(shape);
+    if (missingScope) {
+      return new AdoScopeError(missingScope.scope, [detail, missingScope.hint].filter(Boolean).join(' '));
     }
     return new AdoAuthError(detail);
   }

@@ -21,7 +21,7 @@ import { ReleaseDefinitionSource, ReleaseTriggerType } from '../../ado/types.js'
  */
 export function stripForClone(def: ReleaseDefinition): ReleaseDefinition {
   // Structured clone keeps Dates/nested objects intact and guarantees no aliasing with input.
-  const copy = structuredClone(def) as ReleaseDefinition & Record<string, unknown>;
+  const copy = structuredClone(def);
 
   delete copy.id;
   delete copy.revision;
@@ -55,7 +55,7 @@ function stripTrigger(trigger: ReleaseTriggerBase): ReleaseTriggerBase {
 }
 
 function stripEnvironment(env: ReleaseDefinitionEnvironment): ReleaseDefinitionEnvironment {
-  const out = { ...env } as ReleaseDefinitionEnvironment & Record<string, unknown>;
+  const out: ReleaseDefinitionEnvironment = { ...env };
 
   out.id = 0;
   delete out.badgeUrl;

@@ -439,8 +439,8 @@ describe('releasesWriteService.createDefinition', () => {
       url: 'https://vsrm/x/definitions/57',
       environments: ['Staging', 'Production'],
       artifacts: [
-        { alias: '_web-ci', sourcePipeline: 'web-ci' },
-        { alias: '_assets', sourcePipeline: 'assets-ci' },
+        { alias: '_web-ci', sourceDefinitionId: '15', sourceDefinitionName: 'web-ci' },
+        { alias: '_assets', sourceDefinitionId: '16', sourceDefinitionName: 'assets-ci' },
       ],
     });
   });
@@ -490,6 +490,23 @@ describe('releasesWriteService.createDefinition', () => {
         artifactSources: [{ alias: '_nope', buildDefinitionId: 99 }],
       }),
     ).rejects.toThrow(/Artifact alias '_nope' not found on release definition 42\. Available: _web-ci, _assets/);
+    expect(fake.getCreatedReleaseDefs()).toHaveLength(0);
+  });
+
+  it('rejects a duplicate artifact alias in artifactSources without posting', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setReleaseDefinition('p', 42, sourceDefinition());
+    await expect(
+      svc.createDefinition({
+        project: 'p',
+        cloneFromDefinitionId: 42,
+        name: 'X',
+        artifactSources: [
+          { alias: '_web-ci', buildDefinitionId: 99 },
+          { alias: '_web-ci', buildDefinitionId: 100 },
+        ],
+      }),
+    ).rejects.toThrow(/listed more than once/);
     expect(fake.getCreatedReleaseDefs()).toHaveLength(0);
   });
 
