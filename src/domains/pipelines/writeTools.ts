@@ -100,9 +100,10 @@ export function buildPipelineWriteTools(svc: PipelinesWriteService): ToolDefinit
       config: {
         title: 'Create a YAML pipeline',
         description:
-          'Creates a new pipeline definition that runs the YAML file at `yamlPath` in the named '
-          + 'Azure Repos repository. Creating a pipeline runs nothing and is reversible with '
-          + '`delete_pipeline`. ADO does not verify that the YAML file exists at creation time — '
+          '**Always confirm with the user before calling — this creates a new pipeline definition '
+          + 'visible to the whole project, wired to the given repository and YAML path.** Creates a '
+          + 'pipeline that runs the YAML file at `yamlPath` in the named Azure Repos repository. '
+          + 'Creating it runs nothing and is reversible with `delete_pipeline`. ADO does not verify that the YAML file exists at creation time — '
           + 'the first run fails instead, so chain `queue_pipeline_run` to validate. Returns the new '
           + 'pipeline id and URL.',
         inputSchema: CreatePipelineInput,

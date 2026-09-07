@@ -1,6 +1,5 @@
 import type { AdoClient } from '../../ado/client.js';
 import type { BuildDefinition, BuildDefinitionVariable, BuildStatus } from '../../ado/types.js';
-import { AdoNotFoundError } from '../../ado/errors.js';
 
 const BUILD_STATUS_FROM_ENUM: Record<number, string> = {
   0: 'none',
@@ -264,7 +263,9 @@ export class PipelinesWriteService {
     const repos = await this.client.listRepositories({ project: args.project });
     const repo = repos.find(candidate => candidate.name?.toLowerCase() === args.repository.toLowerCase());
     if (!repo?.id || !repo.name) {
-      throw new AdoNotFoundError(
+      // Domain-level input validation (like findDefinitionEnvironment / findArtifactByAlias):
+      // a plain Error, not an AdoError — nothing was asked of ADO that failed.
+      throw new Error(
         `Repository '${args.repository}' not found in project '${args.project}'. `
         + `Use list_repositories to see available names.`,
       );

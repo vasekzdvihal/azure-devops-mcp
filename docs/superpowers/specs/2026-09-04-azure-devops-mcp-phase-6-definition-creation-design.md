@@ -63,13 +63,13 @@ pipelines.createPipeline(
 **SDK type gap.** The installed `azure-devops-node-api` types `CreatePipelineConfigurationParameters` as `{ type?: ConfigurationType }` only; the REST endpoint accepts `path` and `repository` on the same object and requires them for YAML. `src/ado/types.ts` exports a local `CreateYamlPipelineParameters` that widens the configuration with `path` and `repository: { id; name; type: 'azureReposGit' }`. `SdkAdoClient.createPipeline` builds that object and passes it to the SDK method (structurally compatible; no cast needed because the SDK type is a subset).
 
 Service logic:
-1. `listRepositories({ project })`, find by name (case-insensitive). Not found → `AdoNotFoundError` naming the repo and the project.
+1. `listRepositories({ project })`, find by name (case-insensitive). Not found → plain `Error` naming the repo and the project (domain-level input validation, same convention as `findDefinitionEnvironment`; `AdoError` subclasses are reserved for failures at the SDK boundary).
 2. Normalise `yamlPath` (prefix `/`), default `folder` to `\\`.
 3. `createPipeline`. Return `{ pipelineId, name, folder, url, repository, yamlPath }`.
 
 Errors: duplicate name in folder returns 400 from ADO. `mapSdkError` has no 400 class; it lands in `AdoUnknownError` with ADO's own message ("...already exists..."), which is descriptive enough — no pre-check and no new error class. Missing yaml file at that path is **not** validated at create time by ADO; the first run fails instead. The tool description says so and points at `queue_pipeline_run` to verify.
 
-No confirmation line: creating a pipeline runs nothing and is reversible via `delete_pipeline`.
+Carries the "always confirm before calling" line (amended after review): the tool creates a project-visible pipeline wired to a repository and YAML path that arrived as tool arguments, which an agent may have picked up from untrusted content. Creation still runs nothing and is reversible via `delete_pipeline`.
 
 ### `delete_pipeline`
 
@@ -132,7 +132,7 @@ Description carries: "Always confirm with the user before calling — removes th
 
 ### Confirmation pattern
 
-Three of four tools carry the "always confirm before calling" line: both deletes (irreversible from the LLM's point of view even if ADO keeps a recycle bin) and `create_release_definition` (creates a project-wide, shared object). `create_pipeline` does not: it runs nothing, is cheap to undo, and the typical flow is "add a pipeline for this yaml file I just wrote".
+All four tools carry the "always confirm before calling" line: both deletes (irreversible from the LLM's point of view even if ADO keeps a recycle bin), `create_release_definition` (creates a project-wide, shared object), and — amended after review — `create_pipeline`, because it binds a project-visible pipeline to a repository and YAML path supplied as tool arguments. The original draft exempted `create_pipeline` as cheap to undo; the confused-deputy argument won.
 
 ### Read-only mode
 
@@ -151,7 +151,7 @@ All four are write tools; `registerAllTools` skips them under `AZURE_DEVOPS_READ
 
 ### Error mapping
 
-No new error classes. 400 on duplicate name (both creates) → `AdoUnknownError` carrying ADO's message, so the LLM sees "already exists". 404 on a missing clone source or repo → `AdoNotFoundError`. 409 is not expected on creates.
+No new error classes. 400 on duplicate name (both creates) → `AdoUnknownError` carrying ADO's message, so the LLM sees "already exists". 404 on a missing clone source → `AdoNotFoundError` (from the SDK boundary); an unknown repository name is caught before any create call and raised as a plain `Error`. 409 is not expected on creates.
 
 ### Layering
 

@@ -1,6 +1,6 @@
 import type { Build, BuildDefinition, Run } from '../../../../src/ado/types.js';
 import { describe, expect, it } from 'vitest';
-import { AdoConflictError, AdoNotFoundError } from '../../../../src/ado/errors.js';
+import { AdoConflictError } from '../../../../src/ado/errors.js';
 import { CreatePipelineInput } from '../../../../src/domains/pipelines/schemas.js';
 import { PipelinesWriteService } from '../../../../src/domains/pipelines/writeService.js';
 import { FakeAdoClient } from '../../../fakes/FakeAdoClient.js';
@@ -372,11 +372,10 @@ describe('pipelinesWriteService.createPipeline', () => {
     expect(call.folder).toBe('\\Backend');
   });
 
-  it('throws AdoNotFoundError naming project + repo when the repository does not exist', async () => {
+  it('throws a plain Error naming project + repo when the repository does not exist', async () => {
     const { svc, fake } = makeSvc();
     fake.setRepositories('Proj', [{ id: 'bbbb-2222', name: 'Web' }]);
     const input = { project: 'Proj', name: 'x', repository: 'Nope', yamlPath: 'a.yml' };
-    await expect(svc.createPipeline(input)).rejects.toBeInstanceOf(AdoNotFoundError);
     await expect(svc.createPipeline(input)).rejects.toThrow(/Repository 'Nope' not found in project 'Proj'/);
     expect(fake.getCreatedPipelines()).toHaveLength(0);
   });

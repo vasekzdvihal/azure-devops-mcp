@@ -140,7 +140,7 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `update_work_item_state` | Move a work item to a new state; validated against the type's allowed states first. |
 | `add_work_item_comment` | Append a discussion comment to a work item (markdown). |
 | `delete_work_item_comment` | Permanently delete one discussion comment from a work item. Confirms before calling. |
-| `create_pipeline` | Create a YAML pipeline from a repository name + yaml path. Reversible via `delete_pipeline`. |
+| `create_pipeline` | Create a YAML pipeline from a repository name + yaml path. Reversible via `delete_pipeline`. Confirms before calling. |
 | `delete_pipeline` | Soft-delete a pipeline definition (recycle bin, 30 days). Confirms before calling. |
 | `create_release_definition` | Clone an existing release definition under a new name; optional folder, variables, and artifact rebinding. Confirms before calling. |
 | `delete_release_definition` | Soft-delete a release definition; `forceDelete` cancels in-flight deployments. Confirms before calling. Needs Release "manage" scope. |
