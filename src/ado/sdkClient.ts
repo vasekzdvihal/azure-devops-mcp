@@ -6,6 +6,7 @@ import type {
   BuildStatus,
   Comment,
   CommentThreadStatus,
+  CreateYamlPipelineParameters,
   Deployment,
   DeploymentStatus,
   GitBranchStats,
@@ -21,6 +22,7 @@ import type {
   Identity,
   IdentityRefWithVote,
   JsonPatchOperation,
+  Pipeline,
   PullRequestStatus,
   Release,
   ReleaseApproval,
@@ -41,7 +43,7 @@ import * as azdev from 'azure-devops-node-api';
 import { GitVersionType } from 'azure-devops-node-api/interfaces/GitInterfaces.js';
 import { AdoError, AdoNotFoundError, AdoUnknownError, mapSdkError } from './errors.js';
 import { buildHttpsAgent } from './tlsAgent.js';
-import { WorkItemExpand } from './types.js';
+import { ConfigurationType, WorkItemExpand } from './types.js';
 
 // ADO ReleaseInterfaces.ApprovalStatus wire values.
 const APPROVAL_STATUS_APPROVED = 2;
@@ -1116,6 +1118,91 @@ export class SdkAdoClient implements AdoClient {
     try {
       const rel = await this.api.getReleaseApi();
       return await rel.updateReleaseDefinition(args.definition, args.project);
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  // -------- pipeline definition writes (Phase 6) --------
+
+  async createPipeline(args: {
+    project: string;
+    name: string;
+    folder: string;
+    yamlPath: string;
+    repositoryId: string;
+    repositoryName: string;
+  }): Promise<Pipeline> {
+    try {
+      const pipelines = await this.api.getPipelinesApi();
+      const params: CreateYamlPipelineParameters = {
+        name: args.name,
+        folder: args.folder,
+        configuration: {
+          type: ConfigurationType.Yaml,
+          path: args.yamlPath,
+          repository: { id: args.repositoryId, name: args.repositoryName, type: 'azureReposGit' },
+        },
+      };
+      return await pipelines.createPipeline(params, args.project);
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  async deletePipelineDefinition(args: { project: string; definitionId: number }): Promise<void> {
+    try {
+      const build = await this.api.getBuildApi();
+      await build.deleteDefinition(args.project, args.definitionId);
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  // -------- release definition writes (Phase 6) --------
+
+  async createReleaseDefinition(args: {
+    project: string;
+    definition: ReleaseDefinition;
+  }): Promise<ReleaseDefinition> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      return await rel.createReleaseDefinition(args.definition, args.project);
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  async deleteReleaseDefinition(args: {
+    project: string;
+    definitionId: number;
+    comment?: string;
+    forceDelete?: boolean;
+  }): Promise<void> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      await rel.deleteReleaseDefinition(
+        args.project,
+        args.definitionId,
+        args.comment,
+        args.forceDelete ?? false,
+      );
     }
     catch (err) {
       if (err instanceof AdoError) {

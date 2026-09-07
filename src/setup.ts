@@ -12,7 +12,7 @@ export async function runSetup(): Promise<void> {
   process.stdout.write(
     'Required PAT scopes:\n'
     + '  Read access:   Code (read), Identity (read), Build (read), Release (read), Work Items (read)\n'
-    + '  Write access:  also add Code (write), Pull Request (write), Build (read & execute), Release (read, write, & execute), Work Items (read & write)\n'
+    + '  Write access:  also add Code (write), Pull Request (write), Build (read & execute), Release (read, write, execute, & manage), Work Items (read & write)\n'
     + 'If you only want read tools, use a read-only PAT or set AZURE_DEVOPS_READ_ONLY=true.\n\n',
   );
 

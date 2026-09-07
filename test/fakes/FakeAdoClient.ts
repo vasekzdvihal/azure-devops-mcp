@@ -20,6 +20,7 @@ import type {
   Identity,
   IdentityRefWithVote,
   JsonPatchOperation,
+  Pipeline,
   PullRequestStatus,
   Release,
   ReleaseApproval,
@@ -1041,6 +1042,88 @@ export class FakeAdoClient implements AdoClient {
 
   getReleaseDefUpdates() {
     return this.releaseDefUpdates;
+  }
+
+  // ---- phase-6 definition create/delete state ----
+  private createdPipelines: Array<{
+    project: string;
+    name: string;
+    folder: string;
+    yamlPath: string;
+    repositoryId: string;
+    repositoryName: string;
+  }> = [];
+
+  private nextCreatedPipeline?: Pipeline;
+  private deletedPipelines: Array<{ project: string; definitionId: number }> = [];
+  private createdReleaseDefs: Array<{ project: string; definition: ReleaseDefinition }> = [];
+  private nextCreatedReleaseDef?: ReleaseDefinition;
+  private deletedReleaseDefs: Array<{
+    project: string;
+    definitionId: number;
+    comment?: string;
+    forceDelete?: boolean;
+  }> = [];
+
+  setNextCreatedPipeline(pipeline: Pipeline): void {
+    this.nextCreatedPipeline = pipeline;
+  }
+
+  getCreatedPipelines() {
+    return this.createdPipelines;
+  }
+
+  getDeletedPipelines() {
+    return this.deletedPipelines;
+  }
+
+  setNextCreatedReleaseDef(def: ReleaseDefinition): void {
+    this.nextCreatedReleaseDef = def;
+  }
+
+  getCreatedReleaseDefs() {
+    return this.createdReleaseDefs;
+  }
+
+  getDeletedReleaseDefs() {
+    return this.deletedReleaseDefs;
+  }
+
+  async createPipeline(args: {
+    project: string;
+    name: string;
+    folder: string;
+    yamlPath: string;
+    repositoryId: string;
+    repositoryName: string;
+  }): Promise<Pipeline> {
+    this.throwIfInjected('createPipeline');
+    this.createdPipelines.push(args);
+    return this.nextCreatedPipeline ?? { id: 1, name: args.name, folder: args.folder };
+  }
+
+  async deletePipelineDefinition(args: { project: string; definitionId: number }): Promise<void> {
+    this.throwIfInjected('deletePipelineDefinition');
+    this.deletedPipelines.push(args);
+  }
+
+  async createReleaseDefinition(args: {
+    project: string;
+    definition: ReleaseDefinition;
+  }): Promise<ReleaseDefinition> {
+    this.throwIfInjected('createReleaseDefinition');
+    this.createdReleaseDefs.push(args);
+    return this.nextCreatedReleaseDef ?? { ...args.definition, id: 1000 };
+  }
+
+  async deleteReleaseDefinition(args: {
+    project: string;
+    definitionId: number;
+    comment?: string;
+    forceDelete?: boolean;
+  }): Promise<void> {
+    this.throwIfInjected('deleteReleaseDefinition');
+    this.deletedReleaseDefs.push(args);
   }
 
   // ---- phase-5 work item setup helpers ----

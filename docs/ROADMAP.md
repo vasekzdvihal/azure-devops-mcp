@@ -303,6 +303,33 @@ Released as v0.4.0.
 
 ---
 
+## ✅ Phase 6 — Pipeline & release definition creation
+
+**Status:** shipped 2026-09-04 in v0.12.0.
+
+**Goal:** bring definitions into existence, not just runs — create a YAML pipeline, clone a release definition, and delete either.
+
+**Tools shipped:**
+
+| Tool | Notes |
+| --- | --- |
+| `create_pipeline` | `PipelinesApi.createPipeline`; repo name → id via `listRepositories`; YAML + `azureReposGit` only |
+| `delete_pipeline` | `BuildApi.deleteDefinition` (soft delete) |
+| `create_release_definition` | GET source → `stripForClone` → overrides → `ReleaseApi.createReleaseDefinition` |
+| `delete_release_definition` | `ReleaseApi.deleteReleaseDefinition` with `comment` / `forceDelete` |
+
+**Key decisions / notes:**
+
+- **Clone, don't compose.** A from-scratch release definition schema is the failure mode that saves but does not deploy; cloning a proven definition keeps deploy phases, queue ids, and tasks intact. Compose-from-spec deferred.
+- **Strip rules are a pure module** (`cloneDefinition.ts`) with one test per rule, cross-checked against the REST 7.1 create sample (all ids 0, server fields absent, `environmentTriggers` emptied because they reference source env ids, `schedules[].jobId` dropped because it is the server-assigned scheduler job id).
+- **SDK type gap.** `CreatePipelineConfigurationParameters` lacks `path`/`repository`; a local `CreateYamlPipelineParameters` widens it.
+- **New PAT scope: Release manage**, needed only by `delete_release_definition`. Updated in setup wizard, auth hint, README.
+
+**Spec:** `docs/superpowers/specs/2026-09-04-azure-devops-mcp-phase-6-definition-creation-design.md`.
+**Plan:** `docs/superpowers/plans/2026-09-04-azure-devops-mcp-phase-6-definition-creation.md`.
+
+---
+
 ## Out of scope (and likely to stay that way)
 
 - **Wiki, artifacts, test plans, dashboards, packaging, audit, security scanning, repo settings.** Each could be its own phase, but each is a niche compared to the PR/pipeline/release/work-item core. We'd add them only if a specific colleague asks for one.

@@ -56,6 +56,26 @@ export interface UpdateTriggersResult {
   triggers: unknown[];
 }
 
+export interface CreatePipelineResult {
+  pipelineId: number;
+  name: string;
+  folder: string;
+  url?: string;
+  repository: string;
+  yamlPath: string;
+}
+
+export interface DeletePipelineResult {
+  pipelineId: number;
+  deleted: true;
+}
+
+const ROOT_FOLDER = '\\';
+
+function ensureLeadingSlash(path: string): string {
+  return path.startsWith('/') ? path : `/${path}`;
+}
+
 function mergeVariable(
   prev: BuildDefinitionVariable | undefined,
   value: VariableInput,
@@ -231,5 +251,53 @@ export class PipelinesWriteService {
       pipelineId: args.pipelineId,
       triggers: (updated.triggers ?? []) as unknown[],
     };
+  }
+
+  async createPipeline(args: {
+    project: string;
+    name: string;
+    repository: string;
+    yamlPath: string;
+    folder?: string;
+  }): Promise<CreatePipelineResult> {
+    const repos = await this.client.listRepositories({ project: args.project });
+    const repo = repos.find(candidate => candidate.name?.toLowerCase() === args.repository.toLowerCase());
+    if (!repo?.id || !repo.name) {
+      // Domain-level input validation (like findDefinitionEnvironment / findArtifactByAlias):
+      // a plain Error, not an AdoError — nothing was asked of ADO that failed.
+      throw new Error(
+        `Repository '${args.repository}' not found in project '${args.project}'. `
+        + `Use list_repositories to see available names.`,
+      );
+    }
+
+    const folder = args.folder ?? ROOT_FOLDER;
+    const yamlPath = ensureLeadingSlash(args.yamlPath);
+
+    const created = await this.client.createPipeline({
+      project: args.project,
+      name: args.name,
+      folder,
+      yamlPath,
+      repositoryId: repo.id,
+      repositoryName: repo.name,
+    });
+
+    return {
+      pipelineId: created.id ?? 0,
+      name: created.name ?? args.name,
+      folder: created.folder ?? folder,
+      url: created.url,
+      repository: repo.name,
+      yamlPath,
+    };
+  }
+
+  async deletePipeline(args: { project: string; pipelineId: number }): Promise<DeletePipelineResult> {
+    await this.client.deletePipelineDefinition({
+      project: args.project,
+      definitionId: args.pipelineId,
+    });
+    return { pipelineId: args.pipelineId, deleted: true };
   }
 }

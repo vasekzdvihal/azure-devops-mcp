@@ -19,6 +19,7 @@ import type {
   Identity,
   IdentityRefWithVote,
   JsonPatchOperation,
+  Pipeline,
   PullRequestStatus,
   Release,
   ReleaseApproval,
@@ -343,6 +344,35 @@ export interface AdoClient {
     project: string;
     definition: ReleaseDefinition;
   }) => Promise<ReleaseDefinition>;
+
+  // pipeline definition writes (Phase 6)
+  /** Create a YAML pipeline pointing at `yamlPath` in the named Azure Repos git repo. */
+  createPipeline: (args: {
+    project: string;
+    name: string;
+    folder: string;
+    yamlPath: string;
+    repositoryId: string;
+    repositoryName: string;
+  }) => Promise<Pipeline>;
+
+  /** Soft-delete a pipeline definition (recycle bin). */
+  deletePipelineDefinition: (args: { project: string; definitionId: number }) => Promise<void>;
+
+  // release definition writes (Phase 6)
+  /** Create a release definition from a full document (caller strips server-owned fields). */
+  createReleaseDefinition: (args: {
+    project: string;
+    definition: ReleaseDefinition;
+  }) => Promise<ReleaseDefinition>;
+
+  /** Soft-delete a release definition. `forceDelete` cancels in-flight deployments first. */
+  deleteReleaseDefinition: (args: {
+    project: string;
+    definitionId: number;
+    comment?: string;
+    forceDelete?: boolean;
+  }) => Promise<void>;
 
   // work items
   /** Run a WIQL query and return matching work-item ids (already extracted). */
