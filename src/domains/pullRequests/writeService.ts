@@ -9,6 +9,7 @@ import type {
 } from '../../ado/types.js';
 import type { RepoResolver } from './repoResolution.js';
 import { detectRepo } from '../../git/detectRepo.js';
+import { prWebUrl } from './readService.js';
 import { resolveRepo } from './repoResolution.js';
 
 const MERGE_STRATEGY_TO_ENUM: Record<string, GitPullRequestMergeStrategy> = {
@@ -324,6 +325,7 @@ export class PullRequestsWriteService {
     targetBranch?: string;
     isDraft?: boolean;
     url?: string;
+    webUrl?: string;
   }> {
     const { project, repository } = await resolveRepo(args, this.resolver);
     const created = await this.client.createPullRequest({
@@ -343,6 +345,7 @@ export class PullRequestsWriteService {
       targetBranch: created.targetRefName?.replace(/^refs\/heads\//, ''),
       isDraft: created.isDraft,
       url: created.url,
+      webUrl: prWebUrl(created),
     };
   }
 

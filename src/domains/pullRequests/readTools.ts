@@ -15,7 +15,8 @@ export function buildPullRequestReadTools(svc: PullRequestsReadService): ToolDef
         description:
           'Lists pull requests in an Azure DevOps repository. Defaults to active PRs. '
           + 'If `project` and `repository` are omitted, the server auto-detects them from '
-          + 'the current working directory\'s git remote (when run from inside a checkout).',
+          + 'the current working directory\'s git remote (when run from inside a checkout). '
+          + '`webUrl` is the clickable browser link; `url` is the REST API URL.',
         inputSchema: ListPullRequestsInput,
       },
       handler: async args => svc.list(args as Parameters<typeof svc.list>[0]),
@@ -27,7 +28,8 @@ export function buildPullRequestReadTools(svc: PullRequestsReadService): ToolDef
         description:
           'Returns full metadata for one pull request: title, description, status, author, '
           + 'reviewers, branches, draft state, merge status. Use `list_pull_request_changes` to '
-          + 'see what files changed and `get_pull_request_diff` to see one file\'s actual diff.',
+          + 'see what files changed and `get_pull_request_diff` to see one file\'s actual diff. '
+          + '`webUrl` is the clickable browser link; `url` is the REST API URL.',
         inputSchema: PullRequestId,
       },
       handler: async args => svc.get(args as Parameters<typeof svc.get>[0]),

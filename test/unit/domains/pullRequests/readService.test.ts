@@ -41,6 +41,53 @@ describe('pullRequestsReadService.list', () => {
       targetBranch: 'main',
     });
   });
+
+  it('includes a clickable webUrl built from repository.webUrl + pullRequestId', async () => {
+    const fake = makeFake();
+    const prs: GitPullRequest[] = [
+      {
+        pullRequestId: 9013,
+        title: 'Add feature X',
+        status: 1,
+        repository: { webUrl: 'https://tfs/c/P/_git/N2' },
+      },
+    ];
+    fake.setPullRequests(REPO.project, REPO.repo, prs);
+    const svc = new PullRequestsReadService(fake, async () => REPO);
+    const result = await svc.list({});
+    expect(result[0]?.webUrl).toBe('https://tfs/c/P/_git/N2/pullrequest/9013');
+  });
+
+  it('leaves webUrl undefined when the pr has no repository.webUrl', async () => {
+    const fake = makeFake();
+    const prs: GitPullRequest[] = [
+      { pullRequestId: 44, title: 'No repo url', status: 1 },
+    ];
+    fake.setPullRequests(REPO.project, REPO.repo, prs);
+    const svc = new PullRequestsReadService(fake, async () => REPO);
+    const result = await svc.list({});
+    expect(result[0]?.webUrl).toBeUndefined();
+  });
+});
+
+describe('pullRequestsReadService.get', () => {
+  it('carries the same webUrl as the list shaper', async () => {
+    const fake = makeFake();
+    fake.setPullRequest({
+      ...REPO,
+      repository: REPO.repo,
+      pullRequestId: 9013,
+      pr: {
+        pullRequestId: 9013,
+        title: 'Add feature X',
+        status: 1,
+        repository: { webUrl: 'https://tfs/c/P/_git/N2' },
+      },
+    });
+    const svc = new PullRequestsReadService(fake, async () => REPO);
+    const result = await svc.get({ pullRequestId: 9013 });
+    expect(result.webUrl).toBe('https://tfs/c/P/_git/N2/pullrequest/9013');
+  });
 });
 
 describe('pullRequestsReadService.getDiff', () => {

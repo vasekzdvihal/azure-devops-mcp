@@ -75,6 +75,7 @@ export interface PrSummary {
   targetBranch?: string;
   createdAt?: string;
   url?: string;
+  webUrl?: string;
 }
 
 export interface PrDetail extends PrSummary {
@@ -230,6 +231,17 @@ export class PullRequestsReadService {
 }
 
 // -------- shapers (pure) --------
+
+// pr.url is the REST API resource URL, not something a human can open in a
+// browser. webUrl is derived from the repository's webUrl (the ADO web UI
+// base) + the PR id, giving a clickable link.
+export function prWebUrl(pr: GitPullRequest): string | undefined {
+  const repoUrl = pr.repository?.webUrl;
+  return repoUrl && pr.pullRequestId
+    ? `${repoUrl.replace(/\/$/, '')}/pullrequest/${pr.pullRequestId}`
+    : undefined;
+}
+
 function shapePrSummary(pr: GitPullRequest): PrSummary {
   return {
     id: pr.pullRequestId ?? 0,
@@ -240,6 +252,7 @@ function shapePrSummary(pr: GitPullRequest): PrSummary {
     targetBranch: pr.targetRefName?.replace(/^refs\/heads\//, ''),
     createdAt: pr.creationDate?.toISOString(),
     url: pr.url,
+    webUrl: prWebUrl(pr),
   };
 }
 

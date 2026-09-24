@@ -189,6 +189,20 @@ describe('pullRequestsWriteService.createPr', () => {
     expect(fake.getCreatedPrs()[0]?.pr.targetRefName).toBe('refs/heads/main');
   });
 
+  it('includes a clickable webUrl built from the created pr\'s repository.webUrl', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setNextCreatedPr({
+      pullRequestId: 5,
+      repository: { webUrl: 'https://x/_git/R' },
+    });
+    const result = await svc.createPr({
+      sourceBranch: 'feature/x',
+      targetBranch: 'main',
+      title: 'T',
+    });
+    expect(result.webUrl).toBe('https://x/_git/R/pullrequest/5');
+  });
+
   it('forwards optional reviewerIds', async () => {
     const { svc, fake } = makeSvc();
     await svc.createPr({
