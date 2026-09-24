@@ -26,7 +26,9 @@ export function buildCommitsReadTools(svc: CommitsReadService): ToolDefinition[]
         description:
           'Lists commits with optional filters: branch (name, e.g. \'main\'), fromDate/toDate '
           + '(ISO-8601), author (name or email substring). Use this to answer \'what changed on '
-          + 'X since last Monday?\'. Project and repository auto-detect from cwd if omitted.',
+          + 'X since last Monday?\'. Project and repository auto-detect from cwd if omitted.'
+          + ' Use `notInBranch` for a commit range. Each commit includes author.name and '
+          + 'author.email (use the email for identity lookups, e.g. Slack users.lookupByEmail).',
         inputSchema: ListCommitsInput,
       },
       handler: async args =>

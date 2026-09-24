@@ -269,9 +269,14 @@ export class FakeAdoClient implements AdoClient {
   private branches = new Map<string, GitBranchStats[]>(); // `${project} ${repo}`
   private commits = new Map<string, GitCommitRef[]>(); // `${project} ${repo}`
   private listBranchesCalls: Array<{ project: string; repository: string; baseBranch?: string }> = [];
+  private listCommitsCalls: Array<Parameters<AdoClient['listCommits']>[0]> = [];
 
   getListBranchesCalls() {
     return this.listBranchesCalls;
+  }
+
+  getListCommitsCalls() {
+    return this.listCommitsCalls;
   }
 
   // ---- phase-3 setup helpers ----
@@ -666,16 +671,9 @@ export class FakeAdoClient implements AdoClient {
     return this.branches.get(`${args.project} ${args.repository}`) ?? [];
   }
 
-  async listCommits(args: {
-    project: string;
-    repository: string;
-    branch?: string;
-    fromDate?: string;
-    toDate?: string;
-    author?: string;
-    top?: number;
-  }): Promise<GitCommitRef[]> {
+  async listCommits(args: Parameters<AdoClient['listCommits']>[0]): Promise<GitCommitRef[]> {
     this.throwIfInjected('listCommits');
+    this.listCommitsCalls.push(args);
     return this.commits.get(`${args.project} ${args.repository}`) ?? [];
   }
 

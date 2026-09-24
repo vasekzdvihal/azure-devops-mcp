@@ -274,6 +274,8 @@ export interface AdoClient {
     project: string;
     repository: string;
     branch?: string;
+    /** Exclude commits reachable from this branch (commits in `branch` not in `notInBranch`). */
+    notInBranch?: string;
     fromDate?: string;
     toDate?: string;
     author?: string;

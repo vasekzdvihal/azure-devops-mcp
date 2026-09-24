@@ -74,16 +74,21 @@ export class CommitsReadService {
     project?: string;
     repository?: string;
     branch?: string;
+    notInBranch?: string;
     fromDate?: string;
     toDate?: string;
     author?: string;
     top?: number;
   }): Promise<CommitSummary[]> {
+    if (args.notInBranch && !args.branch) {
+      throw new Error('list_commits: `notInBranch` requires `branch` (commits in `branch` that are not in `notInBranch`).');
+    }
     const { project, repository } = await resolveRepo(args, this.resolver);
     const commits = await this.client.listCommits({
       project,
       repository,
-      branch: args.branch,
+      branch: args.branch ? shortBranch(args.branch) : undefined,
+      notInBranch: args.notInBranch ? shortBranch(args.notInBranch) : undefined,
       fromDate: args.fromDate,
       toDate: args.toDate,
       author: args.author,

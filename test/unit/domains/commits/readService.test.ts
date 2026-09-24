@@ -124,6 +124,26 @@ describe('commitsReadService.listCommits', () => {
   });
 });
 
+describe('commitsReadService.listCommits notInBranch', () => {
+  it('passes branch + notInBranch as short names and returns author email', async () => {
+    const fake = new FakeAdoClient();
+    fake.setCommits(REPO.project, REPO.repo, [
+      { commitId: 'x1', comment: 'fix', author: { name: 'Ann', email: 'ann@corp.cz', date: new Date('2026-09-01T00:00:00Z') } },
+    ]);
+    const svc = new CommitsReadService(fake, async () => REPO);
+    const result = await svc.listCommits({ branch: 'refs/heads/staging', notInBranch: 'develop' });
+    expect(fake.getListCommitsCalls()[0]).toMatchObject({ branch: 'staging', notInBranch: 'develop' });
+    expect(result[0]?.author?.email).toBe('ann@corp.cz');
+  });
+
+  it('rejects notInBranch without branch', async () => {
+    const svc = new CommitsReadService(new FakeAdoClient(), async () => REPO);
+    await expect(svc.listCommits({ notInBranch: 'develop' })).rejects.toThrow(
+      /`notInBranch` requires `branch`/,
+    );
+  });
+});
+
 describe('commitsReadService.listBranches filters', () => {
   const branches: GitBranchStats[] = [
     { name: 'main', commit: { commitId: 'a' }, aheadCount: 0, behindCount: 0, isBaseVersion: true },

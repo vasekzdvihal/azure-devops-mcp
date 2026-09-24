@@ -30,6 +30,10 @@ export const ListCommitsInput = {
     .string()
     .optional()
     .describe('Branch name (e.g. \'main\'). Omit to get commits across all branches.'),
+  notInBranch: z.string().min(1).optional().describe(
+    'Only commits in `branch` that are NOT reachable from this branch (e.g. branch=staging, '
+    + 'notInBranch=develop → what a staging→develop merge would bring). Requires `branch`.',
+  ),
   fromDate: z
     .string()
     .optional()

@@ -1238,6 +1238,7 @@ export class SdkAdoClient implements AdoClient {
     project: string;
     repository: string;
     branch?: string;
+    notInBranch?: string;
     fromDate?: string;
     toDate?: string;
     author?: string;
@@ -1247,7 +1248,10 @@ export class SdkAdoClient implements AdoClient {
       const git = await this.api.getGitApi();
       const criteria: GitQueryCommitsCriteria = {
         ...(args.branch
-          ? { itemVersion: { version: args.branch, versionType: 0 /* Branch */ } }
+          ? { itemVersion: { version: args.branch, versionType: GitVersionType.Branch } }
+          : {}),
+        ...(args.notInBranch
+          ? { compareVersion: { version: args.notInBranch, versionType: GitVersionType.Branch } }
           : {}),
         ...(args.fromDate ? { fromDate: args.fromDate } : {}),
         ...(args.toDate ? { toDate: args.toDate } : {}),
@@ -1263,6 +1267,9 @@ export class SdkAdoClient implements AdoClient {
       return commits;
     }
     catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
