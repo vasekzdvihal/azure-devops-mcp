@@ -85,9 +85,9 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | --- | --- |
 | `whoami` | Returns the identity associated with the configured PAT. |
 | `list_projects` | Lists ADO projects in the configured collection / org. |
-| `list_repositories` | Lists git repositories in a given project. |
-| `list_pull_requests` | Lists PRs in a repo (default: active). Filters: status, creator, reviewer, target branch. |
-| `get_pull_request` | Full PR metadata: title, description, status, reviewers, branches, draft state, merge status. |
+| `list_repositories` | Lists git repositories in a given project, incl. `isDisabled`, `isInMaintenance`, and `size` (no `defaultBranch` + `size: 0` = never pushed to). |
+| `list_pull_requests` | Lists PRs in a repo (default: active). Filters: status, creator, reviewer, target branch. Includes `webUrl`. |
+| `get_pull_request` | Full PR metadata: title, description, status, reviewers, branches, draft state, merge status, `webUrl`. |
 | `list_pull_request_changes` | Lists files changed in a PR with change types. Cheap; no diff content. |
 | `get_pull_request_diff` | Returns unified diff text for a single file in a PR (truncatable). |
 | `list_pull_request_comments` | Returns comment threads on a PR (with line anchors). |
@@ -101,8 +101,9 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `get_pipeline_definition` | Full pipeline-definition detail: type (yaml/classic), repository, default branch, YAML file path, variables, variable groups, triggers (CI/PR/schedule with branch & path filters). |
 | `list_pipeline_runs` | Lists runs (builds). Filter by pipelineId, branch, status, result. |
 | `get_pipeline_run` | Run detail with stages timeline — how you see if a YAML multi-stage stage succeeded. |
-| `list_branches` | Branches in a repo with last commit id + ahead/behind. Auto-detects repo from cwd. |
-| `list_commits` | Commits on a branch. Filter by fromDate, toDate, author, top. Auto-detects repo from cwd. |
+| `list_branches` | Branches in a repo with last commit id + ahead/behind vs the default branch, or vs `baseBranch`. `names` (exact, returns `missing`) or `nameContains` narrows the list. Auto-detects repo from cwd. |
+| `list_commits` | Commits on a branch. Filter by fromDate, toDate, author, `notInBranch` (commit range), top. Each commit includes `author.email`. Auto-detects repo from cwd. |
+| `compare_branches` | Ahead/behind commit counts between `base` and `target`, plus merge-base commit and file change counts. `includeCommits: true` also returns the commits themselves. Auto-detects repo from cwd. |
 | `list_pending_approvals` | List pending release approvals; companion to `approve_release_gate`. |
 | `list_work_items` | Lists work items with convenience filters: `myActive`, `linkedToPr`, `currentIteration`, `tag`. |
 | `get_work_item` | Full work item detail: all fields, relations, and recent comments (with ids). |
@@ -120,7 +121,7 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `set_pull_request_draft_state` | Mark draft or publish (`isDraft: true/false`). |
 | `add_pull_request_reviewers` | Add one or more identities as reviewers. |
 | `remove_pull_request_reviewer` | Remove one identity from the reviewer list. |
-| `create_pull_request` | Open a new PR. Source/target branch (short or full ref), title, optional description / draft / reviewers. |
+| `create_pull_request` | Open a new PR. Source/target branch (short or full ref), title, optional description / draft / reviewers. Result includes `webUrl`. |
 | `complete_pull_request` | Merge a PR. Choose strategy: `noFastForward` / `squash` / `rebase` / `rebaseMerge`. |
 | `abandon_pull_request` | Close a PR without merging (reversible). |
 | `set_pull_request_auto_complete` | Enable auto-complete — merge once required policies pass. Uses configured PAT identity as owner. |

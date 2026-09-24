@@ -1,7 +1,7 @@
 # Phase 7 — Branch ops, repo/pipeline admin & build retention (design)
 
 **Date:** 2026-09-24
-**Status:** design approved in chat 2026-09-24; written spec pending review
+**Status:** approved 2026-09-24; 7a shipped in v0.13.0
 **Prior phase:** Phase 6 (definition creation, shipped 2026-09-04 in v0.12.0)
 **Target versions:** 7a → 0.13.0, 7b → 0.14.0
 
