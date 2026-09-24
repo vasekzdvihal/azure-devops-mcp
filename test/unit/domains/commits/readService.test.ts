@@ -123,3 +123,52 @@ describe('commitsReadService.listCommits', () => {
     ]);
   });
 });
+
+describe('commitsReadService.listBranches filters', () => {
+  const branches: GitBranchStats[] = [
+    { name: 'main', commit: { commitId: 'a' }, aheadCount: 0, behindCount: 0, isBaseVersion: true },
+    { name: 'staging', commit: { commitId: 'b' }, aheadCount: 48, behindCount: 0 },
+    { name: 'feature/login', commit: { commitId: 'c' }, aheadCount: 2, behindCount: 5 },
+  ];
+
+  it('names → exact allowlist plus missing list', async () => {
+    const fake = new FakeAdoClient();
+    fake.setBranches(REPO.project, REPO.repo, branches);
+    const svc = new CommitsReadService(fake, async () => REPO);
+    const result = await svc.listBranches({ names: ['main', 'refs/heads/staging', 'develop'] });
+    expect(result).toEqual({
+      branches: [
+        { name: 'main', lastCommitId: 'a', aheadCount: 0, behindCount: 0, isBaseVersion: true },
+        { name: 'staging', lastCommitId: 'b', aheadCount: 48, behindCount: 0, isBaseVersion: undefined },
+      ],
+      missing: ['develop'],
+    });
+  });
+
+  it('nameContains → case-insensitive substring, plain array', async () => {
+    const fake = new FakeAdoClient();
+    fake.setBranches(REPO.project, REPO.repo, branches);
+    const svc = new CommitsReadService(fake, async () => REPO);
+    const result = await svc.listBranches({ nameContains: 'LOGIN' });
+    expect(Array.isArray(result)).toBe(true);
+    expect((result as Array<{ name: string }>).map(branch => branch.name)).toEqual(['feature/login']);
+  });
+
+  it('branch names returned with a refs/heads/ prefix still match names and are not reported missing', async () => {
+    const fake = new FakeAdoClient();
+    fake.setBranches(REPO.project, REPO.repo, [{ name: 'refs/heads/develop', commit: { commitId: 'd' } }]);
+    const svc = new CommitsReadService(fake, async () => REPO);
+    const result = await svc.listBranches({ names: ['develop'] });
+    expect(result).toMatchObject({ branches: [{ name: 'develop' }], missing: [] });
+  });
+
+  it('baseBranch is passed to the client as a short name', async () => {
+    const fake = new FakeAdoClient();
+    fake.setBranches(REPO.project, REPO.repo, branches);
+    const svc = new CommitsReadService(fake, async () => REPO);
+    await svc.listBranches({ baseBranch: 'refs/heads/staging' });
+    expect(fake.getListBranchesCalls()).toEqual([
+      { project: REPO.project, repository: REPO.repo, baseBranch: 'staging' },
+    ]);
+  });
+});

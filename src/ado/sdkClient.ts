@@ -1217,13 +1217,19 @@ export class SdkAdoClient implements AdoClient {
   async listBranches(args: {
     project: string;
     repository: string;
+    baseBranch?: string;
   }): Promise<GitBranchStats[]> {
     try {
       const git = await this.api.getGitApi();
-      const branches = await git.getBranches(args.repository, args.project);
-      return branches;
+      const base = args.baseBranch
+        ? { version: args.baseBranch, versionType: 0 /* Branch */ }
+        : undefined;
+      return await git.getBranches(args.repository, args.project, base);
     }
     catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }

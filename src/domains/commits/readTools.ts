@@ -10,8 +10,10 @@ export function buildCommitsReadTools(svc: CommitsReadService): ToolDefinition[]
         title: 'List branches in a repository',
         description:
           'Lists branches in an Azure DevOps git repository, each with the last commit id and '
-          + 'ahead/behind counts vs the base version. If `project` and `repository` are omitted, '
-          + 'they are auto-detected from the current working directory\'s git remote.',
+          + 'ahead/behind counts vs the default branch, or vs `baseBranch` when given. Use `names` '
+          + 'to check specific branches (e.g. main/staging/develop) without listing every branch — '
+          + 'the result then includes `missing`. If `project` and `repository` are omitted, they '
+          + 'are auto-detected from the current working directory\'s git remote.',
         inputSchema: ListBranchesInput,
       },
       handler: async args =>

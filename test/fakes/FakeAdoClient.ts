@@ -268,6 +268,11 @@ export class FakeAdoClient implements AdoClient {
   private releaseDefDetails = new Map<string, ReleaseDefinition>(); // `${project} ${definitionId}`
   private branches = new Map<string, GitBranchStats[]>(); // `${project} ${repo}`
   private commits = new Map<string, GitCommitRef[]>(); // `${project} ${repo}`
+  private listBranchesCalls: Array<{ project: string; repository: string; baseBranch?: string }> = [];
+
+  getListBranchesCalls() {
+    return this.listBranchesCalls;
+  }
 
   // ---- phase-3 setup helpers ----
   setReleaseDefinitions(project: string, defs: ReleaseDefinition[]): void {
@@ -650,8 +655,14 @@ export class FakeAdoClient implements AdoClient {
   async listBranches(args: {
     project: string;
     repository: string;
+    baseBranch?: string;
   }): Promise<GitBranchStats[]> {
     this.throwIfInjected('listBranches');
+    this.listBranchesCalls.push({
+      project: args.project,
+      repository: args.repository,
+      ...(args.baseBranch ? { baseBranch: args.baseBranch } : {}),
+    });
     return this.branches.get(`${args.project} ${args.repository}`) ?? [];
   }
 

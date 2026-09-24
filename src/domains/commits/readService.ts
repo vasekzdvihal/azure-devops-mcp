@@ -17,6 +17,15 @@ export interface BranchSummary {
   isBaseVersion?: boolean;
 }
 
+export interface FilteredBranches {
+  branches: BranchSummary[];
+  missing: string[];
+}
+
+export function shortBranch(ref: string): string {
+  return ref.replace(/^refs\/heads\//, '');
+}
+
 export interface CommitSummary {
   commitId: string;
   comment?: string;
@@ -35,10 +44,30 @@ export class CommitsReadService {
   async listBranches(args: {
     project?: string;
     repository?: string;
-  }): Promise<BranchSummary[]> {
+    baseBranch?: string;
+    names?: string[];
+    nameContains?: string;
+  }): Promise<BranchSummary[] | FilteredBranches> {
     const { project, repository } = await resolveRepo(args, this.resolver);
-    const branches = await this.client.listBranches({ project, repository });
-    return branches.map(shapeBranch);
+    const raw = await this.client.listBranches({
+      project,
+      repository,
+      ...(args.baseBranch ? { baseBranch: shortBranch(args.baseBranch) } : {}),
+    });
+    let branches = raw.map(shapeBranch);
+    if (args.nameContains) {
+      const needle = args.nameContains.toLowerCase();
+      branches = branches.filter(branch => branch.name.toLowerCase().includes(needle));
+    }
+    if (!args.names) {
+      return branches;
+    }
+    const wanted = args.names.map(shortBranch);
+    const byName = new Map(branches.map(branch => [branch.name, branch]));
+    return {
+      branches: wanted.flatMap(name => byName.get(name) ?? []),
+      missing: wanted.filter(name => !byName.has(name)),
+    };
   }
 
   async listCommits(args: {
@@ -66,7 +95,7 @@ export class CommitsReadService {
 
 function shapeBranch(branch: GitBranchStats): BranchSummary {
   return {
-    name: branch.name ?? '',
+    name: shortBranch(branch.name ?? ''),
     lastCommitId: branch.commit?.commitId,
     aheadCount: branch.aheadCount,
     behindCount: branch.behindCount,

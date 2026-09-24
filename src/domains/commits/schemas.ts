@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const MAX_TOP = 200;
+const MAX_BRANCH_NAMES = 50;
 
 const repoCoords = {
   project: z.string().min(1).optional().describe(
@@ -11,7 +12,17 @@ const repoCoords = {
   ),
 };
 
-export const ListBranchesInput = { ...repoCoords };
+export const ListBranchesInput = {
+  ...repoCoords,
+  baseBranch: z.string().min(1).optional().describe(
+    'Measure aheadCount/behindCount against this branch instead of the repository default branch.',
+  ),
+  names: z.array(z.string().min(1)).min(1).max(MAX_BRANCH_NAMES).optional().describe(
+    'Return only these branches (exact short names). The result becomes { branches, missing } — '
+    + '`missing` lists requested names that do not exist.',
+  ),
+  nameContains: z.string().min(1).optional().describe('Case-insensitive substring filter on branch name.'),
+};
 
 export const ListCommitsInput = {
   ...repoCoords,

@@ -266,6 +266,8 @@ export interface AdoClient {
   listBranches: (args: {
     project: string;
     repository: string;
+    /** Short branch name; ahead/behind are measured against it instead of the default branch. */
+    baseBranch?: string;
   }) => Promise<GitBranchStats[]>;
 
   listCommits: (args: {
