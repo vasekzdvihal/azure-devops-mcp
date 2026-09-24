@@ -223,5 +223,18 @@ describe('commitsReadService.compareBranches', () => {
     const result = await svc.compareBranches({ base: 'develop', target: 'staging', includeCommits: true, top: 10 });
     expect(fake.getListCommitsCalls()[0]).toMatchObject({ branch: 'staging', notInBranch: 'develop', top: 10 });
     expect(result.commits?.[0]?.author?.email).toBe('b@x.cz');
+    expect(result.commitsTruncated).toBe(false);
+  });
+
+  it('includeCommits with fewer commits returned than aheadCount → commitsTruncated true', async () => {
+    const fake = new FakeAdoClient();
+    fake.setCommitDiffs(REPO.project, REPO.repo, { aheadCount: 5, behindCount: 0 });
+    fake.setCommits(REPO.project, REPO.repo, [
+      { commitId: 'k1', author: { name: 'B', email: 'b@x.cz' } },
+      { commitId: 'k2', author: { name: 'B', email: 'b@x.cz' } },
+    ]);
+    const svc = new CommitsReadService(fake, async () => REPO);
+    const result = await svc.compareBranches({ base: 'develop', target: 'staging', includeCommits: true, top: 2 });
+    expect(result.commitsTruncated).toBe(true);
   });
 });

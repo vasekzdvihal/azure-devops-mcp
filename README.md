@@ -103,7 +103,7 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `get_pipeline_run` | Run detail with stages timeline — how you see if a YAML multi-stage stage succeeded. |
 | `list_branches` | Branches in a repo with last commit id + ahead/behind vs the default branch, or vs `baseBranch`. `names` (exact, returns `missing`) or `nameContains` narrows the list. Auto-detects repo from cwd. |
 | `list_commits` | Commits on a branch. Filter by fromDate, toDate, author, `notInBranch` (commit range), top. Each commit includes `author.email`. Auto-detects repo from cwd. |
-| `compare_branches` | Ahead/behind commit counts between `base` and `target`, plus merge-base commit and file change counts. `includeCommits: true` also returns the commits themselves. Auto-detects repo from cwd. |
+| `compare_branches` | Ahead/behind commit counts between `base` and `target`, plus merge-base commit and file change counts on `target` since the merge base. `includeCommits: true` also returns the commits themselves (capped by `top`; `commitsTruncated` flags a partial list). Auto-detects repo from cwd. |
 | `list_pending_approvals` | List pending release approvals; companion to `approve_release_gate`. |
 | `list_work_items` | Lists work items with convenience filters: `myActive`, `linkedToPr`, `currentIteration`, `tag`. |
 | `get_work_item` | Full work item detail: all fields, relations, and recent comments (with ids). |

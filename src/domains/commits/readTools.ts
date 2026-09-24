@@ -40,9 +40,11 @@ export function buildCommitsReadTools(svc: CommitsReadService): ToolDefinition[]
         title: 'Compare two branches',
         description:
           'Compares two branches: aheadCount = commits in `target` not in `base`, behindCount = '
-          + 'commits in `base` not in `target`, plus the merge base and file change counts. '
-          + 'aheadCount 0 means merging target into base brings nothing. Set includeCommits to '
-          + 'also list those commits with author name + email. Project and repository auto-detect '
+          + 'commits in `base` not in `target`, plus the merge base and file change counts on '
+          + '`target` since the merge base. aheadCount 0 means merging target into base brings '
+          + 'nothing. Set includeCommits to also list those commits with author name + email; the '
+          + 'list is capped by `top` (default 100, max 200), and `commitsTruncated` is true when '
+          + 'aheadCount exceeds the number of commits returned. Project and repository auto-detect '
           + 'from cwd if omitted.',
         inputSchema: CompareBranchesInput,
       },

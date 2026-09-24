@@ -42,6 +42,8 @@ export interface BranchComparison {
   commonCommit?: string;
   changeCounts?: { Add?: number; Edit?: number; Delete?: number };
   commits?: CommitSummary[];
+  /** True when `commits` was capped by `top` and does not cover all `aheadCount` commits. */
+  commitsTruncated?: boolean;
 }
 
 // ADO GitChange.changeType wire values (only the ones getCommitDiffs.changeCounts uses).
@@ -140,13 +142,15 @@ export class CommitsReadService {
       ...(diffs.changeCounts ? { changeCounts: nameChangeCounts(diffs.changeCounts) } : {}),
     };
     if (args.includeCommits) {
-      result.commits = await this.listCommits({
+      const commits = await this.listCommits({
         project,
         repository,
         branch: target,
         notInBranch: base,
         top: args.top ?? DEFAULT_COMPARE_COMMITS_TOP,
       });
+      result.commits = commits;
+      result.commitsTruncated = result.aheadCount > commits.length;
     }
     return result;
   }

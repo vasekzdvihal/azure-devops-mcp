@@ -351,7 +351,7 @@ Released as v0.4.0.
 - **Client-side branch filtering.** `names`/`nameContains` filter after `getBranches` returns, not via a server-side query — the concern is response size in model context, not API cost.
 - **Commits for `compare_branches` via a second call.** `getCommitDiffs` returns file changes and ahead/behind counts, not a commit list, so `includeCommits` fetches commits separately via `getCommits` with a `compareVersion` descriptor.
 - **`webUrl` derived, not assembled.** Built from `repository.webUrl` (`${repository.webUrl}/pullrequest/${pullRequestId}`), never from collection URL/project/repo string concatenation; omitted when `repository.webUrl` is absent.
-- **Ahead/behind direction.** Documented from the SDK contract (`getCommitDiffs(base, target)`: `aheadCount` = commits in `target` not in `base`, `behindCount` = commits in `base` not in `target`).
+- **Ahead/behind direction.** The direction follows ADO's branch-compare semantics (`aheadCount` = commits in `target` not in `base`, `behindCount` = commits in `base` not in `target`) and is pending live verification against a real ADO Server before merge.
 
 **Spec:** `docs/superpowers/specs/2026-09-24-azure-devops-mcp-phase-7-branch-ops-retention-design.md` (slice 7a).
 **Plan:** `docs/superpowers/plans/2026-09-24-azure-devops-mcp-phase-7-branch-ops-retention.md`.
