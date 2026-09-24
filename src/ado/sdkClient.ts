@@ -1222,7 +1222,7 @@ export class SdkAdoClient implements AdoClient {
     try {
       const git = await this.api.getGitApi();
       const base = args.baseBranch
-        ? { version: args.baseBranch, versionType: 0 /* Branch */ }
+        ? { version: args.baseBranch, versionType: GitVersionType.Branch }
         : undefined;
       return await git.getBranches(args.repository, args.project, base);
     }
