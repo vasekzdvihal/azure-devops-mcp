@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { registerAllTools } from '../../../src/mcp/registerTools.js';
 import { FakeAdoClient } from '../../fakes/FakeAdoClient.js';
 
-const FULL_TOOL_COUNT = 56;
-const READ_ONLY_TOOL_COUNT = 23;
+const FULL_TOOL_COUNT = 57;
+const READ_ONLY_TOOL_COUNT = 24;
 
 const FULL_ONLY_NAMES = [
   'create_pipeline',

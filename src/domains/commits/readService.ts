@@ -2,10 +2,7 @@ import type { AdoClient } from '../../ado/client.js';
 import type { GitBranchStats, GitCommitRef } from '../../ado/types.js';
 import type { RepoResolver } from '../pullRequests/repoResolution.js';
 import { detectRepo } from '../../git/detectRepo.js';
-import {
-
-  resolveRepo,
-} from '../pullRequests/repoResolution.js';
+import { resolveRepo } from '../pullRequests/repoResolution.js';
 
 export { RepoContextError } from '../pullRequests/repoResolution.js';
 
@@ -34,6 +31,31 @@ export interface CommitSummary {
   changeCounts?: { Add?: number; Edit?: number; Delete?: number };
   url?: string;
 }
+
+export interface BranchComparison {
+  base: string;
+  target: string;
+  /** Commits in `target` that are not in `base`. */
+  aheadCount: number;
+  /** Commits in `base` that are not in `target`. */
+  behindCount: number;
+  commonCommit?: string;
+  changeCounts?: { Add?: number; Edit?: number; Delete?: number };
+  commits?: CommitSummary[];
+}
+
+// ADO GitChange.changeType wire values (only the ones getCommitDiffs.changeCounts uses).
+const CHANGE_TYPE_ADD = 1;
+const CHANGE_TYPE_EDIT = 2;
+const CHANGE_TYPE_DELETE = 16;
+
+const CHANGE_TYPE_NAMES: Record<number, 'Add' | 'Edit' | 'Delete'> = {
+  [CHANGE_TYPE_ADD]: 'Add',
+  [CHANGE_TYPE_EDIT]: 'Edit',
+  [CHANGE_TYPE_DELETE]: 'Delete',
+};
+
+const DEFAULT_COMPARE_COMMITS_TOP = 100;
 
 export class CommitsReadService {
   constructor(
@@ -96,6 +118,49 @@ export class CommitsReadService {
     });
     return commits.map(shapeCommit);
   }
+
+  async compareBranches(args: {
+    project?: string;
+    repository?: string;
+    base: string;
+    target: string;
+    includeCommits?: boolean;
+    top?: number;
+  }): Promise<BranchComparison> {
+    const { project, repository } = await resolveRepo(args, this.resolver);
+    const base = shortBranch(args.base);
+    const target = shortBranch(args.target);
+    const diffs = await this.client.getCommitDiffs({ project, repository, base, target });
+    const result: BranchComparison = {
+      base,
+      target,
+      aheadCount: diffs.aheadCount ?? 0,
+      behindCount: diffs.behindCount ?? 0,
+      ...(diffs.commonCommit ? { commonCommit: diffs.commonCommit } : {}),
+      ...(diffs.changeCounts ? { changeCounts: nameChangeCounts(diffs.changeCounts) } : {}),
+    };
+    if (args.includeCommits) {
+      result.commits = await this.listCommits({
+        project,
+        repository,
+        branch: target,
+        notInBranch: base,
+        top: args.top ?? DEFAULT_COMPARE_COMMITS_TOP,
+      });
+    }
+    return result;
+  }
+}
+
+function nameChangeCounts(counts: Record<number, number>): BranchComparison['changeCounts'] {
+  const named: NonNullable<BranchComparison['changeCounts']> = {};
+  for (const [key, value] of Object.entries(counts)) {
+    const name = CHANGE_TYPE_NAMES[Number(key)];
+    if (name) {
+      named[name] = value;
+    }
+  }
+  return named;
 }
 
 function shapeBranch(branch: GitBranchStats): BranchSummary {

@@ -192,3 +192,36 @@ describe('commitsReadService.listBranches filters', () => {
     ]);
   });
 });
+
+describe('commitsReadService.compareBranches', () => {
+  it('returns counts + named changeCounts, no commits by default', async () => {
+    const fake = new FakeAdoClient();
+    fake.setCommitDiffs(REPO.project, REPO.repo, {
+      aheadCount: 3,
+      behindCount: 1,
+      commonCommit: 'cc',
+      changeCounts: { 1: 2, 2: 5, 16: 1 },
+    });
+    const svc = new CommitsReadService(fake, async () => REPO);
+    const result = await svc.compareBranches({ base: 'refs/heads/develop', target: 'staging' });
+    expect(result).toEqual({
+      base: 'develop',
+      target: 'staging',
+      aheadCount: 3,
+      behindCount: 1,
+      commonCommit: 'cc',
+      changeCounts: { Add: 2, Edit: 5, Delete: 1 },
+    });
+    expect(fake.getListCommitsCalls()).toEqual([]);
+  });
+
+  it('includeCommits → commits in target not in base', async () => {
+    const fake = new FakeAdoClient();
+    fake.setCommitDiffs(REPO.project, REPO.repo, { aheadCount: 1, behindCount: 0 });
+    fake.setCommits(REPO.project, REPO.repo, [{ commitId: 'k', author: { name: 'B', email: 'b@x.cz' } }]);
+    const svc = new CommitsReadService(fake, async () => REPO);
+    const result = await svc.compareBranches({ base: 'develop', target: 'staging', includeCommits: true, top: 10 });
+    expect(fake.getListCommitsCalls()[0]).toMatchObject({ branch: 'staging', notInBranch: 'develop', top: 10 });
+    expect(result.commits?.[0]?.author?.email).toBe('b@x.cz');
+  });
+});

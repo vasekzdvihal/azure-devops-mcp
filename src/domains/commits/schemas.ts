@@ -48,3 +48,11 @@ export const ListCommitsInput = {
     .describe('Filter to commits by this author (name or email as appearing in git metadata).'),
   top: z.number().int().positive().max(MAX_TOP).optional().describe('Max results (default 25).'),
 };
+
+export const CompareBranchesInput = {
+  ...repoCoords,
+  base: z.string().min(1).describe('Base branch (e.g. \'develop\').'),
+  target: z.string().min(1).describe('Target branch (e.g. \'staging\').'),
+  includeCommits: z.boolean().optional().describe('Also return the commits in target that are not in base (default false).'),
+  top: z.number().int().positive().max(MAX_TOP).optional().describe('Max commits when includeCommits (default 100).'),
+};

@@ -1,6 +1,6 @@
 import type { ToolDefinition } from '../identity/tools.js';
 import type { CommitsReadService } from './readService.js';
-import { ListBranchesInput, ListCommitsInput } from './schemas.js';
+import { CompareBranchesInput, ListBranchesInput, ListCommitsInput } from './schemas.js';
 
 export function buildCommitsReadTools(svc: CommitsReadService): ToolDefinition[] {
   return [
@@ -33,6 +33,21 @@ export function buildCommitsReadTools(svc: CommitsReadService): ToolDefinition[]
       },
       handler: async args =>
         svc.listCommits(args as Parameters<typeof svc.listCommits>[0]),
+    },
+    {
+      name: 'compare_branches',
+      config: {
+        title: 'Compare two branches',
+        description:
+          'Compares two branches: aheadCount = commits in `target` not in `base`, behindCount = '
+          + 'commits in `base` not in `target`, plus the merge base and file change counts. '
+          + 'aheadCount 0 means merging target into base brings nothing. Set includeCommits to '
+          + 'also list those commits with author name + email. Project and repository auto-detect '
+          + 'from cwd if omitted.',
+        inputSchema: CompareBranchesInput,
+      },
+      handler: async args =>
+        svc.compareBranches(args as Parameters<typeof svc.compareBranches>[0]),
     },
   ];
 }

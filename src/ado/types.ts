@@ -35,6 +35,7 @@ export type {
 // Git commits & branches
 export type {
   GitBranchStats,
+  GitCommitDiffs,
   GitCommitRef,
   GitQueryCommitsCriteria,
 } from 'azure-devops-node-api/interfaces/GitInterfaces.js';

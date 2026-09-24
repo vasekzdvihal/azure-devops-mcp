@@ -10,6 +10,7 @@ import type {
   Deployment,
   DeploymentStatus,
   GitBranchStats,
+  GitCommitDiffs,
   GitCommitRef,
   GitPullRequest,
   GitPullRequestChange,
@@ -1265,6 +1266,32 @@ export class SdkAdoClient implements AdoClient {
         args.top,
       );
       return commits;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  async getCommitDiffs(args: {
+    project: string;
+    repository: string;
+    base: string;
+    target: string;
+  }): Promise<GitCommitDiffs> {
+    try {
+      const git = await this.api.getGitApi();
+      return await git.getCommitDiffs(
+        args.repository,
+        args.project,
+        true, // diffCommonCommit
+        0, // top — we only want counts, not the file change list
+        0, // skip
+        { baseVersion: args.base, baseVersionType: GitVersionType.Branch },
+        { targetVersion: args.target, targetVersionType: GitVersionType.Branch },
+      );
     }
     catch (err) {
       if (err instanceof AdoError) {
