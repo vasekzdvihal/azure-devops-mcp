@@ -6,6 +6,9 @@ export interface RepoSummary {
   name: string;
   defaultBranch?: string; // refs/heads/ prefix stripped for readability
   webUrl?: string;
+  isDisabled?: boolean;
+  isInMaintenance?: boolean;
+  size?: number;
 }
 
 export class RepositoriesService {
@@ -24,5 +27,8 @@ function shape(repo: GitRepository): RepoSummary {
     name: repo.name ?? '',
     defaultBranch: branch,
     webUrl: repo.webUrl,
+    isDisabled: repo.isDisabled,
+    isInMaintenance: repo.isInMaintenance,
+    size: repo.size,
   };
 }
