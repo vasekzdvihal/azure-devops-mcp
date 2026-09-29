@@ -18,7 +18,6 @@ import type {
   GitPullRequestCompletionOptions,
   GitPullRequestIteration,
   GitPullRequestMergeStrategy,
-  GitQueryCommitsCriteria,
   GitRepository,
   Identity,
   IdentityRefWithVote,
@@ -43,6 +42,7 @@ import https from 'node:https';
 import * as azdev from 'azure-devops-node-api';
 import { GitVersionType } from 'azure-devops-node-api/interfaces/GitInterfaces.js';
 import { AdoError, AdoNotFoundError, AdoUnknownError, mapSdkError } from './errors.js';
+import { branchDiffDescriptors, commitQueryCriteria } from './queryShapes.js';
 import { buildHttpsAgent } from './tlsAgent.js';
 import { ConfigurationType, WorkItemExpand } from './types.js';
 
@@ -1247,17 +1247,7 @@ export class SdkAdoClient implements AdoClient {
   }): Promise<GitCommitRef[]> {
     try {
       const git = await this.api.getGitApi();
-      const criteria: GitQueryCommitsCriteria = {
-        ...(args.branch
-          ? { itemVersion: { version: args.branch, versionType: GitVersionType.Branch } }
-          : {}),
-        ...(args.notInBranch
-          ? { compareVersion: { version: args.notInBranch, versionType: GitVersionType.Branch } }
-          : {}),
-        ...(args.fromDate ? { fromDate: args.fromDate } : {}),
-        ...(args.toDate ? { toDate: args.toDate } : {}),
-        ...(args.author ? { author: args.author } : {}),
-      };
+      const criteria = commitQueryCriteria(args);
       const commits = await git.getCommits(
         args.repository,
         criteria,
@@ -1283,14 +1273,15 @@ export class SdkAdoClient implements AdoClient {
   }): Promise<GitCommitDiffs> {
     try {
       const git = await this.api.getGitApi();
+      const descriptors = branchDiffDescriptors(args.base, args.target);
       return await git.getCommitDiffs(
         args.repository,
         args.project,
         true, // diffCommonCommit
         0, // top — we only want counts, not the file change list
         0, // skip
-        { baseVersion: args.base, baseVersionType: GitVersionType.Branch },
-        { targetVersion: args.target, targetVersionType: GitVersionType.Branch },
+        descriptors.base,
+        descriptors.target,
       );
     }
     catch (err) {
