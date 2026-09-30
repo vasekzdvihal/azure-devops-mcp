@@ -8,6 +8,7 @@ import type {
   Deployment,
   DeploymentStatus,
   GitBranchStats,
+  GitCommitDiffs,
   GitCommitRef,
   GitPullRequest,
   GitPullRequestChange,
@@ -266,17 +267,29 @@ export interface AdoClient {
   listBranches: (args: {
     project: string;
     repository: string;
+    /** Short branch name; ahead/behind are measured against it instead of the default branch. */
+    baseBranch?: string;
   }) => Promise<GitBranchStats[]>;
 
   listCommits: (args: {
     project: string;
     repository: string;
     branch?: string;
+    /** Exclude commits reachable from this branch (commits in `branch` not in `notInBranch`). */
+    notInBranch?: string;
     fromDate?: string;
     toDate?: string;
     author?: string;
     top?: number;
   }) => Promise<GitCommitRef[]>;
+
+  /** Ahead/behind + change counts between two branches (GitApi.getCommitDiffs, diffCommonCommit). */
+  getCommitDiffs: (args: {
+    project: string;
+    repository: string;
+    base: string;
+    target: string;
+  }) => Promise<GitCommitDiffs>;
 
   // pipeline writes (Phase 4.1)
   queuePipelineRun: (args: {

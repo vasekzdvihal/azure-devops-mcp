@@ -135,7 +135,8 @@ export function buildPullRequestWriteTools(svc: PullRequestsWriteService): ToolD
           'Opens a new PR from `sourceBranch` into `targetBranch`. Branch names accept short form '
           + '(\'feature/x\') or full ref (\'refs/heads/feature/x\'). Title required, description recommended '
           + '(markdown). Optional `isDraft` and initial `reviewerIds`. Always confirm the source/target '
-          + 'and title with the user before calling — opening a PR is visible to the team.',
+          + 'and title with the user before calling — opening a PR is visible to the team. '
+          + '`webUrl` is the clickable browser link; `url` is the REST API URL.',
         inputSchema: CreatePullRequestInput,
       },
       handler: async args => svc.createPr(args as Parameters<typeof svc.createPr>[0]),

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const MAX_TOP = 200;
+const MAX_BRANCH_NAMES = 50;
 
 const repoCoords = {
   project: z.string().min(1).optional().describe(
@@ -11,7 +12,17 @@ const repoCoords = {
   ),
 };
 
-export const ListBranchesInput = { ...repoCoords };
+export const ListBranchesInput = {
+  ...repoCoords,
+  baseBranch: z.string().min(1).optional().describe(
+    'Measure aheadCount/behindCount against this branch instead of the repository default branch.',
+  ),
+  names: z.array(z.string().min(1)).min(1).max(MAX_BRANCH_NAMES).optional().describe(
+    'Return only these branches (exact short names). The result becomes { branches, missing } — '
+    + '`missing` lists requested names that do not exist.',
+  ),
+  nameContains: z.string().min(1).optional().describe('Case-insensitive substring filter on branch name.'),
+};
 
 export const ListCommitsInput = {
   ...repoCoords,
@@ -19,6 +30,10 @@ export const ListCommitsInput = {
     .string()
     .optional()
     .describe('Branch name (e.g. \'main\'). Omit to get commits across all branches.'),
+  notInBranch: z.string().min(1).optional().describe(
+    'Only commits in `branch` that are NOT reachable from this branch (e.g. branch=staging, '
+    + 'notInBranch=develop → what a staging→develop merge would bring). Requires `branch`.',
+  ),
   fromDate: z
     .string()
     .optional()
@@ -32,4 +47,12 @@ export const ListCommitsInput = {
     .optional()
     .describe('Filter to commits by this author (name or email as appearing in git metadata).'),
   top: z.number().int().positive().max(MAX_TOP).optional().describe('Max results (default 25).'),
+};
+
+export const CompareBranchesInput = {
+  ...repoCoords,
+  base: z.string().min(1).describe('Base branch (e.g. \'develop\').'),
+  target: z.string().min(1).describe('Target branch (e.g. \'staging\').'),
+  includeCommits: z.boolean().optional().describe('Also return the commits in target that are not in base (default false).'),
+  top: z.number().int().positive().max(MAX_TOP).optional().describe('Max commits when includeCommits (default 100).'),
 };

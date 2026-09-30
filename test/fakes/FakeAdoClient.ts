@@ -9,6 +9,7 @@ import type {
   Deployment,
   DeploymentStatus,
   GitBranchStats,
+  GitCommitDiffs,
   GitCommitRef,
   GitPullRequest,
   GitPullRequestChange,
@@ -268,6 +269,17 @@ export class FakeAdoClient implements AdoClient {
   private releaseDefDetails = new Map<string, ReleaseDefinition>(); // `${project} ${definitionId}`
   private branches = new Map<string, GitBranchStats[]>(); // `${project} ${repo}`
   private commits = new Map<string, GitCommitRef[]>(); // `${project} ${repo}`
+  private commitDiffs = new Map<string, GitCommitDiffs>(); // `${project} ${repo}`
+  private listBranchesCalls: Array<{ project: string; repository: string; baseBranch?: string }> = [];
+  private listCommitsCalls: Array<Parameters<AdoClient['listCommits']>[0]> = [];
+
+  getListBranchesCalls() {
+    return this.listBranchesCalls;
+  }
+
+  getListCommitsCalls() {
+    return this.listCommitsCalls;
+  }
 
   // ---- phase-3 setup helpers ----
   setReleaseDefinitions(project: string, defs: ReleaseDefinition[]): void {
@@ -316,6 +328,10 @@ export class FakeAdoClient implements AdoClient {
 
   setCommits(project: string, repository: string, commits: GitCommitRef[]): void {
     this.commits.set(`${project} ${repository}`, commits);
+  }
+
+  setCommitDiffs(project: string, repository: string, diffs: GitCommitDiffs): void {
+    this.commitDiffs.set(`${project} ${repository}`, diffs);
   }
 
   // ---- AdoClient impl ----
@@ -650,22 +666,37 @@ export class FakeAdoClient implements AdoClient {
   async listBranches(args: {
     project: string;
     repository: string;
+    baseBranch?: string;
   }): Promise<GitBranchStats[]> {
     this.throwIfInjected('listBranches');
+    this.listBranchesCalls.push({
+      project: args.project,
+      repository: args.repository,
+      ...(args.baseBranch ? { baseBranch: args.baseBranch } : {}),
+    });
     return this.branches.get(`${args.project} ${args.repository}`) ?? [];
   }
 
-  async listCommits(args: {
+  async listCommits(args: Parameters<AdoClient['listCommits']>[0]): Promise<GitCommitRef[]> {
+    this.throwIfInjected('listCommits');
+    this.listCommitsCalls.push(args);
+    return this.commits.get(`${args.project} ${args.repository}`) ?? [];
+  }
+
+  async getCommitDiffs(args: {
     project: string;
     repository: string;
-    branch?: string;
-    fromDate?: string;
-    toDate?: string;
-    author?: string;
-    top?: number;
-  }): Promise<GitCommitRef[]> {
-    this.throwIfInjected('listCommits');
-    return this.commits.get(`${args.project} ${args.repository}`) ?? [];
+    base: string;
+    target: string;
+  }): Promise<GitCommitDiffs> {
+    this.throwIfInjected('getCommitDiffs');
+    const diffs = this.commitDiffs.get(`${args.project} ${args.repository}`);
+    if (!diffs) {
+      throw new Error(
+        `FakeAdoClient.getCommitDiffs: no diffs configured for ${args.project} ${args.repository}`,
+      );
+    }
+    return diffs;
   }
 
   async createPullRequest(args: {

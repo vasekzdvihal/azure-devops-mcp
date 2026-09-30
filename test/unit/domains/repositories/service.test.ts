@@ -43,4 +43,25 @@ describe('repositoriesService.list', () => {
     const result = await svc.list({ project: 'P' });
     expect(result[0]?.defaultBranch).toBeUndefined();
   });
+
+  it('includes isDisabled, isInMaintenance, and size liveness fields', async () => {
+    const fake = new FakeAdoClient();
+    const repos: GitRepository[] = [
+      { id: 'r3', name: 'Dead', isDisabled: true, size: 0 },
+      {
+        id: 'r4',
+        name: 'Busy',
+        defaultBranch: 'refs/heads/main',
+        isInMaintenance: true,
+        size: 1234,
+      },
+    ];
+    fake.setRepositories('P', repos);
+    const svc = new RepositoriesService(fake);
+    const result = await svc.list({ project: 'P' });
+    expect(result).toEqual([
+      { id: 'r3', name: 'Dead', isDisabled: true, size: 0 },
+      { id: 'r4', name: 'Busy', defaultBranch: 'main', isInMaintenance: true, size: 1234 },
+    ]);
+  });
 });

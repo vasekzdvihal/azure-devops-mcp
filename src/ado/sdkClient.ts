@@ -10,6 +10,7 @@ import type {
   Deployment,
   DeploymentStatus,
   GitBranchStats,
+  GitCommitDiffs,
   GitCommitRef,
   GitPullRequest,
   GitPullRequestChange,
@@ -17,7 +18,6 @@ import type {
   GitPullRequestCompletionOptions,
   GitPullRequestIteration,
   GitPullRequestMergeStrategy,
-  GitQueryCommitsCriteria,
   GitRepository,
   Identity,
   IdentityRefWithVote,
@@ -42,6 +42,7 @@ import https from 'node:https';
 import * as azdev from 'azure-devops-node-api';
 import { GitVersionType } from 'azure-devops-node-api/interfaces/GitInterfaces.js';
 import { AdoError, AdoNotFoundError, AdoUnknownError, mapSdkError } from './errors.js';
+import { branchDiffDescriptors, commitQueryCriteria } from './queryShapes.js';
 import { buildHttpsAgent } from './tlsAgent.js';
 import { ConfigurationType, WorkItemExpand } from './types.js';
 
@@ -1217,13 +1218,19 @@ export class SdkAdoClient implements AdoClient {
   async listBranches(args: {
     project: string;
     repository: string;
+    baseBranch?: string;
   }): Promise<GitBranchStats[]> {
     try {
       const git = await this.api.getGitApi();
-      const branches = await git.getBranches(args.repository, args.project);
-      return branches;
+      const base = args.baseBranch
+        ? { version: args.baseBranch, versionType: GitVersionType.Branch }
+        : undefined;
+      return await git.getBranches(args.repository, args.project, base);
     }
     catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -1232,6 +1239,7 @@ export class SdkAdoClient implements AdoClient {
     project: string;
     repository: string;
     branch?: string;
+    notInBranch?: string;
     fromDate?: string;
     toDate?: string;
     author?: string;
@@ -1239,14 +1247,7 @@ export class SdkAdoClient implements AdoClient {
   }): Promise<GitCommitRef[]> {
     try {
       const git = await this.api.getGitApi();
-      const criteria: GitQueryCommitsCriteria = {
-        ...(args.branch
-          ? { itemVersion: { version: args.branch, versionType: 0 /* Branch */ } }
-          : {}),
-        ...(args.fromDate ? { fromDate: args.fromDate } : {}),
-        ...(args.toDate ? { toDate: args.toDate } : {}),
-        ...(args.author ? { author: args.author } : {}),
-      };
+      const criteria = commitQueryCriteria(args);
       const commits = await git.getCommits(
         args.repository,
         criteria,
@@ -1257,6 +1258,36 @@ export class SdkAdoClient implements AdoClient {
       return commits;
     }
     catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  async getCommitDiffs(args: {
+    project: string;
+    repository: string;
+    base: string;
+    target: string;
+  }): Promise<GitCommitDiffs> {
+    try {
+      const git = await this.api.getGitApi();
+      const descriptors = branchDiffDescriptors(args.base, args.target);
+      return await git.getCommitDiffs(
+        args.repository,
+        args.project,
+        true, // diffCommonCommit
+        0, // top — we only want counts, not the file change list
+        0, // skip
+        descriptors.base,
+        descriptors.target,
+      );
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }

@@ -330,6 +330,58 @@ Released as v0.4.0.
 
 ---
 
+## ✅ Phase 7a — Branch comparison & sweep reads
+
+**Status:** shipped 2026-09-24 in v0.13.0.
+
+**Goal:** the reads needed for a monthly downmerge sweep across many repos — per-repo "does `main → staging → develop` need work?", commit ranges, small branch lookups, clickable PR links, and repo liveness fields.
+
+**Tools shipped:**
+
+| Tool | Notes |
+| --- | --- |
+| `compare_branches` | new; `GitApi.getCommitDiffs` for ahead/behind counts + merge-base + file change counts; `includeCommits` fetches the actual commits separately |
+| `list_branches` | `baseBranch` measures ahead/behind against a branch other than the repo default; `names` (exact, returns `missing`) / `nameContains` narrow the list |
+| `list_commits` | `notInBranch` adds a commit-range filter (requires `branch`); `author.email` now called out in the tool description for identity lookups |
+| `list_pull_requests` / `get_pull_request` / `create_pull_request` | PR results gain `webUrl`, the clickable browser link |
+| `list_repositories` | adds `isDisabled`, `isInMaintenance`, `size` |
+
+**Key decisions / notes:**
+
+- **Client-side branch filtering.** `names`/`nameContains` filter after `getBranches` returns, not via a server-side query — the concern is response size in model context, not API cost.
+- **Commits for `compare_branches` via a second call.** `getCommitDiffs` returns file changes and ahead/behind counts, not a commit list, so `includeCommits` fetches commits separately via `getCommits` with a `compareVersion` descriptor.
+- **`webUrl` derived, not assembled.** Built from `repository.webUrl` (`${repository.webUrl}/pullrequest/${pullRequestId}`), never from collection URL/project/repo string concatenation; omitted when `repository.webUrl` is absent.
+- **Ahead/behind direction.** The direction follows ADO's branch-compare semantics (`aheadCount` = commits in `target` not in `base`, `behindCount` = commits in `base` not in `target`) and was verified live against an ADO Server (Newton.N2: main→staging 52/1, staging→develop 6/2, cross-checked with `git rev-list --left-right --count`).
+- **ADO query gotchas (found in the live check).** The SDK's `GitApi.getCommitDiffs` reads the descriptors' `.version`/`.versionType`, not `baseVersion`/`targetVersion` — setting the latter sends nothing, and ADO silently compares the default branch with itself. ADO's `getCommits` returns commits reachable from `compareVersion` but not from `itemVersion`, so `notInBranch` goes in `itemVersion` and `branch` in `compareVersion`. `src/ado/queryShapes.ts` and its wire tests (`test/unit/ado/queryShapes.test.ts`, which run the real SDK methods and capture their query values) pin both.
+
+**Spec:** `docs/superpowers/specs/2026-09-24-azure-devops-mcp-phase-7-branch-ops-retention-design.md` (slice 7a).
+**Plan:** `docs/superpowers/plans/2026-09-24-azure-devops-mcp-phase-7-branch-ops-retention.md`.
+
+---
+
+## 🟡 Phase 7b — Branch/repo/pipeline writes & build retention
+
+**Status:** planned.
+
+**Goal:** the write half of the same two workflows — create a branch, flip repo/pipeline default branches, and find/drop the retention leases blocking deletion of a dead build definition.
+
+**Tools planned:**
+
+| Tool | Notes |
+| --- | --- |
+| `create_branch` | new `commits` writeService; sha or branch `from`, guards against `updateRefs` reporting `success: false` |
+| `set_default_branch` | new `repositories` writeService; pre-checks the branch exists before pointing the repo default at it |
+| `set_pipeline_default_branch` | new `pipelines` writeService; `dryRun: true` by default, PUTs the full definition body back to preserve secret variables |
+| `list_build_leases` | new `retention` domain (read); `BuildApi.getRetentionLeasesForBuild`, `ownerType` parsed from the lease owner id |
+| `delete_build_lease` | new `retention` domain (write); refuses leases not on the given build or `protectPipeline: true` without `force` |
+| `find_build_retainers` | new `retention` domain (read); which release definitions still reference a build definition as an artifact source |
+
+**Deliberately out:** `delete_branch` (stays a human action behind branch policy), creating/updating retention leases, bulk `set_default_branch`.
+
+**Spec:** `docs/superpowers/specs/2026-09-24-azure-devops-mcp-phase-7-branch-ops-retention-design.md` (slice 7b).
+
+---
+
 ## Out of scope (and likely to stay that way)
 
 - **Wiki, artifacts, test plans, dashboards, packaging, audit, security scanning, repo settings.** Each could be its own phase, but each is a niche compared to the PR/pipeline/release/work-item core. We'd add them only if a specific colleague asks for one.

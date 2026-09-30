@@ -34,9 +34,13 @@ export type {
 
 // Git commits & branches
 export type {
+  GitBaseVersionDescriptor,
   GitBranchStats,
+  GitCommitDiffs,
   GitCommitRef,
   GitQueryCommitsCriteria,
+  GitTargetVersionDescriptor,
+  GitVersionDescriptor,
 } from 'azure-devops-node-api/interfaces/GitInterfaces.js';
 
 // Re-exports of azure-devops-node-api types we expose at the AdoClient seam.
