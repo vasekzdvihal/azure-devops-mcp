@@ -135,7 +135,8 @@ export function buildPipelineWriteTools(svc: PipelinesWriteService): ToolDefinit
           + 'and show the user the change list. Targets all pipelines for `repository`, or explicit '
           + '`definitionIds`; `fromBranch` limits to pipelines currently on that branch. Applies one '
           + 'definition at a time and reports updated / skipped / failed; one failure does not stop the '
-          + 'rest. Secret variables are preserved.',
+          + 'rest. Secret variables are preserved. Apply with the `definitionIds` from the dry run\'s '
+          + '`changes` so exactly the reviewed set is written.',
         inputSchema: SetPipelineDefaultBranchInput,
       },
       handler: async args =>

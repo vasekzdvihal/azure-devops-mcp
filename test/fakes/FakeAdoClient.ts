@@ -277,6 +277,7 @@ export class FakeAdoClient implements AdoClient {
   private pipelineDefDetails = new Map<string, BuildDefinition>(); // `${project} ${definitionId}`
   private releaseDefDetails = new Map<string, ReleaseDefinition>(); // `${project} ${definitionId}`
   private branches = new Map<string, GitBranchStats[]>(); // `${project} ${repo}`
+  private branchLookups: Array<{ project: string; repository: string; branch: string }> = [];
   private commits = new Map<string, GitCommitRef[]>(); // `${project} ${repo}`
   private commitDiffs = new Map<string, GitCommitDiffs>(); // `${project} ${repo}`
   private listBranchesCalls: Array<{ project: string; repository: string; baseBranch?: string }> = [];
@@ -357,6 +358,10 @@ export class FakeAdoClient implements AdoClient {
 
   setBranches(project: string, repository: string, branches: GitBranchStats[]): void {
     this.branches.set(`${project} ${repository}`, branches);
+  }
+
+  getBranchCalls(): ReadonlyArray<{ project: string; repository: string; branch: string }> {
+    return this.branchLookups;
   }
 
   setNextRefUpdateResults(results: GitRefUpdateResult[]): void {
@@ -744,6 +749,7 @@ export class FakeAdoClient implements AdoClient {
     branch: string;
   }): Promise<GitBranchStats | null> {
     this.throwIfInjected('getBranch');
+    this.branchLookups.push({ project: args.project, repository: args.repository, branch: args.branch });
     const branches = this.branches.get(`${args.project} ${args.repository}`) ?? [];
     return branches.find(branch => (branch.name ?? '').replace(/^refs\/heads\//, '') === args.branch) ?? null;
   }

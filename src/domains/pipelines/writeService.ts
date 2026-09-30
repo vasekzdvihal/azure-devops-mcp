@@ -26,6 +26,20 @@ function shortRef(ref: string): string {
   return ref.replace(/^refs\/heads\//, '');
 }
 
+// set_pipeline_default_branch only ever writes a branch: a short name or refs/heads/... is
+// accepted, any other ref (refs/tags/..., refs/pull/...) is rejected before anything is read.
+function branchRef(label: string, branch: string): string {
+  if (!branch.startsWith('refs/')) {
+    return `refs/heads/${branch}`;
+  }
+  if (branch.startsWith('refs/heads/')) {
+    return branch;
+  }
+  throw new Error(
+    `set_pipeline_default_branch: ${label} '${branch}' is not a branch; pass a short name or refs/heads/<name>.`,
+  );
+}
+
 export interface QueueRunResult {
   runId: number;
   name?: string;
@@ -112,6 +126,18 @@ interface PlannedDefaultBranchChange {
   definition: BuildDefinition;
 }
 
+// Why a definition's repository can't be targeted at all, or undefined when it can.
+function unsupportedRepository(definition: BuildDefinition): string | undefined {
+  if (!definition.repository) {
+    return 'definition has no repository';
+  }
+  if (definition.repository.type !== AZURE_REPOS_GIT) {
+    // Only Azure Repos branches can be verified (getBranch) — never write what we can't check.
+    return `repository type '${definition.repository.type ?? '(unset)'}' is not Azure Repos Git; not changed`;
+  }
+  return undefined;
+}
+
 function classifyDefaultBranch(
   id: number,
   definition: BuildDefinition,
@@ -122,8 +148,9 @@ function classifyDefaultBranch(
   // The default branch lives on definition.repository, NOT a top-level field.
   const currentRef = ensureRefsHeads(definition.repository?.defaultBranch);
   const current = currentRef ? shortRef(currentRef) : undefined;
-  if (!definition.repository) {
-    return { id, name, reason: 'definition has no repository' };
+  const unsupported = unsupportedRepository(definition);
+  if (unsupported) {
+    return { id, name, current, reason: unsupported };
   }
   if (from && currentRef !== from) {
     return { id, name, current, reason: `defaultBranch is '${current ?? '(unset)'}', not '${shortRef(from)}'` };
@@ -365,18 +392,23 @@ export class PipelinesWriteService {
     definitionIds?: number[];
     dryRun?: boolean;
   }): Promise<SetPipelineDefaultBranchResult> {
+    const to = branchRef('toBranch', args.toBranch);
+    const from = args.fromBranch ? branchRef('fromBranch', args.fromBranch) : undefined;
     const ids = await this.candidateIds(args);
-    const to = ensureRefsHeads(args.toBranch) ?? args.toBranch;
-    const from = ensureRefsHeads(args.fromBranch);
     const planned: PlannedDefaultBranchChange[] = [];
     const skipped: DefaultBranchSkip[] = [];
     const seen = new Set<string>();
+    // repository id -> does toBranch exist there; one getBranch per repo, not per definition.
+    const toBranchExists = new Map<string, boolean>();
 
     // Sequential on purpose: on-prem servers throttle, and a bulk run over ~100 definitions
     // is fine one GET at a time.
     for (const id of ids) {
       const definition = await this.client.getPipelineDefinition({ project: args.project, definitionId: id });
-      const outcome = classifyDefaultBranch(id, definition, from, to);
+      const classified = classifyDefaultBranch(id, definition, from, to);
+      const outcome = 'reason' in classified
+        ? classified
+        : await this.verifyToBranch(definition, classified, { project: args.project, to, cache: toBranchExists });
       if (outcome.current) {
         seen.add(outcome.current);
       }
@@ -400,6 +432,27 @@ export class PipelinesWriteService {
     }
 
     return { dryRun: false, skipped, ...(await this.applyDefaultBranch(args.project, planned, to)) };
+  }
+
+  // A typo'd or not-yet-created toBranch must never be written to a definition: verify it
+  // exists in the definition's repository (cached per repository id) before planning the PUT.
+  private async verifyToBranch(
+    definition: BuildDefinition,
+    change: DefaultBranchChange,
+    { project, to, cache }: { project: string; to: string; cache: Map<string, boolean> },
+  ): Promise<DefaultBranchChange | DefaultBranchSkip> {
+    const repoId = definition.repository?.id;
+    const repoName = definition.repository?.name ?? repoId ?? '(unknown repository)';
+    const skip = { id: change.id, name: change.name, current: change.current };
+    if (!repoId) {
+      return { ...skip, reason: 'definition repository has no id; cannot verify toBranch; not changed' };
+    }
+    let exists = cache.get(repoId);
+    if (exists === undefined) {
+      exists = (await this.client.getBranch({ project, repository: repoId, branch: shortRef(to) })) !== null;
+      cache.set(repoId, exists);
+    }
+    return exists ? change : { ...skip, reason: `toBranch '${shortRef(to)}' does not exist in ${repoName}` };
   }
 
   private async applyDefaultBranch(
