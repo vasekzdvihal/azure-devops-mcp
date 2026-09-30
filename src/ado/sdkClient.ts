@@ -1131,7 +1131,15 @@ export class SdkAdoClient implements AdoClient {
   }): Promise<BuildDefinition> {
     try {
       const build = await this.api.getBuildApi();
-      return await build.updateDefinition(args.definition, args.project, args.definitionId);
+      const updated = await build.updateDefinition(args.definition, args.project, args.definitionId);
+      // typed-rest-client resolves `{ result: null }` on a 404 (see getBranch) — a missing
+      // definition must not read as a successful update.
+      if (!updated) {
+        throw new AdoNotFoundError(
+          `Pipeline definition ${args.definitionId} not found in project '${args.project}'`,
+        );
+      }
+      return updated;
     }
     catch (err) {
       if (err instanceof AdoError) {
