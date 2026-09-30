@@ -261,6 +261,7 @@ export class FakeAdoClient implements AdoClient {
   private releaseDetails = new Map<string, Release>(); // `${project} ${releaseId}`
   private deployments = new Map<string, Deployment[]>(); // project
   private pipelines = new Map<string, BuildDefinition[]>(); // project
+  private pipelineDefUpdateErrors = new Map<number, Error>(); // definitionId
   private listPipelinesCalls: Array<{ project: string; repositoryId?: string; repositoryType?: string }> = [];
   private pipelineRuns = new Map<string, Build[]>(); // project
   private pipelineRunDetails = new Map<
@@ -1087,6 +1088,11 @@ export class FakeAdoClient implements AdoClient {
     this.nextUpdatedPipelineDef = def;
   }
 
+  // Fail updatePipelineDefinition for one definition only (bulk failure-isolation tests).
+  injectPipelineDefUpdateError(definitionId: number, err: Error): void {
+    this.pipelineDefUpdateErrors.set(definitionId, err);
+  }
+
   getPipelineDefUpdates() {
     return this.pipelineDefUpdates;
   }
@@ -1107,6 +1113,10 @@ export class FakeAdoClient implements AdoClient {
     definition: BuildDefinition;
   }): Promise<BuildDefinition> {
     this.throwIfInjected('updatePipelineDefinition');
+    const perDefErr = this.pipelineDefUpdateErrors.get(args.definitionId);
+    if (perDefErr) {
+      throw perDefErr;
+    }
     this.pipelineDefUpdates.push(args);
     return this.nextUpdatedPipelineDef ?? args.definition;
   }

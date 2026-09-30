@@ -435,7 +435,9 @@ export class PipelinesWriteService {
     definitionIds?: number[];
   }): Promise<number[]> {
     if (args.definitionIds?.length) {
-      return args.definitionIds;
+      // Dedupe (first-seen order): a repeated id would be PUT twice and the second PUT would
+      // fail on a stale revision.
+      return [...new Set(args.definitionIds)];
     }
     if (!args.repository) {
       throw new Error('set_pipeline_default_branch: provide `repository` or `definitionIds` (no project-wide sweeps).');

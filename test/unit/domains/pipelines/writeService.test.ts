@@ -522,6 +522,44 @@ describe('pipelinesWriteService.setDefaultBranch', () => {
     expect(result.failed[0]?.error).toMatch(/stale/);
   });
 
+  it('dedupes repeated definitionIds so each definition is put exactly once', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    const dry = await svc.setDefaultBranch({ project: 'P', definitionIds: [1, 1], toBranch: 'main' });
+    if (!dry.dryRun) {
+      throw new Error('expected dry run');
+    }
+    expect(dry.changes.map(change => change.id)).toEqual([1]);
+
+    const applied = await svc.setDefaultBranch({ project: 'P', definitionIds: [1, 1], toBranch: 'main', dryRun: false });
+    if (applied.dryRun) {
+      throw new Error('expected apply');
+    }
+    expect(fake.getPipelineDefUpdates()).toHaveLength(1);
+    expect(applied.updated.map(change => change.id)).toEqual([1]);
+    expect(applied.failed).toEqual([]);
+  });
+
+  it('keeps updating the remaining definitions after one update fails', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    fake.setPipelineDefinition('P', 2, {
+      id: 2,
+      name: 'web-ci',
+      repository: { defaultBranch: 'refs/heads/master' },
+    } as BuildDefinition);
+    fake.injectPipelineDefUpdateError(1, new AdoConflictError('stale'));
+    const result = await svc.setDefaultBranch({ project: 'P', definitionIds: [1, 2], toBranch: 'main', dryRun: false });
+    if (result.dryRun) {
+      throw new Error('expected apply');
+    }
+    expect(result.updated).toEqual([{ id: 2, name: 'web-ci', current: 'master', next: 'main' }]);
+    expect(result.failed).toHaveLength(1);
+    expect(result.failed[0]).toMatchObject({ id: 1, name: 'api-ci' });
+    expect(result.failed[0]?.error).toMatch(/stale/);
+    expect(fake.getPipelineDefUpdates().map(update => update.definitionId)).toEqual([2]);
+  });
+
   it('refuses a project-wide sweep when neither repository nor definitionIds is given', async () => {
     const { svc } = makeSvc();
     await expect(svc.setDefaultBranch({ project: 'P', toBranch: 'main' }))

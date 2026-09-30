@@ -197,13 +197,13 @@ export const SetPipelineDefaultBranchInput = {
     .string()
     .min(1)
     .optional()
-    .describe('Repository name — targets every pipeline built from it. Required unless definitionIds is given.'),
+    .describe('Repository name — targets every pipeline built from it. Required unless definitionIds is given; ignored when definitionIds is given.'),
   definitionIds: z
     .array(z.number().int().positive())
     .min(1)
     .max(MAX_DEFINITION_IDS)
     .optional()
-    .describe('Explicit pipeline definition ids.'),
+    .describe('Explicit pipeline definition ids. Takes precedence: when given, `repository` is ignored.'),
   fromBranch: z
     .string()
     .min(1)
