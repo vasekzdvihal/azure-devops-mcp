@@ -1348,6 +1348,39 @@ export class SdkAdoClient implements AdoClient {
     }
   }
 
+  /**
+   * Sets a repository's default branch. `GitApi.updateRepository` sends the body via
+   * typed-rest-client's `RestClient.update()`, which issues an HTTP PATCH (`HttpClient.patch`)
+   * to the repository's own route (routeValues: `{ project, repositoryId }`) — see
+   * `test/unit/ado/updateRepository.wire.test.ts`. The same null-on-404 behavior documented on
+   * `getBranch`/`updateRefs` above applies: a bad repository/project resolves `null` rather than
+   * rejecting.
+   */
+  async updateRepositoryDefaultBranch(args: {
+    project: string;
+    repositoryId: string;
+    defaultBranch: string;
+  }): Promise<GitRepository> {
+    try {
+      const git = await this.api.getGitApi();
+      const updated = await git.updateRepository(
+        { defaultBranch: args.defaultBranch },
+        args.repositoryId,
+        args.project,
+      );
+      if (!updated) {
+        throw new AdoNotFoundError(`repository '${args.repositoryId}' not found in project '${args.project}'`);
+      }
+      return updated;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
   // -------- work items (WorkItemTrackingApi + GitApi) --------
 
   async queryWorkItemIds(args: { project: string; wiql: string; team?: string }): Promise<number[]> {

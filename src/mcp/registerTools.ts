@@ -22,6 +22,8 @@ import { ReleasesWriteService } from '../domains/releases/writeService.js';
 import { buildReleaseWriteTools } from '../domains/releases/writeTools.js';
 import { RepositoriesReadService } from '../domains/repositories/readService.js';
 import { buildRepositoriesReadTools } from '../domains/repositories/readTools.js';
+import { RepositoriesWriteService } from '../domains/repositories/writeService.js';
+import { buildRepositoriesWriteTools } from '../domains/repositories/writeTools.js';
 import { WorkItemsReadService } from '../domains/workItems/readService.js';
 import { buildWorkItemsReadTools } from '../domains/workItems/readTools.js';
 import { WorkItemsWriteService } from '../domains/workItems/writeService.js';
@@ -67,6 +69,7 @@ export function registerAllTools(
         ...buildReleaseWriteTools(new ReleasesWriteService(client)),
         ...buildWorkItemsWriteTools(new WorkItemsWriteService(client)),
         ...buildCommitsWriteTools(new CommitsWriteService(client)),
+        ...buildRepositoriesWriteTools(new RepositoriesWriteService(client)),
       ];
 
   for (const tool of [...readTools, ...writeTools]) {

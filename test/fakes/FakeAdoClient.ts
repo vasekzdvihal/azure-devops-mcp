@@ -276,6 +276,7 @@ export class FakeAdoClient implements AdoClient {
   private listCommitsCalls: Array<Parameters<AdoClient['listCommits']>[0]> = [];
   private nextRefUpdateResults?: GitRefUpdateResult[];
   private refUpdateCalls: Array<{ project: string; repository: string; updates: GitRefUpdate[] }> = [];
+  private repositoryUpdates: Array<{ project: string; repositoryId: string; defaultBranch: string }> = [];
 
   getListBranchesCalls() {
     return this.listBranchesCalls;
@@ -287,6 +288,10 @@ export class FakeAdoClient implements AdoClient {
 
   getRefUpdateCalls() {
     return this.refUpdateCalls;
+  }
+
+  getRepositoryUpdates() {
+    return this.repositoryUpdates;
   }
 
   // ---- phase-3 setup helpers ----
@@ -734,6 +739,24 @@ export class FakeAdoClient implements AdoClient {
     const results = this.nextRefUpdateResults;
     this.nextRefUpdateResults = undefined;
     return results;
+  }
+
+  async updateRepositoryDefaultBranch(args: {
+    project: string;
+    repositoryId: string;
+    defaultBranch: string;
+  }): Promise<GitRepository> {
+    this.throwIfInjected('updateRepositoryDefaultBranch');
+    this.repositoryUpdates.push(args);
+    for (const repos of this.repos.values()) {
+      const repo = repos.find(candidate => candidate.id === args.repositoryId);
+      if (repo) {
+        return { ...repo, defaultBranch: args.defaultBranch };
+      }
+    }
+    throw new Error(
+      `FakeAdoClient.updateRepositoryDefaultBranch: no repository configured for id '${args.repositoryId}'`,
+    );
   }
 
   async createPullRequest(args: {

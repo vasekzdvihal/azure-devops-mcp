@@ -308,6 +308,13 @@ export interface AdoClient {
     updates: GitRefUpdate[];
   }) => Promise<GitRefUpdateResult[]>;
 
+  /** Sets a repository's default branch. `defaultBranch` is the full `refs/heads/<name>` ref. */
+  updateRepositoryDefaultBranch: (args: {
+    project: string;
+    repositoryId: string;
+    defaultBranch: string;
+  }) => Promise<GitRepository>;
+
   // pipeline writes (Phase 4.1)
   queuePipelineRun: (args: {
     project: string;
