@@ -1,8 +1,8 @@
 import type { ToolDefinition } from '../identity/tools.js';
-import type { RepositoriesService } from './service.js';
+import type { RepositoriesReadService } from './readService.js';
 import { z } from 'zod';
 
-export function buildRepositoriesTools(svc: RepositoriesService): ToolDefinition[] {
+export function buildRepositoriesReadTools(svc: RepositoriesReadService): ToolDefinition[] {
   return [
     {
       name: 'list_repositories',

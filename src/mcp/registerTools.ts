@@ -18,8 +18,8 @@ import { ReleasesReadService } from '../domains/releases/readService.js';
 import { buildReleasesReadTools } from '../domains/releases/readTools.js';
 import { ReleasesWriteService } from '../domains/releases/writeService.js';
 import { buildReleaseWriteTools } from '../domains/releases/writeTools.js';
-import { RepositoriesService } from '../domains/repositories/service.js';
-import { buildRepositoriesTools } from '../domains/repositories/tools.js';
+import { RepositoriesReadService } from '../domains/repositories/readService.js';
+import { buildRepositoriesReadTools } from '../domains/repositories/readTools.js';
 import { WorkItemsReadService } from '../domains/workItems/readService.js';
 import { buildWorkItemsReadTools } from '../domains/workItems/readTools.js';
 import { WorkItemsWriteService } from '../domains/workItems/writeService.js';
@@ -49,7 +49,7 @@ export function registerAllTools(
   const readTools = [
     ...buildIdentityTools(new IdentityService(client)),
     ...buildProjectsTools(new ProjectsService(client)),
-    ...buildRepositoriesTools(new RepositoriesService(client)),
+    ...buildRepositoriesReadTools(new RepositoriesReadService(client)),
     ...buildPullRequestReadTools(new PullRequestsReadService(client)),
     ...buildReleasesReadTools(new ReleasesReadService(client)),
     ...buildPipelinesReadTools(new PipelinesReadService(client)),

@@ -11,7 +11,7 @@ export interface RepoSummary {
   size?: number;
 }
 
-export class RepositoriesService {
+export class RepositoriesReadService {
   constructor(private readonly client: AdoClient) {}
 
   async list(args: { project: string }): Promise<RepoSummary[]> {
