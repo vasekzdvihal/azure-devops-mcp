@@ -17,6 +17,8 @@ import type {
   GitPullRequestCompletionOptions,
   GitPullRequestIteration,
   GitPullRequestMergeStrategy,
+  GitRefUpdate,
+  GitRefUpdateResult,
   GitRepository,
   Identity,
   IdentityRefWithVote,
@@ -272,6 +274,8 @@ export class FakeAdoClient implements AdoClient {
   private commitDiffs = new Map<string, GitCommitDiffs>(); // `${project} ${repo}`
   private listBranchesCalls: Array<{ project: string; repository: string; baseBranch?: string }> = [];
   private listCommitsCalls: Array<Parameters<AdoClient['listCommits']>[0]> = [];
+  private nextRefUpdateResults?: GitRefUpdateResult[];
+  private refUpdateCalls: Array<{ project: string; repository: string; updates: GitRefUpdate[] }> = [];
 
   getListBranchesCalls() {
     return this.listBranchesCalls;
@@ -279,6 +283,10 @@ export class FakeAdoClient implements AdoClient {
 
   getListCommitsCalls() {
     return this.listCommitsCalls;
+  }
+
+  getRefUpdateCalls() {
+    return this.refUpdateCalls;
   }
 
   // ---- phase-3 setup helpers ----
@@ -324,6 +332,10 @@ export class FakeAdoClient implements AdoClient {
 
   setBranches(project: string, repository: string, branches: GitBranchStats[]): void {
     this.branches.set(`${project} ${repository}`, branches);
+  }
+
+  setNextRefUpdateResults(results: GitRefUpdateResult[]): void {
+    this.nextRefUpdateResults = results;
   }
 
   setCommits(project: string, repository: string, commits: GitCommitRef[]): void {
@@ -697,6 +709,31 @@ export class FakeAdoClient implements AdoClient {
       );
     }
     return diffs;
+  }
+
+  async getBranch(args: {
+    project: string;
+    repository: string;
+    branch: string;
+  }): Promise<GitBranchStats | null> {
+    this.throwIfInjected('getBranch');
+    const branches = this.branches.get(`${args.project} ${args.repository}`) ?? [];
+    return branches.find(branch => (branch.name ?? '').replace(/^refs\/heads\//, '') === args.branch) ?? null;
+  }
+
+  async updateRefs(args: {
+    project: string;
+    repository: string;
+    updates: GitRefUpdate[];
+  }): Promise<GitRefUpdateResult[]> {
+    this.throwIfInjected('updateRefs');
+    this.refUpdateCalls.push(args);
+    if (!this.nextRefUpdateResults) {
+      throw new Error('FakeAdoClient.updateRefs: no results configured (setNextRefUpdateResults not called)');
+    }
+    const results = this.nextRefUpdateResults;
+    this.nextRefUpdateResults = undefined;
+    return results;
   }
 
   async createPullRequest(args: {

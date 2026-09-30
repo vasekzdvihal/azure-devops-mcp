@@ -16,6 +16,8 @@ import type {
   GitPullRequestCompletionOptions,
   GitPullRequestIteration,
   GitPullRequestMergeStrategy,
+  GitRefUpdate,
+  GitRefUpdateResult,
   GitRepository,
   Identity,
   IdentityRefWithVote,
@@ -290,6 +292,21 @@ export interface AdoClient {
     base: string;
     target: string;
   }) => Promise<GitCommitDiffs>;
+
+  /** Statistics about a single branch (short name, no `refs/heads/` prefix). Null when it does not exist. */
+  getBranch: (args: {
+    project: string;
+    repository: string;
+    branch: string;
+  }) => Promise<GitBranchStats | null>;
+
+  // commit & branch writes (Phase 7b)
+  /** Create, update, or delete refs (branches). Used by create_branch to push a new `refs/heads/<name>`. */
+  updateRefs: (args: {
+    project: string;
+    repository: string;
+    updates: GitRefUpdate[];
+  }) => Promise<GitRefUpdateResult[]>;
 
   // pipeline writes (Phase 4.1)
   queuePipelineRun: (args: {

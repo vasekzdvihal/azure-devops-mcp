@@ -2,6 +2,8 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AdoClient } from '../ado/client.js';
 import { CommitsReadService } from '../domains/commits/readService.js';
 import { buildCommitsReadTools } from '../domains/commits/readTools.js';
+import { CommitsWriteService } from '../domains/commits/writeService.js';
+import { buildCommitsWriteTools } from '../domains/commits/writeTools.js';
 import { IdentityService } from '../domains/identity/service.js';
 import { buildIdentityTools } from '../domains/identity/tools.js';
 import { PipelinesReadService } from '../domains/pipelines/readService.js';
@@ -64,6 +66,7 @@ export function registerAllTools(
         ...buildPipelineWriteTools(new PipelinesWriteService(client)),
         ...buildReleaseWriteTools(new ReleasesWriteService(client)),
         ...buildWorkItemsWriteTools(new WorkItemsWriteService(client)),
+        ...buildCommitsWriteTools(new CommitsWriteService(client)),
       ];
 
   for (const tool of [...readTools, ...writeTools]) {

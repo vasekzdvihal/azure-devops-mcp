@@ -39,9 +39,13 @@ export type {
   GitCommitDiffs,
   GitCommitRef,
   GitQueryCommitsCriteria,
+  GitRefUpdate,
+  GitRefUpdateResult,
   GitTargetVersionDescriptor,
   GitVersionDescriptor,
 } from 'azure-devops-node-api/interfaces/GitInterfaces.js';
+// Used as a value: GitRefUpdateStatus[result.updateStatus] to label a rejected ref update.
+export { GitRefUpdateStatus } from 'azure-devops-node-api/interfaces/GitInterfaces.js';
 
 // Re-exports of azure-devops-node-api types we expose at the AdoClient seam.
 // Keeping a single import surface here means downstream files don't import from

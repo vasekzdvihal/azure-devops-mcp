@@ -18,6 +18,8 @@ import type {
   GitPullRequestCompletionOptions,
   GitPullRequestIteration,
   GitPullRequestMergeStrategy,
+  GitRefUpdate,
+  GitRefUpdateResult,
   GitRepository,
   Identity,
   IdentityRefWithVote,
@@ -1283,6 +1285,52 @@ export class SdkAdoClient implements AdoClient {
         descriptors.base,
         descriptors.target,
       );
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  /**
+   * Statistics for one branch. Null when the branch does not exist.
+   *
+   * The SDK's `rest.get` intercepts HTTP 404 itself and resolves `{ result: null }` instead
+   * of rejecting (see typed-rest-client's RestClient.processResponse), so `git.getBranch`
+   * resolves `undefined`/`null` for a missing branch rather than throwing. The `AdoNotFoundError`
+   * check in the catch below is defensive, in case a server variant throws instead.
+   */
+  async getBranch(args: {
+    project: string;
+    repository: string;
+    branch: string;
+  }): Promise<GitBranchStats | null> {
+    try {
+      const git = await this.api.getGitApi();
+      return (await git.getBranch(args.repository, args.branch, args.project)) ?? null;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      const mapped = mapSdkError(err);
+      if (mapped instanceof AdoNotFoundError) {
+        return null;
+      }
+      throw mapped;
+    }
+  }
+
+  async updateRefs(args: {
+    project: string;
+    repository: string;
+    updates: GitRefUpdate[];
+  }): Promise<GitRefUpdateResult[]> {
+    try {
+      const git = await this.api.getGitApi();
+      return await git.updateRefs(args.updates, args.repository, args.project);
     }
     catch (err) {
       if (err instanceof AdoError) {
