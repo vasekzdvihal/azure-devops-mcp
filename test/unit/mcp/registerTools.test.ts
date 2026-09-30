@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { registerAllTools } from '../../../src/mcp/registerTools.js';
 import { FakeAdoClient } from '../../fakes/FakeAdoClient.js';
 
-const FULL_TOOL_COUNT = 62;
+const FULL_TOOL_COUNT = 63;
 const READ_ONLY_TOOL_COUNT = 26;
 
 const FULL_ONLY_NAMES = [
@@ -16,6 +16,7 @@ const FULL_ONLY_NAMES = [
   'create_branch',
   'set_default_branch',
   'set_pipeline_default_branch',
+  'delete_build_lease',
 ];
 
 // Stub server: records every registerTool(name, config, handler) call. registerAllTools only

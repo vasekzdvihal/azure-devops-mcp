@@ -474,4 +474,8 @@ export interface AdoClient {
 
   /** Every classic release definition in the project, with its artifacts expanded (all pages). */
   listReleaseDefinitionsWithArtifacts: (args: { project: string }) => Promise<ReleaseDefinition[]>;
+
+  // retention (Phase 7b, Task 12)
+  /** Deletes one or more retention leases so they stop retaining their build. Irreversible. */
+  deleteRetentionLeases: (args: { project: string; leaseIds: number[] }) => Promise<void>;
 }

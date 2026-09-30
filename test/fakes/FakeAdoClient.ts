@@ -1148,6 +1148,8 @@ export class FakeAdoClient implements AdoClient {
   private nextUpdatedWorkItem?: WorkItem;
   private addedWorkItemComments: Array<{ project: string; id: number; text: string }> = [];
   private deletedWorkItemComments: Array<{ project: string; id: number; commentId: number }> = [];
+  // ---- phase-7b task-12 state (retention delete) ----
+  private deletedLeaseIds: number[] = [];
   private nextAddedComment?: WorkItemComment;
 
   // ---- phase-4.2 release write state ----
@@ -1301,6 +1303,10 @@ export class FakeAdoClient implements AdoClient {
     return this.deletedWorkItemComments;
   }
 
+  getDeletedLeaseIds(): readonly number[] {
+    return this.deletedLeaseIds;
+  }
+
   async updateReleaseDefinition(args: {
     project: string;
     definition: ReleaseDefinition;
@@ -1390,5 +1396,11 @@ export class FakeAdoClient implements AdoClient {
   async listReleaseDefinitionsWithArtifacts(args: { project: string }): Promise<ReleaseDefinition[]> {
     this.throwIfInjected('listReleaseDefinitionsWithArtifacts');
     return this.releaseDefsWithArtifacts.get(args.project) ?? [];
+  }
+
+  // ---- phase-7b task-12 (retention delete) ----
+  async deleteRetentionLeases(args: { project: string; leaseIds: number[] }): Promise<void> {
+    this.throwIfInjected('deleteRetentionLeases');
+    this.deletedLeaseIds.push(...args.leaseIds);
   }
 }

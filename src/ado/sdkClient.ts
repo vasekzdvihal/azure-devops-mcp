@@ -1014,6 +1014,19 @@ export class SdkAdoClient implements AdoClient {
     }
   }
 
+  async deleteRetentionLeases(args: { project: string; leaseIds: number[] }): Promise<void> {
+    try {
+      const build = await this.api.getBuildApi();
+      await build.deleteRetentionLeasesById(args.project, args.leaseIds);
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
   // -------- pipelines (PipelinesApi / BuildApi write ops) --------
 
   async queuePipelineRun(args: {

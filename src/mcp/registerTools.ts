@@ -26,6 +26,8 @@ import { RepositoriesWriteService } from '../domains/repositories/writeService.j
 import { buildRepositoriesWriteTools } from '../domains/repositories/writeTools.js';
 import { RetentionReadService } from '../domains/retention/readService.js';
 import { buildRetentionReadTools } from '../domains/retention/readTools.js';
+import { RetentionWriteService } from '../domains/retention/writeService.js';
+import { buildRetentionWriteTools } from '../domains/retention/writeTools.js';
 import { WorkItemsReadService } from '../domains/workItems/readService.js';
 import { buildWorkItemsReadTools } from '../domains/workItems/readTools.js';
 import { WorkItemsWriteService } from '../domains/workItems/writeService.js';
@@ -73,6 +75,7 @@ export function registerAllTools(
         ...buildWorkItemsWriteTools(new WorkItemsWriteService(client)),
         ...buildCommitsWriteTools(new CommitsWriteService(client)),
         ...buildRepositoriesWriteTools(new RepositoriesWriteService(client)),
+        ...buildRetentionWriteTools(new RetentionWriteService(client)),
       ];
 
   for (const tool of [...readTools, ...writeTools]) {
