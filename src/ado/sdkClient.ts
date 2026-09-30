@@ -44,6 +44,7 @@ import https from 'node:https';
 // src/ado/sdkClient.ts
 import * as azdev from 'azure-devops-node-api';
 import { GitVersionType } from 'azure-devops-node-api/interfaces/GitInterfaces.js';
+import { TypeInfo as ReleaseTypeInfo } from 'azure-devops-node-api/interfaces/ReleaseInterfaces.js';
 import { AdoError, AdoNotFoundError, AdoUnknownError, mapSdkError } from './errors.js';
 import { branchDiffDescriptors, commitQueryCriteria } from './queryShapes.js';
 import { buildHttpsAgent } from './tlsAgent.js';
@@ -53,6 +54,28 @@ import { ConfigurationType, ReleaseDefinitionExpands, WorkItemExpand } from './t
 const APPROVAL_STATUS_APPROVED = 2;
 const APPROVAL_STATUS_REJECTED = 4;
 const DEFAULT_COMMENTS_TOP = 20;
+
+// Copied from azure-devops-node-api/ReleaseApi.js's getReleaseDefinitions (~line 671):
+// `this.vsoClient.getVersioningData("7.2-preview.4", "Release", "d8f96f24-…", routeValues,
+// queryValues)`. listReleaseDefinitionsWithArtifacts below calls vsoClient/rest directly
+// (instead of the convenience method) so it can read the `x-ms-continuationtoken` response
+// header, which `getReleaseDefinitions` itself never surfaces (see that method's doc comment).
+// Re-check both values against that line if azure-devops-node-api is ever upgraded.
+const RELEASE_DEFINITIONS_API_VERSION = '7.2-preview.4';
+const RELEASE_DEFINITIONS_LOCATION_ID = 'd8f96f24-8ea7-4cb6-baab-2df8fc515665';
+// Runaway guard: stop chaining continuation tokens after this many pages rather than looping
+// forever if ADO ever sends a token back after the header-driven code below misparses it.
+const MAX_RELEASE_DEFINITION_PAGES = 100;
+
+/**
+ * `typed-rest-client`'s `IRestResponse.headers` is typed as the bare `Object` (a typing gap in
+ * that package), but at runtime it's Node's `http.IncomingMessage.headers` — keys already
+ * lower-cased, values `string | string[] | undefined` (arrays for headers that can repeat).
+ */
+function continuationTokenFromHeaders(headers: object): string | undefined {
+  const value = (headers as Record<string, string | string[] | undefined>)['x-ms-continuationtoken'];
+  return Array.isArray(value) ? value[0] : value;
+}
 
 export interface SdkAdoClientOptions {
   baseUrl: string;
@@ -670,41 +693,55 @@ export class SdkAdoClient implements AdoClient {
    * All classic release definitions in the project, with `artifacts` expanded, across every
    * page.
    *
-   * FINDING (Task 11): `ReleaseApi.getReleaseDefinitions` never surfaces the real
+   * `ReleaseApi.getReleaseDefinitions` (the SDK's convenience method) never surfaces the real
    * `x-ms-continuationtoken` response header on its returned `PagedList` — `formatResponse`
    * (ClientApiBases.js) only deserializes `res.result` and never reads `res.headers`, and
    * `ContractSerializer.deserialize`'s "unwrap wrapped collections" step replaces the response
-   * body with just its `.value` array, discarding any sibling property. So against a real
-   * server `page.continuationToken` is always `undefined` here and this loop runs exactly once.
-   * The loop is kept anyway: it's harmless (never triggers a second request in practice),
-   * future-proofs against an SDK fix, and `page.continuationToken` isn't part of
-   * `PagedList`'s declared shape at *this* call site (TS only sees the plain array from
-   * `Promise<ReleaseDefinition[]>`-shaped usage below), so it's read defensively via an index
-   * signature rather than assumed to exist.
+   * body with just its `.value` array, discarding any sibling property — so `page.continuationToken`
+   * is always `undefined` there, and a do-while loop built on top of it would silently return only
+   * page 1 for any project with enough release definitions to paginate.
+   *
+   * This method instead drives `ReleaseApi`'s own `vsoClient` / `rest` / `createRequestOptions` /
+   * `formatResponse` members directly — the exact plumbing `getReleaseDefinitions` uses
+   * internally (see `RELEASE_DEFINITIONS_API_VERSION`/`RELEASE_DEFINITIONS_LOCATION_ID` above) —
+   * so it can read the continuation token from the real response header and correctly paginate.
    */
   async listReleaseDefinitionsWithArtifacts(args: { project: string }): Promise<ReleaseDefinition[]> {
     try {
       const rel = await this.api.getReleaseApi();
       const all: ReleaseDefinition[] = [];
       let continuationToken: string | undefined;
+      let pageCount = 0;
       do {
-        const page = await rel.getReleaseDefinitions(
-          args.project,
-          undefined, // searchText
-          ReleaseDefinitionExpands.Artifacts,
-          undefined, // artifactType
-          undefined, // artifactSourceId
-          undefined, // top
-          continuationToken,
+        pageCount += 1;
+        if (pageCount > MAX_RELEASE_DEFINITION_PAGES) {
+          throw new AdoUnknownError(
+            `listReleaseDefinitionsWithArtifacts exceeded ${MAX_RELEASE_DEFINITION_PAGES} pages `
+            + `for project '${args.project}' — the release-definition continuation-token chain `
+            + `may be looping.`,
+          );
+        }
+        const verData = await rel.vsoClient.getVersioningData(
+          RELEASE_DEFINITIONS_API_VERSION,
+          'Release',
+          RELEASE_DEFINITIONS_LOCATION_ID,
+          { project: args.project },
+          { $expand: ReleaseDefinitionExpands.Artifacts, continuationToken },
         );
+        const options = rel.createRequestOptions('application/json', verData.apiVersion);
+        const res = await rel.rest.get(verData.requestUrl ?? '', options);
         // typed-rest-client resolves `{ result: null }` on a 404 instead of rejecting — treat a
-        // null page as "no more results" rather than crashing on `page.continuationToken`.
-        if (!page) {
+        // null page as "no more results".
+        if (res.result === null) {
           break;
         }
+        const page = rel.formatResponse(
+          res.result,
+          ReleaseTypeInfo.ReleaseDefinition,
+          true,
+        ) as ReleaseDefinition[];
         all.push(...page);
-        continuationToken = (page as ReleaseDefinition[] & { continuationToken?: string }).continuationToken
-          || undefined;
+        continuationToken = continuationTokenFromHeaders(res.headers);
       } while (continuationToken);
       return all;
     }
@@ -714,7 +751,9 @@ export class SdkAdoClient implements AdoClient {
       }
       const mapped = mapSdkError(err);
       // Same "classic releases not enabled" hint as listReleaseDefinitions above — this call
-      // hits the same endpoint family and 404s for the same reasons.
+      // hits the same endpoint family and 404s for the same reasons. Only covers a real
+      // thrown/rejected not-found error: typed-rest-client's 404-as-`{ result: null }` case is
+      // handled above and never reaches this catch.
       if (mapped instanceof AdoNotFoundError) {
         throw new AdoNotFoundError(
           `Release API unavailable — this collection may not have classic releases enabled, `
