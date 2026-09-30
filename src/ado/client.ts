@@ -242,6 +242,9 @@ export interface AdoClient {
   listPipelines: (args: {
     project: string;
     repositoryId?: string;
+    // ADO repository type, e.g. 'TfsGit' for Azure Repos; pair it with repositoryId to scope
+    // the list to one repository.
+    repositoryType?: string;
   }) => Promise<BuildDefinition[]>;
 
   listPipelineRuns: (args: {

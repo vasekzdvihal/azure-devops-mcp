@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 const MAX_TOP = 200;
+// Upper bound for one bulk set_pipeline_default_branch call (the real migration touched 109).
+const MAX_DEFINITION_IDS = 500;
 
 export const ListPipelinesInput = {
   project: z.string().min(1).describe('ADO project name.'),
@@ -187,4 +189,29 @@ export const DeletePipelineInput = {
     .int()
     .positive()
     .describe('The pipeline (build definition) id. Use `list_pipelines` to discover ids.'),
+};
+
+export const SetPipelineDefaultBranchInput = {
+  project: z.string().min(1).describe('ADO project name.'),
+  repository: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Repository name — targets every pipeline built from it. Required unless definitionIds is given.'),
+  definitionIds: z
+    .array(z.number().int().positive())
+    .min(1)
+    .max(MAX_DEFINITION_IDS)
+    .optional()
+    .describe('Explicit pipeline definition ids.'),
+  fromBranch: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Only change pipelines whose default branch is currently this (e.g. \'master\').'),
+  toBranch: z.string().min(1).describe('New default branch (e.g. \'main\').'),
+  dryRun: z
+    .boolean()
+    .optional()
+    .describe('Default true: report what would change without writing. Set false to apply.'),
 };

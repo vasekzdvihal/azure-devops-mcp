@@ -763,6 +763,7 @@ export class SdkAdoClient implements AdoClient {
   async listPipelines(args: {
     project: string;
     repositoryId?: string;
+    repositoryType?: string;
   }): Promise<BuildDefinition[]> {
     try {
       const build = await this.api.getBuildApi();
@@ -772,7 +773,7 @@ export class SdkAdoClient implements AdoClient {
         args.project,
         undefined, // name
         args.repositoryId,
-        undefined, // repositoryType
+        args.repositoryType,
         undefined, // queryOrder
         undefined, // top
         undefined, // continuationToken
@@ -783,9 +784,14 @@ export class SdkAdoClient implements AdoClient {
         undefined, // notBuiltAfter
         true, // includeAllProperties
       );
-      return defs as BuildDefinition[];
+      // typed-rest-client resolves `{ result: null }` on a 404 instead of rejecting (see
+      // getBranch/updateRefs). For a list query "nothing there" is a valid answer, so map it to [].
+      return (defs ?? []) as BuildDefinition[];
     }
     catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }

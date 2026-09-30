@@ -261,6 +261,7 @@ export class FakeAdoClient implements AdoClient {
   private releaseDetails = new Map<string, Release>(); // `${project} ${releaseId}`
   private deployments = new Map<string, Deployment[]>(); // project
   private pipelines = new Map<string, BuildDefinition[]>(); // project
+  private listPipelinesCalls: Array<{ project: string; repositoryId?: string; repositoryType?: string }> = [];
   private pipelineRuns = new Map<string, Build[]>(); // project
   private pipelineRunDetails = new Map<
     string,
@@ -309,6 +310,10 @@ export class FakeAdoClient implements AdoClient {
 
   setDeployments(project: string, deployments: Deployment[]): void {
     this.deployments.set(project, deployments);
+  }
+
+  getListPipelinesCalls() {
+    return this.listPipelinesCalls;
   }
 
   setPipelines(project: string, pipelines: BuildDefinition[]): void {
@@ -619,8 +624,10 @@ export class FakeAdoClient implements AdoClient {
   async listPipelines(args: {
     project: string;
     repositoryId?: string;
+    repositoryType?: string;
   }): Promise<BuildDefinition[]> {
     this.throwIfInjected('listPipelines');
+    this.listPipelinesCalls.push(args);
     return this.pipelines.get(args.project) ?? [];
   }
 

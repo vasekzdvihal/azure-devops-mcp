@@ -18,6 +18,14 @@ function ensureRefsHeads(branch?: string): string | undefined {
   return branch.startsWith('refs/') ? branch : `refs/heads/${branch}`;
 }
 
+// Repository type for Azure Repos git — the SDK has no enum for it (getDefinitions takes a
+// plain string). Sent alongside repositoryId so the definitions query is scoped to that repo.
+const AZURE_REPOS_GIT = 'TfsGit';
+
+function shortRef(ref: string): string {
+  return ref.replace(/^refs\/heads\//, '');
+}
+
 export interface QueueRunResult {
   runId: number;
   name?: string;
@@ -68,6 +76,62 @@ export interface CreatePipelineResult {
 export interface DeletePipelineResult {
   pipelineId: number;
   deleted: true;
+}
+
+export interface DefaultBranchChange {
+  id: number;
+  name: string;
+  current?: string;
+  next: string;
+}
+
+export interface DefaultBranchSkip {
+  id: number;
+  name: string;
+  current?: string;
+  reason: string;
+}
+
+export type SetPipelineDefaultBranchResult
+  = | { dryRun: true; changes: DefaultBranchChange[]; skipped: DefaultBranchSkip[]; note?: string }
+    | {
+      dryRun: false;
+      updated: DefaultBranchChange[];
+      skipped: DefaultBranchSkip[];
+      failed: DefaultBranchFailure[];
+    };
+
+export interface DefaultBranchFailure {
+  id: number;
+  name: string;
+  error: string;
+}
+
+interface PlannedDefaultBranchChange {
+  change: DefaultBranchChange;
+  definition: BuildDefinition;
+}
+
+function classifyDefaultBranch(
+  id: number,
+  definition: BuildDefinition,
+  from: string | undefined,
+  to: string,
+): DefaultBranchChange | DefaultBranchSkip {
+  const name = definition.name ?? String(id);
+  // The default branch lives on definition.repository, NOT a top-level field.
+  const currentRef = ensureRefsHeads(definition.repository?.defaultBranch);
+  const current = currentRef ? shortRef(currentRef) : undefined;
+  if (!definition.repository) {
+    return { id, name, reason: 'definition has no repository' };
+  }
+  if (from && currentRef !== from) {
+    return { id, name, current, reason: `defaultBranch is '${current ?? '(unset)'}', not '${shortRef(from)}'` };
+  }
+  if (currentRef === to) {
+    return { id, name, current, reason: `already on ${shortRef(to)}` };
+  }
+  return { id, name, current, next: shortRef(to) };
 }
 
 const ROOT_FOLDER = '\\';
@@ -291,6 +355,105 @@ export class PipelinesWriteService {
       repository: repo.name,
       yamlPath,
     };
+  }
+
+  async setDefaultBranch(args: {
+    project: string;
+    repository?: string;
+    fromBranch?: string;
+    toBranch: string;
+    definitionIds?: number[];
+    dryRun?: boolean;
+  }): Promise<SetPipelineDefaultBranchResult> {
+    const ids = await this.candidateIds(args);
+    const to = ensureRefsHeads(args.toBranch) ?? args.toBranch;
+    const from = ensureRefsHeads(args.fromBranch);
+    const planned: PlannedDefaultBranchChange[] = [];
+    const skipped: DefaultBranchSkip[] = [];
+    const seen = new Set<string>();
+
+    // Sequential on purpose: on-prem servers throttle, and a bulk run over ~100 definitions
+    // is fine one GET at a time.
+    for (const id of ids) {
+      const definition = await this.client.getPipelineDefinition({ project: args.project, definitionId: id });
+      const outcome = classifyDefaultBranch(id, definition, from, to);
+      if (outcome.current) {
+        seen.add(outcome.current);
+      }
+      if ('reason' in outcome) {
+        skipped.push(outcome);
+      }
+      else {
+        planned.push({ change: outcome, definition });
+      }
+    }
+
+    if (args.dryRun ?? true) {
+      return {
+        dryRun: true,
+        changes: planned.map(entry => entry.change),
+        skipped,
+        ...(planned.length === 0
+          ? { note: `0 definitions to change out of ${ids.length}; current values: ${[...seen].join(', ') || '(none)'}.` }
+          : {}),
+      };
+    }
+
+    return { dryRun: false, skipped, ...(await this.applyDefaultBranch(args.project, planned, to)) };
+  }
+
+  private async applyDefaultBranch(
+    project: string,
+    planned: PlannedDefaultBranchChange[],
+    to: string,
+  ): Promise<{ updated: DefaultBranchChange[]; failed: DefaultBranchFailure[] }> {
+    const updated: DefaultBranchChange[] = [];
+    const failed: DefaultBranchFailure[] = [];
+    // Sequential, and per-definition failures are collected — one stale revision must not
+    // abort the rest of a bulk run.
+    for (const { change, definition } of planned) {
+      try {
+        // PUT the WHOLE GET body back (incl. revision): ADO drops fields omitted from a
+        // definition update, and secrets survive only because they round-trip untouched.
+        await this.client.updatePipelineDefinition({
+          project,
+          definitionId: change.id,
+          definition: { ...definition, repository: { ...definition.repository, defaultBranch: to } },
+        });
+        updated.push(change);
+      }
+      catch (err) {
+        failed.push({ id: change.id, name: change.name, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    return { updated, failed };
+  }
+
+  private async candidateIds(args: {
+    project: string;
+    repository?: string;
+    definitionIds?: number[];
+  }): Promise<number[]> {
+    if (args.definitionIds?.length) {
+      return args.definitionIds;
+    }
+    if (!args.repository) {
+      throw new Error('set_pipeline_default_branch: provide `repository` or `definitionIds` (no project-wide sweeps).');
+    }
+    const wanted = args.repository.toLowerCase();
+    const repos = await this.client.listRepositories({ project: args.project });
+    const repo = repos.find(candidate => candidate.name?.toLowerCase() === wanted);
+    if (!repo?.id) {
+      throw new Error(
+        `set_pipeline_default_branch: repository '${args.repository}' not found in project '${args.project}'.`,
+      );
+    }
+    const defs = await this.client.listPipelines({
+      project: args.project,
+      repositoryId: repo.id,
+      repositoryType: AZURE_REPOS_GIT,
+    });
+    return defs.flatMap(def => (def.id === undefined ? [] : [def.id]));
   }
 
   async deletePipeline(args: { project: string; pipelineId: number }): Promise<DeletePipelineResult> {
