@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import process from 'node:process';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AdoAuthError } from '../../../src/ado/errors.js';
 import { toToolResult } from '../../../src/mcp/errorBoundary.js';
 
 describe('toToolResult', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('wraps a successful handler return as a JSON content block', async () => {
     const wrapped = toToolResult(async () => ({ ok: true, count: 3 }));
     const result = await wrapped({});
@@ -11,6 +16,7 @@ describe('toToolResult', () => {
   });
 
   it('converts thrown AdoError to an MCP error result with friendly message', async () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const wrapped = toToolResult(async () => {
       throw new AdoAuthError('token expired');
     });
@@ -19,18 +25,22 @@ describe('toToolResult', () => {
     expect(result.content[0].type).toBe('text');
     expect(result.content[0].text).toMatch(/Authentication failed/);
     expect(result.content[0].text).toMatch(/token expired/);
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('AdoAuthError'));
   });
 
   it('converts non-AdoError exceptions to a generic error result', async () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const wrapped = toToolResult(async () => {
       throw new Error('oh no');
     });
     const result = await wrapped({});
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/oh no/);
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('oh no'));
   });
 
   it('handles thrown non-Error values', async () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const wrapped = toToolResult(async () => {
       // eslint-disable-next-line no-throw-literal -- exercising non-Error throw handling
       throw 'string thrown';
@@ -38,5 +48,6 @@ describe('toToolResult', () => {
     const result = await wrapped({});
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/string thrown/);
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('string thrown'));
   });
 });
