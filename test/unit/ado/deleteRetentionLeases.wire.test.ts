@@ -13,6 +13,10 @@ function stubbedSdkClient(): {
   client: SdkAdoClient;
   versioningDataSpy: ReturnType<typeof vi.spyOn>;
   restDelSpy: ReturnType<typeof vi.spyOn>;
+  restGetSpy: ReturnType<typeof vi.spyOn>;
+  restCreateSpy: ReturnType<typeof vi.spyOn>;
+  restUpdateSpy: ReturnType<typeof vi.spyOn>;
+  restReplaceSpy: ReturnType<typeof vi.spyOn>;
 } {
   const client = new SdkAdoClient({ baseUrl: 'https://ado.example.test/tfs/Collection', pat: 'fake-pat' });
   const build = new RealBuildApi('https://ado.example.test/tfs/Collection', []);
@@ -25,8 +29,15 @@ function stubbedSdkClient(): {
     result: null,
     headers: {},
   });
+  // These must never be called by deleteRetentionLeasesById — only `del` is the real verb. Spied
+  // (and stubbed, in case a regression does call one) so a regression fails on "not called"
+  // rather than on a hung/rejected real HTTP call.
+  const restGetSpy = vi.spyOn(build.rest, 'get').mockResolvedValue({ statusCode: 200, result: null, headers: {} });
+  const restCreateSpy = vi.spyOn(build.rest, 'create').mockResolvedValue({ statusCode: 200, result: null, headers: {} });
+  const restUpdateSpy = vi.spyOn(build.rest, 'update').mockResolvedValue({ statusCode: 200, result: null, headers: {} });
+  const restReplaceSpy = vi.spyOn(build.rest, 'replace').mockResolvedValue({ statusCode: 200, result: null, headers: {} });
   (client as unknown as { api: { getBuildApi: () => Promise<BuildApi> } }).api.getBuildApi = async () => build;
-  return { client, versioningDataSpy, restDelSpy };
+  return { client, versioningDataSpy, restDelSpy, restGetSpy, restCreateSpy, restUpdateSpy, restReplaceSpy };
 }
 
 describe('sdkAdoClient.deleteRetentionLeases (wire)', () => {
@@ -49,7 +60,7 @@ describe('sdkAdoClient.deleteRetentionLeases (wire)', () => {
   });
 
   it('issues an http delete, not a get or post, against the real BuildApi', async () => {
-    const { client, restDelSpy } = stubbedSdkClient();
+    const { client, restDelSpy, restGetSpy, restCreateSpy, restUpdateSpy, restReplaceSpy } = stubbedSdkClient();
 
     await client.deleteRetentionLeases({ project: 'proj', leaseIds: [11] });
 
@@ -57,5 +68,9 @@ describe('sdkAdoClient.deleteRetentionLeases (wire)', () => {
       'https://ado.example.test/tfs/Collection/proj/_apis/build/leases',
       expect.anything(),
     );
+    expect(restGetSpy).not.toHaveBeenCalled();
+    expect(restCreateSpy).not.toHaveBeenCalled();
+    expect(restUpdateSpy).not.toHaveBeenCalled();
+    expect(restReplaceSpy).not.toHaveBeenCalled();
   });
 });

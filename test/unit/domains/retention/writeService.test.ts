@@ -84,7 +84,41 @@ describe('retentionWriteService.deleteBuildLease', () => {
 
     await expect(
       svc.deleteBuildLease({ project: 'P', buildId: 500, leaseId: 0 }),
-    ).rejects.toThrow(/no real ADO lease id/);
+    ).rejects.toThrow(/no id returned by Azure DevOps/);
     expect(fake.getDeletedLeaseIds()).toEqual([]);
+  });
+
+  it('fails closed on a raw lease with protectPipeline omitted entirely, without force', async () => {
+    const fake = new FakeAdoClient();
+    // No `protectPipeline` field at all — shapeLease would shape this to `false`, but the write
+    // service must decide from the raw lease and treat "unknown" the same as "protected".
+    fake.setBuildLeases('P', 500, [
+      { leaseId: 13, ownerId: 'Branch:repo:refs/heads/main' } as RetentionLease,
+    ]);
+    const svc = new RetentionWriteService(fake);
+
+    await expect(
+      svc.deleteBuildLease({ project: 'P', buildId: 500, leaseId: 13 }),
+    ).rejects.toThrow(/protects the pipeline/);
+    expect(fake.getDeletedLeaseIds()).toEqual([]);
+  });
+
+  it('deletes a raw lease with protectPipeline omitted entirely when force is true', async () => {
+    const fake = new FakeAdoClient();
+    fake.setBuildLeases('P', 500, [
+      { leaseId: 13, ownerId: 'Branch:repo:refs/heads/main' } as RetentionLease,
+    ]);
+    const svc = new RetentionWriteService(fake);
+
+    const result = await svc.deleteBuildLease({
+      project: 'P',
+      buildId: 500,
+      leaseId: 13,
+      force: true,
+    });
+
+    expect(result.deleted).toBe(true);
+    expect(result.lease.leaseId).toBe(13);
+    expect(fake.getDeletedLeaseIds()).toEqual([13]);
   });
 });

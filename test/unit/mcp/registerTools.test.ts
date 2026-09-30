@@ -19,18 +19,25 @@ const FULL_ONLY_NAMES = [
   'delete_build_lease',
 ];
 
+interface StubToolConfig {
+  title: string;
+  description: string;
+}
+
 // Stub server: records every registerTool(name, config, handler) call. registerAllTools only
 // calls this one method on the server (see src/mcp/registerTools.ts), so this is the whole shape
 // it needs — mirrored from how test/unit/mcp/errorBoundary.test.ts exercises the handler wrapper
 // without needing a real McpServer.
 function makeStubServer() {
   const names: string[] = [];
+  const configs = new Map<string, StubToolConfig>();
   const stub = {
-    registerTool: (name: string, _config: unknown, _handler: unknown) => {
+    registerTool: (name: string, config: StubToolConfig, _handler: unknown) => {
       names.push(name);
+      configs.set(name, config);
     },
   };
-  return { stub, names };
+  return { stub, names, configs };
 }
 
 describe('registerAllTools', () => {
@@ -60,6 +67,17 @@ describe('registerAllTools', () => {
     registerAllTools(fullStub as unknown as McpServer, new FakeAdoClient(), { readOnly: false });
     for (const name of names) {
       expect(fullNames).toContain(name);
+    }
+  });
+
+  it('warns to confirm with the user before calling high-impact/irreversible write tools', () => {
+    const { stub, configs } = makeStubServer();
+    registerAllTools(stub as unknown as McpServer, new FakeAdoClient(), { readOnly: false });
+
+    const confirmFirstNames = ['set_default_branch', 'set_pipeline_default_branch', 'delete_build_lease'];
+    for (const name of confirmFirstNames) {
+      const config = configs.get(name);
+      expect(config?.description.startsWith('**Always confirm with the user before calling')).toBe(true);
     }
   });
 });
