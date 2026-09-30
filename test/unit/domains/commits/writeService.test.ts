@@ -21,6 +21,20 @@ describe('commitsWriteService.createBranch', () => {
     expect(result).toEqual({ name: 'main', objectId: SHA });
   });
 
+  it('resolves a full ref `from` the same as its short branch name', async () => {
+    const fake = new FakeAdoClient();
+    fake.setBranches(REPO.project, REPO.repo, [{ name: 'master', commit: { commitId: SHA } }]);
+    fake.setNextRefUpdateResults([{ name: 'refs/heads/main', success: true, updateStatus: 0, newObjectId: SHA }]);
+    const svc = new CommitsWriteService(fake, async () => REPO);
+    const result = await svc.createBranch({ name: 'refs/heads/main', from: 'refs/heads/master' });
+    expect(fake.getRefUpdateCalls()).toEqual([{
+      project: 'P',
+      repository: 'R',
+      updates: [{ name: 'refs/heads/main', oldObjectId: ZERO, newObjectId: SHA }],
+    }]);
+    expect(result).toEqual({ name: 'main', objectId: SHA });
+  });
+
   it('uses a 40-hex `from` as the sha without a branch lookup', async () => {
     const fake = new FakeAdoClient();
     fake.setNextRefUpdateResults([{ success: true, updateStatus: 0 }]);

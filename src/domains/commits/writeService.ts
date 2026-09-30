@@ -7,7 +7,7 @@ import { shortBranch } from './readService.js';
 
 const SHA_LENGTH = 40;
 const ZERO_SHA = '0'.repeat(SHA_LENGTH);
-const SHA_RE = /^[0-9a-f]{40}$/i;
+const SHA_RE = new RegExp(`^[0-9a-f]{${SHA_LENGTH}}$`, 'i');
 
 export interface CreateBranchResult {
   name: string;

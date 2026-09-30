@@ -1330,7 +1330,15 @@ export class SdkAdoClient implements AdoClient {
   }): Promise<GitRefUpdateResult[]> {
     try {
       const git = await this.api.getGitApi();
-      return await git.updateRefs(args.updates, args.repository, args.project);
+      const results = await git.updateRefs(args.updates, args.repository, args.project);
+      // The same typed-rest-client 404 handling documented on getBranch above applies here:
+      // `rest.create` resolves `{ result: null }` instead of rejecting for a 404 (e.g. a
+      // wrong project/repository, TF401019), so a bad repository silently resolves `null`
+      // here despite the `GitRefUpdateResult[]` return type.
+      if (!results) {
+        throw new AdoNotFoundError(`repository '${args.repository}' not found in project '${args.project}'`);
+      }
+      return results;
     }
     catch (err) {
       if (err instanceof AdoError) {
