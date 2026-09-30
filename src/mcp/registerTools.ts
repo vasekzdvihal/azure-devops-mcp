@@ -24,6 +24,8 @@ import { RepositoriesReadService } from '../domains/repositories/readService.js'
 import { buildRepositoriesReadTools } from '../domains/repositories/readTools.js';
 import { RepositoriesWriteService } from '../domains/repositories/writeService.js';
 import { buildRepositoriesWriteTools } from '../domains/repositories/writeTools.js';
+import { RetentionReadService } from '../domains/retention/readService.js';
+import { buildRetentionReadTools } from '../domains/retention/readTools.js';
 import { WorkItemsReadService } from '../domains/workItems/readService.js';
 import { buildWorkItemsReadTools } from '../domains/workItems/readTools.js';
 import { WorkItemsWriteService } from '../domains/workItems/writeService.js';
@@ -59,6 +61,7 @@ export function registerAllTools(
     ...buildPipelinesReadTools(new PipelinesReadService(client)),
     ...buildCommitsReadTools(new CommitsReadService(client)),
     ...buildWorkItemsReadTools(new WorkItemsReadService(client)),
+    ...buildRetentionReadTools(new RetentionReadService(client)),
   ];
 
   const writeTools = options.readOnly

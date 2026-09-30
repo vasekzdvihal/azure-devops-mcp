@@ -32,6 +32,7 @@ import type {
   ReleaseEnvironmentUpdateMetadata,
   ReleaseStartMetadata,
   ReleaseStatus,
+  RetentionLease,
   Run,
   RunPipelineParameters,
   TeamProjectReference,
@@ -46,7 +47,7 @@ import { GitVersionType } from 'azure-devops-node-api/interfaces/GitInterfaces.j
 import { AdoError, AdoNotFoundError, AdoUnknownError, mapSdkError } from './errors.js';
 import { branchDiffDescriptors, commitQueryCriteria } from './queryShapes.js';
 import { buildHttpsAgent } from './tlsAgent.js';
-import { ConfigurationType, WorkItemExpand } from './types.js';
+import { ConfigurationType, ReleaseDefinitionExpands, WorkItemExpand } from './types.js';
 
 // ADO ReleaseInterfaces.ApprovalStatus wire values.
 const APPROVAL_STATUS_APPROVED = 2;
@@ -665,6 +666,66 @@ export class SdkAdoClient implements AdoClient {
     }
   }
 
+  /**
+   * All classic release definitions in the project, with `artifacts` expanded, across every
+   * page.
+   *
+   * FINDING (Task 11): `ReleaseApi.getReleaseDefinitions` never surfaces the real
+   * `x-ms-continuationtoken` response header on its returned `PagedList` — `formatResponse`
+   * (ClientApiBases.js) only deserializes `res.result` and never reads `res.headers`, and
+   * `ContractSerializer.deserialize`'s "unwrap wrapped collections" step replaces the response
+   * body with just its `.value` array, discarding any sibling property. So against a real
+   * server `page.continuationToken` is always `undefined` here and this loop runs exactly once.
+   * The loop is kept anyway: it's harmless (never triggers a second request in practice),
+   * future-proofs against an SDK fix, and `page.continuationToken` isn't part of
+   * `PagedList`'s declared shape at *this* call site (TS only sees the plain array from
+   * `Promise<ReleaseDefinition[]>`-shaped usage below), so it's read defensively via an index
+   * signature rather than assumed to exist.
+   */
+  async listReleaseDefinitionsWithArtifacts(args: { project: string }): Promise<ReleaseDefinition[]> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      const all: ReleaseDefinition[] = [];
+      let continuationToken: string | undefined;
+      do {
+        const page = await rel.getReleaseDefinitions(
+          args.project,
+          undefined, // searchText
+          ReleaseDefinitionExpands.Artifacts,
+          undefined, // artifactType
+          undefined, // artifactSourceId
+          undefined, // top
+          continuationToken,
+        );
+        // typed-rest-client resolves `{ result: null }` on a 404 instead of rejecting — treat a
+        // null page as "no more results" rather than crashing on `page.continuationToken`.
+        if (!page) {
+          break;
+        }
+        all.push(...page);
+        continuationToken = (page as ReleaseDefinition[] & { continuationToken?: string }).continuationToken
+          || undefined;
+      } while (continuationToken);
+      return all;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      const mapped = mapSdkError(err);
+      // Same "classic releases not enabled" hint as listReleaseDefinitions above — this call
+      // hits the same endpoint family and 404s for the same reasons.
+      if (mapped instanceof AdoNotFoundError) {
+        throw new AdoNotFoundError(
+          `Release API unavailable — this collection may not have classic releases enabled, `
+          + `or the project name is wrong. ${
+            mapped.message.replace(/^.*Details:\s*/, 'Details: ')}`,
+        );
+      }
+      throw mapped;
+    }
+  }
+
   async listReleases(args: {
     project: string;
     definitionId?: number;
@@ -889,6 +950,22 @@ export class SdkAdoClient implements AdoClient {
         throw new AdoNotFoundError(`Build ${args.buildId} not found`);
       }
       return result;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  async listBuildLeases(args: { project: string; buildId: number }): Promise<RetentionLease[]> {
+    try {
+      const build = await this.api.getBuildApi();
+      const leases = await build.getRetentionLeasesForBuild(args.project, args.buildId);
+      // typed-rest-client resolves `{ result: null }` on a 404 instead of rejecting — a bad
+      // project/buildId resolves `null` here despite the `RetentionLease[]` return type.
+      return leases ?? [];
     }
     catch (err) {
       if (err instanceof AdoError) {

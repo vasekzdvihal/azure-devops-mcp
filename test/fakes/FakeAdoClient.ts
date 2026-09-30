@@ -31,6 +31,7 @@ import type {
   ReleaseEnvironmentUpdateMetadata,
   ReleaseStartMetadata,
   ReleaseStatus,
+  RetentionLease,
   Run,
   TeamProjectReference,
   Timeline,
@@ -262,6 +263,10 @@ export class FakeAdoClient implements AdoClient {
   private deployments = new Map<string, Deployment[]>(); // project
   private pipelines = new Map<string, BuildDefinition[]>(); // project
   private pipelineDefUpdateErrors = new Map<number, Error>(); // definitionId
+
+  // ---- phase-7b task-11 state (retention) ----
+  private buildLeases = new Map<string, RetentionLease[]>(); // `${project} ${buildId}`
+  private releaseDefsWithArtifacts = new Map<string, ReleaseDefinition[]>(); // project
   private listPipelinesCalls: Array<{ project: string; repositoryId?: string; repositoryType?: string }> = [];
   private pipelineRuns = new Map<string, Build[]>(); // project
   private pipelineRunDetails = new Map<
@@ -311,6 +316,15 @@ export class FakeAdoClient implements AdoClient {
 
   setDeployments(project: string, deployments: Deployment[]): void {
     this.deployments.set(project, deployments);
+  }
+
+  // ---- phase-7b task-11 setup helpers (retention) ----
+  setBuildLeases(project: string, buildId: number, leases: RetentionLease[]): void {
+    this.buildLeases.set(`${project} ${buildId}`, leases);
+  }
+
+  setReleaseDefinitionsWithArtifacts(project: string, defs: ReleaseDefinition[]): void {
+    this.releaseDefsWithArtifacts.set(project, defs);
   }
 
   getListPipelinesCalls() {
@@ -1365,5 +1379,16 @@ export class FakeAdoClient implements AdoClient {
   }): Promise<void> {
     this.throwIfInjected('deleteWorkItemComment');
     this.deletedWorkItemComments.push(args);
+  }
+
+  // ---- phase-7b task-11 (retention) ----
+  async listBuildLeases(args: { project: string; buildId: number }): Promise<RetentionLease[]> {
+    this.throwIfInjected('listBuildLeases');
+    return this.buildLeases.get(`${args.project} ${args.buildId}`) ?? [];
+  }
+
+  async listReleaseDefinitionsWithArtifacts(args: { project: string }): Promise<ReleaseDefinition[]> {
+    this.throwIfInjected('listReleaseDefinitionsWithArtifacts');
+    return this.releaseDefsWithArtifacts.get(args.project) ?? [];
   }
 }

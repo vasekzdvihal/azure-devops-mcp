@@ -30,6 +30,7 @@ import type {
   ReleaseEnvironmentUpdateMetadata,
   ReleaseStartMetadata,
   ReleaseStatus,
+  RetentionLease,
   Run,
   TeamProjectReference,
   Timeline,
@@ -466,4 +467,11 @@ export interface AdoClient {
     id: number;
     commentId: number;
   }) => Promise<void>;
+
+  // retention (Phase 7b, Task 11)
+  /** Retention leases (RM release, pipeline, branch policy, manual "retain") holding a build. */
+  listBuildLeases: (args: { project: string; buildId: number }) => Promise<RetentionLease[]>;
+
+  /** Every classic release definition in the project, with its artifacts expanded (all pages). */
+  listReleaseDefinitionsWithArtifacts: (args: { project: string }) => Promise<ReleaseDefinition[]>;
 }
