@@ -359,13 +359,13 @@ Released as v0.4.0.
 
 ---
 
-## 🟡 Phase 7b — Branch/repo/pipeline writes & build retention
+## ✅ Phase 7b — Branch/repo/pipeline writes & build retention
 
-**Status:** planned.
+**Status:** shipped 2026-09-30 in v0.14.0.
 
 **Goal:** the write half of the same two workflows — create a branch, flip repo/pipeline default branches, and find/drop the retention leases blocking deletion of a dead build definition.
 
-**Tools planned:**
+**Tools shipped:**
 
 | Tool | Notes |
 | --- | --- |
@@ -373,10 +373,32 @@ Released as v0.4.0.
 | `set_default_branch` | new `repositories` writeService; pre-checks the branch exists before pointing the repo default at it |
 | `set_pipeline_default_branch` | new `pipelines` writeService; `dryRun: true` by default, PUTs the full definition body back to preserve secret variables |
 | `list_build_leases` | new `retention` domain (read); `BuildApi.getRetentionLeasesForBuild`, `ownerType` parsed from the lease owner id |
-| `delete_build_lease` | new `retention` domain (write); refuses leases not on the given build or `protectPipeline: true` without `force` |
 | `find_build_retainers` | new `retention` domain (read); which release definitions still reference a build definition as an artifact source |
+| `delete_build_lease` | new `retention` domain (write); refuses leases not on the given build or `protectPipeline: true` without `force` |
 
-**Deliberately out:** `delete_branch` (stays a human action behind branch policy), creating/updating retention leases, bulk `set_default_branch`.
+**Key decisions / notes:**
+
+- **`updateRefs` `success: false` → plain `Error`, not `AdoConflictError`.** ADO returns HTTP 200 with a per-ref `success`/`updateStatus` even on failure (ref name conflict, policy, missing permission). The service inspects the field itself and throws a plain `Error` naming the ADO status — `AdoConflictError`'s fixed "state changed, re-fetch" message would mislead here, since nothing raced.
+- **typed-rest-client resolves `{ result: null }` on a 404,** for GET and POST/PATCH alike — it does not reject. Every new `SdkAdoClient` method whose result is used (`updateRepositoryDefaultBranch`, `listBuildLeases`, `listReleaseDefinitionsWithArtifacts`) guards a null/undefined result and throws `AdoNotFoundError` or returns `[]` where "none" is a valid answer.
+- **Dry-run-first bulk with an explanatory note on empty runs.** `set_pipeline_default_branch` defaults to `dryRun: true`; an empty dry run (0 changes) carries a `note` listing the count and the current branch values seen, so the LLM doesn't read silence as "nothing matched" when it actually means "already on the target branch."
+- **Whole-definition PUT with `revision`, secrets preserved.** `set_pipeline_default_branch` GETs the full pipeline definition, mutates only `repository.defaultBranch`, and PUTs the whole body back (same secret-preservation pattern as Phase 4.2's variable updates).
+- **`definitionIds` deduped and takes precedence over `repository`.** Both narrow the target set; when both are given, `definitionIds` wins and `repository` is ignored (documented in the tool description) rather than intersected.
+- **`delete_build_lease` guards.** The lease must actually be on the given build (id-scoped lookup, not a global lease id space); a real `leaseId` is required (no implicit "all leases"); `protectPipeline: true` **or missing** requires `force: true` — fail closed, since ADO omitting the field is not the same as ADO confirming it's safe.
+- **Release-definition paging driven by the `x-ms-continuationtoken` response header**, not the SDK's own pagination. `azure-devops-node-api@15.1.2`'s `ReleaseApi.getReleaseDefinitions` convenience method discards the header — `formatResponse` only deserializes `res.result`, and `ContractSerializer.deserialize`'s "unwrap wrapped collections" step drops any sibling property, so `page.continuationToken` is always `undefined`. `listReleaseDefinitionsWithArtifacts` instead drives the `ReleaseApi` instance's own `vsoClient.getVersioningData` + `rest.get` + `formatResponse` directly (same PAT/`socketTimeout`/CA plumbing) and reads the continuation token from the real response header, with a 100-page runaway guard (`MAX_RELEASE_DEFINITION_PAGES`).
+- **Wire tests pin every hand-built request.** Following the Phase 7a lesson (`FakeAdoClient` can't catch a malformed hand-built SDK request), every new `SdkAdoClient` method with a hand-built body or non-trivial positional args (`updateRefs`, `updateRepository`, `getDefinitions` repositoryType position, `getReleaseDefinitions` expand+continuationToken positions, `deleteRetentionLeasesById` ids) has a wire test that runs the real SDK method and captures what it would send.
+- **No `delete_branch`, by design.** Deleting a branch stays a human action behind branch policy; the tool surface only ever creates.
+- **New PAT scope: Code "manage" tier (`vso.code_manage`)**, needed only by `set_default_branch` — every other repo/branch tool works with "read & write". Updated in the setup wizard, the `AdoAuthError` guidance, the `vso.code_manage` scope-hint heuristic in `mapSdkError`, and the README.
+
+**Live verification (2026-09-30, read-only, project Default/Newton.N2):**
+
+- `list_build_leases` owner prefixes actually seen: `RM` (bare, no colon), `Pipeline:<defId>`, `Branch:<repoId>:<ref>` — all parsed correctly by `OWNER_PREFIXES`; `User` was not observed live. RM leases carry `protectPipeline: true`.
+- `find_build_retainers` against build definition 140: 29/29 retaining release definitions found.
+- `set_pipeline_default_branch` dry run against Newton.N2 (a monorepo, 137 pipelines): server-side `repositoryId`/`repositoryType` filtering verified — 33 of 137 pipelines matched, all with `repositoryId` = N2; 1 real change found (`npm-publish` develop→main), the rest already on `main`.
+- Release definitions: 92 in the project — single page on this server, so **multi-page continuation-token paging was not exercised live** (deserialization was verified: 82/92 came back with artifacts populated). No writes were performed during verification.
+
+**Explicit out of scope for this slice:** creating/updating retention leases, bulk `set_default_branch`, server-side `artifactSourceId` retainer lookup (client-side release-definition scan used instead — no server-side query exists for "which releases reference build definition X").
+
+**Follow-up candidate:** `list_release_definitions` has the same one-page truncation as `listReleaseDefinitionsWithArtifacts` did before this phase and could reuse the new header-driven paging helper.
 
 **Spec:** `docs/superpowers/specs/2026-09-24-azure-devops-mcp-phase-7-branch-ops-retention-design.md` (slice 7b).
 
