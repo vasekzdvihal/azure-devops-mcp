@@ -1,29 +1,12 @@
-import type { BuildApi } from 'azure-devops-node-api/BuildApi.js';
 import type { BuildDefinition } from '../../../src/ado/types.js';
-import { BuildApi as RealBuildApi } from 'azure-devops-node-api/BuildApi.js';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { AdoNotFoundError } from '../../../src/ado/errors.js';
-import { SdkAdoClient } from '../../../src/ado/sdkClient.js';
+import { withRealApi } from '../../helpers/sdkWire.js';
 
-/**
- * Builds a real `SdkAdoClient` whose `api.getBuildApi()` hands back a real `BuildApi`. Only
- * `vsoClient.getVersioningData` (route resolution) and `rest.replace` (the PUT the real
- * `BuildApi.updateDefinition` issues) are stubbed.
- */
-function stubbedSdkClient(): {
-  client: SdkAdoClient;
-  versioningDataSpy: ReturnType<typeof vi.spyOn>;
-  restReplaceSpy: ReturnType<typeof vi.spyOn>;
-} {
-  const client = new SdkAdoClient({ baseUrl: 'https://ado.example.test/tfs/Collection', pat: 'fake-pat' });
-  const build = new RealBuildApi('https://ado.example.test/tfs/Collection', []);
-  const versioningDataSpy = vi.spyOn(build.vsoClient, 'getVersioningData').mockResolvedValue({
-    requestUrl: 'https://ado.example.test/tfs/Collection/proj/_apis/build/definitions/7',
-    apiVersion: '7.2-preview.7',
-  });
-  const restReplaceSpy = vi.spyOn(build.rest, 'replace');
-  (client as unknown as { api: { getBuildApi: () => Promise<BuildApi> } }).api.getBuildApi = async () => build;
-  return { client, versioningDataSpy, restReplaceSpy };
+// Real `BuildApi.updateDefinition` via the shared harness (test/helpers/sdkWire.ts); the SDK
+// sends the definition as a PUT (`rest.replace`).
+function stubbedSdkClient() {
+  return withRealApi('build', { requestUrl: 'https://ado.example.test/tfs/Collection/proj/_apis/build/definitions/7' });
 }
 
 const DEFINITION = { id: 7, name: 'api-ci', revision: 3 } as BuildDefinition;

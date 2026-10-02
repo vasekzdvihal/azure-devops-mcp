@@ -1,40 +1,18 @@
-import type { ReleaseApi } from 'azure-devops-node-api/ReleaseApi.js';
-import { ReleaseApi as RealReleaseApi } from 'azure-devops-node-api/ReleaseApi.js';
-import { describe, expect, it, vi } from 'vitest';
-import { SdkAdoClient } from '../../../src/ado/sdkClient.js';
+import { describe, expect, it } from 'vitest';
+import {
+  RELEASE_DEFINITIONS_API_VERSION,
+  RELEASE_DEFINITIONS_LOCATION_ID,
+} from '../../../src/ado/sdkClient.js';
 import { ReleaseDefinitionExpands } from '../../../src/ado/types.js';
+import { captureVersioningArgs, withRealApi } from '../../helpers/sdkWire.js';
 
-// Copied from azure-devops-node-api/ReleaseApi.js's getReleaseDefinitions (~line 671):
-// `this.vsoClient.getVersioningData("7.2-preview.4", "Release", "d8f96f24-…", routeValues,
-// queryValues)`. SdkAdoClient.listReleaseDefinitionsWithArtifacts must pass this exact
-// locationId to look up the right resource — a typo here would silently 404 or hit the wrong
-// endpoint. Re-check against that line if azure-devops-node-api is ever upgraded.
-const RELEASE_DEFINITIONS_LOCATION_ID = 'd8f96f24-8ea7-4cb6-baab-2df8fc515665';
-
-/**
- * Builds a real `SdkAdoClient` whose `api.getReleaseApi()` hands back a real `ReleaseApi`. Only
- * `vsoClient.getVersioningData` (route/query resolution) and `rest.get` (the actual request) are
- * stubbed — everything `SdkAdoClient.listReleaseDefinitionsWithArtifacts` does with the real
- * `ReleaseApi` instance (`createRequestOptions`, `formatResponse`, reading `res.headers`) runs
- * for real. Response bodies here use ADO's actual wire shape (`{ count, value }`), and the
- * continuation token is attached the way ADO really sends it: as the `x-ms-continuationtoken`
- * response header, not a body field.
- */
-function stubbedSdkClient(): {
-  client: SdkAdoClient;
-  versioningDataSpy: ReturnType<typeof vi.spyOn>;
-  restGetSpy: ReturnType<typeof vi.spyOn>;
-} {
-  const client = new SdkAdoClient({ baseUrl: 'https://ado.example.test/tfs/Collection', pat: 'fake-pat' });
-  const release = new RealReleaseApi('https://ado.example.test/tfs/Collection', []);
-  const versioningDataSpy = vi.spyOn(release.vsoClient, 'getVersioningData').mockResolvedValue({
-    requestUrl: 'https://ado.example.test/tfs/Collection/proj/_apis/release/definitions',
-    apiVersion: '7.2-preview.4',
-  });
-  const restGetSpy = vi.spyOn(release.rest, 'get');
-  (client as unknown as { api: { getReleaseApi: () => Promise<ReleaseApi> } }).api.getReleaseApi
-    = async () => release;
-  return { client, versioningDataSpy, restGetSpy };
+// Real `ReleaseApi` instance via the shared harness (test/helpers/sdkWire.ts): everything
+// `SdkAdoClient.listReleaseDefinitionsWithArtifacts` does with it (`createRequestOptions`,
+// `formatResponse`, reading `res.headers`) runs for real. Response bodies use ADO's actual wire
+// shape (`{ count, value }`), and the continuation token is attached the way ADO really sends
+// it: as the `x-ms-continuationtoken` response header, not a body field.
+function stubbedSdkClient() {
+  return withRealApi('release', { requestUrl: 'https://ado.example.test/tfs/Collection/proj/_apis/release/definitions' });
 }
 
 describe('sdkAdoClient.listReleaseDefinitionsWithArtifacts (wire)', () => {
@@ -90,5 +68,61 @@ describe('sdkAdoClient.listReleaseDefinitionsWithArtifacts (wire)', () => {
     await expect(client.listReleaseDefinitionsWithArtifacts({ project: 'proj' }))
       .rejects
       .toThrow(/exceeded/i);
+  });
+
+  it('accepts an array-valued x-ms-continuationtoken header (node repeats-header shape)', async () => {
+    const { client, versioningDataSpy, restGetSpy } = stubbedSdkClient();
+    restGetSpy
+      .mockResolvedValueOnce({
+        statusCode: 200,
+        result: { count: 1, value: [{ id: 50, name: 'Deploy API' }] },
+        headers: { 'x-ms-continuationtoken': ['tok-1'] },
+      })
+      .mockResolvedValueOnce({
+        statusCode: 200,
+        result: { count: 1, value: [{ id: 76, name: 'Deploy Old' }] },
+        headers: {},
+      });
+
+    const result = await client.listReleaseDefinitionsWithArtifacts({ project: 'proj' });
+
+    expect(result.map(def => def.id)).toEqual([50, 76]);
+    const secondPageQuery = versioningDataSpy.mock.calls[1]?.[4] as Record<string, unknown>;
+    expect(secondPageQuery.continuationToken).toBe('tok-1');
+  });
+
+  it('keeps artifacts and deserializes date fields through the real formatResponse', async () => {
+    const { client, restGetSpy } = stubbedSdkClient();
+    restGetSpy.mockResolvedValue({
+      statusCode: 200,
+      result: {
+        count: 1,
+        value: [{
+          id: 50,
+          name: 'Deploy API',
+          modifiedOn: '2026-09-01T10:00:00.000Z',
+          artifacts: [{ alias: '_api-ci', type: 'Build', definitionReference: { definition: { id: '140' } } }],
+        }],
+      },
+      headers: {},
+    });
+
+    const [definition] = await client.listReleaseDefinitionsWithArtifacts({ project: 'proj' });
+
+    expect(definition?.artifacts).toEqual([
+      { alias: '_api-ci', type: 'Build', definitionReference: { definition: { id: '140' } } },
+    ]);
+    expect(definition?.modifiedOn).toEqual(new Date('2026-09-01T10:00:00.000Z'));
+  });
+});
+
+describe('release definitions sdk drift check', () => {
+  it('matches the api version and location id the real ReleaseApi.getReleaseDefinitions uses', async () => {
+    // If azure-devops-node-api is upgraded and these move, SdkAdoClient's hand-driven
+    // listReleaseDefinitionsWithArtifacts would silently hit an old route — fail here instead.
+    const args = await captureVersioningArgs('release', async release => release.getReleaseDefinitions('p'));
+
+    expect(args[0]).toBe(RELEASE_DEFINITIONS_API_VERSION);
+    expect(args[2]).toBe(RELEASE_DEFINITIONS_LOCATION_ID);
   });
 });

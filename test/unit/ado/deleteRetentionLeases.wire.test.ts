@@ -1,43 +1,11 @@
-import type { BuildApi } from 'azure-devops-node-api/BuildApi.js';
-import { BuildApi as RealBuildApi } from 'azure-devops-node-api/BuildApi.js';
-import { describe, expect, it, vi } from 'vitest';
-import { SdkAdoClient } from '../../../src/ado/sdkClient.js';
+import { describe, expect, it } from 'vitest';
+import { withRealApi } from '../../helpers/sdkWire.js';
 
-/**
- * Builds a real `SdkAdoClient` whose `api.getBuildApi()` hands back a real `BuildApi`. Only
- * `vsoClient.getVersioningData` (route resolution) and `rest.del` (the actual request — the SDK's
- * `deleteRetentionLeasesById` issues a DELETE, unlike the GET `listBuildLeases` uses) are stubbed,
- * so the real `BuildApi.deleteRetentionLeasesById` routeValues/queryValues wiring runs.
- */
-function stubbedSdkClient(): {
-  client: SdkAdoClient;
-  versioningDataSpy: ReturnType<typeof vi.spyOn>;
-  restDelSpy: ReturnType<typeof vi.spyOn>;
-  restGetSpy: ReturnType<typeof vi.spyOn>;
-  restCreateSpy: ReturnType<typeof vi.spyOn>;
-  restUpdateSpy: ReturnType<typeof vi.spyOn>;
-  restReplaceSpy: ReturnType<typeof vi.spyOn>;
-} {
-  const client = new SdkAdoClient({ baseUrl: 'https://ado.example.test/tfs/Collection', pat: 'fake-pat' });
-  const build = new RealBuildApi('https://ado.example.test/tfs/Collection', []);
-  const versioningDataSpy = vi.spyOn(build.vsoClient, 'getVersioningData').mockResolvedValue({
-    requestUrl: 'https://ado.example.test/tfs/Collection/proj/_apis/build/leases',
-    apiVersion: '7.2-preview.2',
-  });
-  const restDelSpy = vi.spyOn(build.rest, 'del').mockResolvedValue({
-    statusCode: 200,
-    result: null,
-    headers: {},
-  });
-  // These must never be called by deleteRetentionLeasesById — only `del` is the real verb. Spied
-  // (and stubbed, in case a regression does call one) so a regression fails on "not called"
-  // rather than on a hung/rejected real HTTP call.
-  const restGetSpy = vi.spyOn(build.rest, 'get').mockResolvedValue({ statusCode: 200, result: null, headers: {} });
-  const restCreateSpy = vi.spyOn(build.rest, 'create').mockResolvedValue({ statusCode: 200, result: null, headers: {} });
-  const restUpdateSpy = vi.spyOn(build.rest, 'update').mockResolvedValue({ statusCode: 200, result: null, headers: {} });
-  const restReplaceSpy = vi.spyOn(build.rest, 'replace').mockResolvedValue({ statusCode: 200, result: null, headers: {} });
-  (client as unknown as { api: { getBuildApi: () => Promise<BuildApi> } }).api.getBuildApi = async () => build;
-  return { client, versioningDataSpy, restDelSpy, restGetSpy, restCreateSpy, restUpdateSpy, restReplaceSpy };
+// Real `BuildApi.deleteRetentionLeasesById` via the shared harness (test/helpers/sdkWire.ts).
+// The SDK issues a DELETE (`rest.del`), unlike the GET `listBuildLeases` uses; every other verb
+// is stubbed by the harness so a regression fails on "not called" rather than a real request.
+function stubbedSdkClient() {
+  return withRealApi('build', { requestUrl: 'https://ado.example.test/tfs/Collection/proj/_apis/build/leases' });
 }
 
 describe('sdkAdoClient.deleteRetentionLeases (wire)', () => {

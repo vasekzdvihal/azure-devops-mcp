@@ -1,29 +1,11 @@
-import type { BuildApi } from 'azure-devops-node-api/BuildApi.js';
-import { BuildApi as RealBuildApi } from 'azure-devops-node-api/BuildApi.js';
-import { describe, expect, it, vi } from 'vitest';
-import { SdkAdoClient } from '../../../src/ado/sdkClient.js';
+import { describe, expect, it } from 'vitest';
+import { withRealApi } from '../../helpers/sdkWire.js';
 
-/**
- * Builds a real `SdkAdoClient` whose `api.getBuildApi()` hands back a real `BuildApi`. Only
- * `vsoClient.getVersioningData` (route + query resolution) and `rest.get` (the actual request)
- * are stubbed, so the real `BuildApi.getDefinitions` positional-argument → query-param wiring
- * runs. `getDefinitions` passes its `queryValues` object as the 5th argument of
- * `getVersioningData`, which is what these tests assert on.
- */
-function stubbedSdkClient(): {
-  client: SdkAdoClient;
-  versioningDataSpy: ReturnType<typeof vi.spyOn>;
-  restGetSpy: ReturnType<typeof vi.spyOn>;
-} {
-  const client = new SdkAdoClient({ baseUrl: 'https://ado.example.test/tfs/Collection', pat: 'fake-pat' });
-  const build = new RealBuildApi('https://ado.example.test/tfs/Collection', []);
-  const versioningDataSpy = vi.spyOn(build.vsoClient, 'getVersioningData').mockResolvedValue({
-    requestUrl: 'https://ado.example.test/tfs/Collection/proj/_apis/build/definitions',
-    apiVersion: '7.2-preview.7',
-  });
-  const restGetSpy = vi.spyOn(build.rest, 'get');
-  (client as unknown as { api: { getBuildApi: () => Promise<BuildApi> } }).api.getBuildApi = async () => build;
-  return { client, versioningDataSpy, restGetSpy };
+// Real `BuildApi.getDefinitions` positional-argument → query-param wiring via the shared harness
+// (test/helpers/sdkWire.ts). `getDefinitions` passes its `queryValues` object as the 5th argument
+// of `getVersioningData`, which is what these tests assert on.
+function stubbedSdkClient() {
+  return withRealApi('build', { requestUrl: 'https://ado.example.test/tfs/Collection/proj/_apis/build/definitions' });
 }
 
 describe('sdkAdoClient.listPipelines (wire)', () => {

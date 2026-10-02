@@ -60,9 +60,10 @@ const DEFAULT_COMMENTS_TOP = 20;
 // queryValues)`. listReleaseDefinitionsWithArtifacts below calls vsoClient/rest directly
 // (instead of the convenience method) so it can read the `x-ms-continuationtoken` response
 // header, which `getReleaseDefinitions` itself never surfaces (see that method's doc comment).
-// Re-check both values against that line if azure-devops-node-api is ever upgraded.
-const RELEASE_DEFINITIONS_API_VERSION = '7.2-preview.4';
-const RELEASE_DEFINITIONS_LOCATION_ID = 'd8f96f24-8ea7-4cb6-baab-2df8fc515665';
+// Exported for the drift test in listReleaseDefinitionsWithArtifacts.wire.test.ts, which runs
+// the real getReleaseDefinitions and fails if an SDK upgrade moves either value.
+export const RELEASE_DEFINITIONS_API_VERSION = '7.2-preview.4';
+export const RELEASE_DEFINITIONS_LOCATION_ID = 'd8f96f24-8ea7-4cb6-baab-2df8fc515665';
 // Runaway guard: stop chaining continuation tokens after this many pages rather than looping
 // forever if ADO ever sends a token back after the header-driven code below misparses it.
 const MAX_RELEASE_DEFINITION_PAGES = 100;

@@ -1,36 +1,15 @@
-import type { GitApi } from 'azure-devops-node-api/GitApi.js';
-import { GitApi as RealGitApi } from 'azure-devops-node-api/GitApi.js';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { AdoNotFoundError } from '../../../src/ado/errors.js';
-import { SdkAdoClient } from '../../../src/ado/sdkClient.js';
+import { withRealApi } from '../../helpers/sdkWire.js';
 
 const ZERO = '0'.repeat(40);
 const SHA = 'a'.repeat(40);
 
-/**
- * Builds a real `SdkAdoClient` whose `api.getGitApi()` (the `azure-devops-node-api` WebApi
- * method that otherwise resolves a resource-area URL over the network) is replaced with a
- * real `GitApi` instance handed to it directly. Only that instance's
- * `vsoClient.getVersioningData` (route/query resolution) and `rest.create` (the actual POST)
- * are stubbed — every other line `SdkAdoClient.updateRefs` runs, including the real
- * `GitApi.updateRefs` argument wiring, executes for real. This is what lets the test catch an
- * argument-order mistake in `SdkAdoClient.updateRefs` (e.g. swapping `repository`/`project`),
- * unlike calling `GitApi.updateRefs` directly.
- */
-function stubbedSdkClient(): {
-  client: SdkAdoClient;
-  versioningDataSpy: ReturnType<typeof vi.spyOn>;
-  restCreateSpy: ReturnType<typeof vi.spyOn>;
-} {
-  const client = new SdkAdoClient({ baseUrl: 'https://ado.example.test/tfs/Collection', pat: 'fake-pat' });
-  const git = new RealGitApi('https://ado.example.test/tfs/Collection', []);
-  const versioningDataSpy = vi.spyOn(git.vsoClient, 'getVersioningData').mockResolvedValue({
-    requestUrl: 'https://ado.example.test/tfs/Collection/proj/_apis/git/repositories/repo/refs',
-    apiVersion: '7.2-preview.2',
-  });
-  const restCreateSpy = vi.spyOn(git.rest, 'create');
-  (client as unknown as { api: { getGitApi: () => Promise<GitApi> } }).api.getGitApi = async () => git;
-  return { client, versioningDataSpy, restCreateSpy };
+// Real `GitApi.updateRefs` argument wiring via the shared harness (test/helpers/sdkWire.ts); the
+// request is a POST (`rest.create`). Going through `SdkAdoClient` (not `GitApi.updateRefs`
+// directly) is what catches an argument-order mistake such as swapping `repository`/`project`.
+function stubbedSdkClient() {
+  return withRealApi('git', { requestUrl: 'https://ado.example.test/tfs/Collection/proj/_apis/git/repositories/repo/refs' });
 }
 
 describe('sdkAdoClient.updateRefs (wire)', () => {
