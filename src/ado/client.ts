@@ -16,6 +16,8 @@ import type {
   GitPullRequestCompletionOptions,
   GitPullRequestIteration,
   GitPullRequestMergeStrategy,
+  GitRefUpdate,
+  GitRefUpdateResult,
   GitRepository,
   Identity,
   IdentityRefWithVote,
@@ -28,6 +30,7 @@ import type {
   ReleaseEnvironmentUpdateMetadata,
   ReleaseStartMetadata,
   ReleaseStatus,
+  RetentionLease,
   Run,
   TeamProjectReference,
   Timeline,
@@ -240,6 +243,9 @@ export interface AdoClient {
   listPipelines: (args: {
     project: string;
     repositoryId?: string;
+    // ADO repository type, e.g. 'TfsGit' for Azure Repos; pair it with repositoryId to scope
+    // the list to one repository.
+    repositoryType?: string;
   }) => Promise<BuildDefinition[]>;
 
   listPipelineRuns: (args: {
@@ -290,6 +296,28 @@ export interface AdoClient {
     base: string;
     target: string;
   }) => Promise<GitCommitDiffs>;
+
+  /** Statistics about a single branch (short name, no `refs/heads/` prefix). Null when it does not exist. */
+  getBranch: (args: {
+    project: string;
+    repository: string;
+    branch: string;
+  }) => Promise<GitBranchStats | null>;
+
+  // commit & branch writes (Phase 7b)
+  /** Create, update, or delete refs (branches). Used by create_branch to push a new `refs/heads/<name>`. */
+  updateRefs: (args: {
+    project: string;
+    repository: string;
+    updates: GitRefUpdate[];
+  }) => Promise<GitRefUpdateResult[]>;
+
+  /** Sets a repository's default branch. `defaultBranch` is the full `refs/heads/<name>` ref. */
+  updateRepositoryDefaultBranch: (args: {
+    project: string;
+    repositoryId: string;
+    defaultBranch: string;
+  }) => Promise<GitRepository>;
 
   // pipeline writes (Phase 4.1)
   queuePipelineRun: (args: {
@@ -439,4 +467,15 @@ export interface AdoClient {
     id: number;
     commentId: number;
   }) => Promise<void>;
+
+  // retention (Phase 7b, Task 11)
+  /** Retention leases (RM release, pipeline, branch policy, manual "retain") holding a build. */
+  listBuildLeases: (args: { project: string; buildId: number }) => Promise<RetentionLease[]>;
+
+  /** Every classic release definition in the project, with its artifacts expanded (all pages). */
+  listReleaseDefinitionsWithArtifacts: (args: { project: string }) => Promise<ReleaseDefinition[]>;
+
+  // retention (Phase 7b, Task 12)
+  /** Deletes one or more retention leases so they stop retaining their build. Irreversible. */
+  deleteRetentionLeases: (args: { project: string; leaseIds: number[] }) => Promise<void>;
 }

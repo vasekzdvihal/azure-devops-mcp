@@ -56,3 +56,9 @@ export const CompareBranchesInput = {
   includeCommits: z.boolean().optional().describe('Also return the commits in target that are not in base (default false).'),
   top: z.number().int().positive().max(MAX_TOP).optional().describe('Max commits when includeCommits (default 100).'),
 };
+
+export const CreateBranchInput = {
+  ...repoCoords,
+  name: z.string().min(1).describe('New branch name (e.g. \'main\').'),
+  from: z.string().min(1).describe('Source: a branch name or a full 40-char commit sha.'),
+};

@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { registerAllTools } from '../../../src/mcp/registerTools.js';
 import { FakeAdoClient } from '../../fakes/FakeAdoClient.js';
 
-const FULL_TOOL_COUNT = 57;
-const READ_ONLY_TOOL_COUNT = 24;
+const FULL_TOOL_COUNT = 63;
+const READ_ONLY_TOOL_COUNT = 26;
 
 const FULL_ONLY_NAMES = [
   'create_pipeline',
@@ -13,7 +13,16 @@ const FULL_ONLY_NAMES = [
   'delete_release_definition',
   'delete_pull_request_comment',
   'delete_work_item_comment',
+  'create_branch',
+  'set_default_branch',
+  'set_pipeline_default_branch',
+  'delete_build_lease',
 ];
+
+interface StubToolConfig {
+  title: string;
+  description: string;
+}
 
 // Stub server: records every registerTool(name, config, handler) call. registerAllTools only
 // calls this one method on the server (see src/mcp/registerTools.ts), so this is the whole shape
@@ -21,12 +30,14 @@ const FULL_ONLY_NAMES = [
 // without needing a real McpServer.
 function makeStubServer() {
   const names: string[] = [];
+  const configs = new Map<string, StubToolConfig>();
   const stub = {
-    registerTool: (name: string, _config: unknown, _handler: unknown) => {
+    registerTool: (name: string, config: StubToolConfig, _handler: unknown) => {
       names.push(name);
+      configs.set(name, config);
     },
   };
-  return { stub, names };
+  return { stub, names, configs };
 }
 
 describe('registerAllTools', () => {
@@ -56,6 +67,17 @@ describe('registerAllTools', () => {
     registerAllTools(fullStub as unknown as McpServer, new FakeAdoClient(), { readOnly: false });
     for (const name of names) {
       expect(fullNames).toContain(name);
+    }
+  });
+
+  it('warns to confirm with the user before calling high-impact/irreversible write tools', () => {
+    const { stub, configs } = makeStubServer();
+    registerAllTools(stub as unknown as McpServer, new FakeAdoClient(), { readOnly: false });
+
+    const confirmFirstNames = ['set_default_branch', 'set_pipeline_default_branch', 'delete_build_lease'];
+    for (const name of confirmFirstNames) {
+      const config = configs.get(name);
+      expect(config?.description.startsWith('**Always confirm with the user before calling')).toBe(true);
     }
   });
 });

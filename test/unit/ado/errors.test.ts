@@ -65,7 +65,7 @@ describe('mapSdkError', () => {
     const mapped = mapSdkError(Object.assign(new Error('x'), { statusCode: 401 }));
     expect(mapped.message).toMatch(/PAT/i);
     expect(mapped.message).toMatch(/Code \(read\)/);
-    expect(mapped.message).toMatch(/Code \(write\)/);
+    expect(mapped.message).toMatch(/Code \(read, write, & manage\)/);
     expect(mapped.message).toMatch(/Pull Request \(write\)/);
   });
 
@@ -141,5 +141,14 @@ describe('mapSdkError — scope hint branch', () => {
     const mapped = mapSdkError(err);
     expect(mapped).toBeInstanceOf(AdoScopeError);
     expect((mapped as AdoScopeError).scope).toBe('Release (read, write, execute, & manage)');
+  });
+
+  it('403 with body mentioning vso.code_manage → AdoScopeError naming the Code manage tier', () => {
+    const err = Object.assign(new Error('The token lacks scope vso.code_manage'), {
+      statusCode: 403,
+    });
+    const mapped = mapSdkError(err);
+    expect(mapped).toBeInstanceOf(AdoScopeError);
+    expect((mapped as AdoScopeError).scope).toBe('Code (read, write, & manage)');
   });
 });

@@ -8,6 +8,7 @@ export type {
   BuildDefinitionVariable,
   BuildResult,
   BuildStatus,
+  RetentionLease,
   Timeline,
   TimelineRecord,
 } from 'azure-devops-node-api/interfaces/BuildInterfaces.js';
@@ -39,9 +40,13 @@ export type {
   GitCommitDiffs,
   GitCommitRef,
   GitQueryCommitsCriteria,
+  GitRefUpdate,
+  GitRefUpdateResult,
   GitTargetVersionDescriptor,
   GitVersionDescriptor,
 } from 'azure-devops-node-api/interfaces/GitInterfaces.js';
+// Used as a value: GitRefUpdateStatus[result.updateStatus] to label a rejected ref update.
+export { GitRefUpdateStatus } from 'azure-devops-node-api/interfaces/GitInterfaces.js';
 
 // Re-exports of azure-devops-node-api types we expose at the AdoClient seam.
 // Keeping a single import surface here means downstream files don't import from
@@ -92,9 +97,14 @@ export type {
   ReleaseTriggerBase,
   ScheduledReleaseTrigger,
 } from 'azure-devops-node-api/interfaces/ReleaseInterfaces.js';
-// ReleaseDefinitionSource and ReleaseTriggerType are used as *values*
-// (source = ReleaseDefinitionSource.RestApi; trigger.triggerType === ReleaseTriggerType.Schedule).
-export { ReleaseDefinitionSource, ReleaseTriggerType } from 'azure-devops-node-api/interfaces/ReleaseInterfaces.js';
+// ReleaseDefinitionSource, ReleaseTriggerType and ReleaseDefinitionExpands are used as
+// *values* (source = ReleaseDefinitionSource.RestApi; trigger.triggerType ===
+// ReleaseTriggerType.Schedule; expand: ReleaseDefinitionExpands.Artifacts).
+export {
+  ReleaseDefinitionExpands,
+  ReleaseDefinitionSource,
+  ReleaseTriggerType,
+} from 'azure-devops-node-api/interfaces/ReleaseInterfaces.js';
 
 // Work items (WorkItemTrackingApi)
 export type {

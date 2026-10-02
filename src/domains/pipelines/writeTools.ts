@@ -6,6 +6,7 @@ import {
   DeletePipelineInput,
   QueuePipelineRunInput,
   RetryPipelineStageInput,
+  SetPipelineDefaultBranchInput,
   UpdateBuildTagsInput,
   UpdatePipelineTriggersInput,
   UpdatePipelineVariablesInput,
@@ -123,6 +124,23 @@ export function buildPipelineWriteTools(svc: PipelinesWriteService): ToolDefinit
       },
       handler: async args =>
         svc.deletePipeline(args as Parameters<typeof svc.deletePipeline>[0]),
+    },
+    {
+      name: 'set_pipeline_default_branch',
+      config: {
+        title: 'Set the default branch on pipeline definitions (bulk)',
+        description:
+          '**Always confirm with the user before calling with dryRun: false — this changes the default '
+          + 'branch every future manual/scheduled run uses.** Always run with dryRun (the default) first '
+          + 'and show the user the change list. Targets all pipelines for `repository`, or explicit '
+          + '`definitionIds`; `fromBranch` limits to pipelines currently on that branch. Applies one '
+          + 'definition at a time and reports updated / skipped / failed; one failure does not stop the '
+          + 'rest. Secret variables are preserved. Apply with the `definitionIds` from the dry run\'s '
+          + '`changes` so exactly the reviewed set is written.',
+        inputSchema: SetPipelineDefaultBranchInput,
+      },
+      handler: async args =>
+        svc.setDefaultBranch(args as Parameters<typeof svc.setDefaultBranch>[0]),
     },
   ];
 }

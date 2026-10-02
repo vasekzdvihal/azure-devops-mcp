@@ -18,6 +18,8 @@ import type {
   GitPullRequestCompletionOptions,
   GitPullRequestIteration,
   GitPullRequestMergeStrategy,
+  GitRefUpdate,
+  GitRefUpdateResult,
   GitRepository,
   Identity,
   IdentityRefWithVote,
@@ -30,6 +32,7 @@ import type {
   ReleaseEnvironmentUpdateMetadata,
   ReleaseStartMetadata,
   ReleaseStatus,
+  RetentionLease,
   Run,
   RunPipelineParameters,
   TeamProjectReference,
@@ -41,15 +44,61 @@ import https from 'node:https';
 // src/ado/sdkClient.ts
 import * as azdev from 'azure-devops-node-api';
 import { GitVersionType } from 'azure-devops-node-api/interfaces/GitInterfaces.js';
+import { TypeInfo as ReleaseTypeInfo } from 'azure-devops-node-api/interfaces/ReleaseInterfaces.js';
 import { AdoError, AdoNotFoundError, AdoUnknownError, mapSdkError } from './errors.js';
 import { branchDiffDescriptors, commitQueryCriteria } from './queryShapes.js';
 import { buildHttpsAgent } from './tlsAgent.js';
-import { ConfigurationType, WorkItemExpand } from './types.js';
+import { ConfigurationType, ReleaseDefinitionExpands, WorkItemExpand } from './types.js';
 
 // ADO ReleaseInterfaces.ApprovalStatus wire values.
 const APPROVAL_STATUS_APPROVED = 2;
 const APPROVAL_STATUS_REJECTED = 4;
 const DEFAULT_COMMENTS_TOP = 20;
+
+// Copied from azure-devops-node-api/ReleaseApi.js's getReleaseDefinitions (~line 671):
+// `this.vsoClient.getVersioningData("7.2-preview.4", "Release", "d8f96f24-…", routeValues,
+// queryValues)`. listReleaseDefinitionsWithArtifacts below calls vsoClient/rest directly
+// (instead of the convenience method) so it can read the `x-ms-continuationtoken` response
+// header, which `getReleaseDefinitions` itself never surfaces (see that method's doc comment).
+// Exported for the drift test in listReleaseDefinitionsWithArtifacts.wire.test.ts, which runs
+// the real getReleaseDefinitions and fails if an SDK upgrade moves either value.
+export const RELEASE_DEFINITIONS_API_VERSION = '7.2-preview.4';
+export const RELEASE_DEFINITIONS_LOCATION_ID = 'd8f96f24-8ea7-4cb6-baab-2df8fc515665';
+// Runaway guard: stop chaining continuation tokens after this many pages rather than looping
+// forever if ADO ever sends a token back after the header-driven code below misparses it.
+const MAX_RELEASE_DEFINITION_PAGES = 100;
+
+/**
+ * `typed-rest-client`'s `IRestResponse.headers` is typed as the bare `Object` (a typing gap in
+ * that package), but at runtime it's Node's `http.IncomingMessage.headers` — keys already
+ * lower-cased, values `string | string[] | undefined` (arrays for headers that can repeat).
+ */
+function continuationTokenFromHeaders(headers: object): string | undefined {
+  const value = (headers as Record<string, string | string[] | undefined>)['x-ms-continuationtoken'];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+const HTTP_BAD_REQUEST = 400;
+const DOES_NOT_EXIST_RE = /does not exist/i;
+
+/**
+ * ADO Server answers `GET .../refs` stats for a missing branch with HTTP 400
+ * `System.ArgumentException` ("Branch \"x\" does not exist in the <id> repository.") rather than
+ * 404 — verified live 2026-10-02. typed-rest-client rejects with `{ statusCode, message, result }`.
+ */
+function isMissingBranchError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+  const { statusCode, message, result } = err as { statusCode?: unknown; message?: unknown; result?: unknown };
+  if (statusCode !== HTTP_BAD_REQUEST) {
+    return false;
+  }
+  const resultMessage = typeof result === 'object' && result !== null
+    ? (result as { message?: unknown }).message
+    : undefined;
+  return [message, resultMessage].some(text => typeof text === 'string' && DOES_NOT_EXIST_RE.test(text));
+}
 
 export interface SdkAdoClientOptions {
   baseUrl: string;
@@ -663,6 +712,82 @@ export class SdkAdoClient implements AdoClient {
     }
   }
 
+  /**
+   * All classic release definitions in the project, with `artifacts` expanded, across every
+   * page.
+   *
+   * `ReleaseApi.getReleaseDefinitions` (the SDK's convenience method) never surfaces the real
+   * `x-ms-continuationtoken` response header on its returned `PagedList` — `formatResponse`
+   * (ClientApiBases.js) only deserializes `res.result` and never reads `res.headers`, and
+   * `ContractSerializer.deserialize`'s "unwrap wrapped collections" step replaces the response
+   * body with just its `.value` array, discarding any sibling property — so `page.continuationToken`
+   * is always `undefined` there, and a do-while loop built on top of it would silently return only
+   * page 1 for any project with enough release definitions to paginate.
+   *
+   * This method instead drives `ReleaseApi`'s own `vsoClient` / `rest` / `createRequestOptions` /
+   * `formatResponse` members directly — the exact plumbing `getReleaseDefinitions` uses
+   * internally (see `RELEASE_DEFINITIONS_API_VERSION`/`RELEASE_DEFINITIONS_LOCATION_ID` above) —
+   * so it can read the continuation token from the real response header and correctly paginate.
+   */
+  async listReleaseDefinitionsWithArtifacts(args: { project: string }): Promise<ReleaseDefinition[]> {
+    try {
+      const rel = await this.api.getReleaseApi();
+      const all: ReleaseDefinition[] = [];
+      let continuationToken: string | undefined;
+      let pageCount = 0;
+      do {
+        pageCount += 1;
+        if (pageCount > MAX_RELEASE_DEFINITION_PAGES) {
+          throw new AdoUnknownError(
+            `listReleaseDefinitionsWithArtifacts exceeded ${MAX_RELEASE_DEFINITION_PAGES} pages `
+            + `for project '${args.project}' — the release-definition continuation-token chain `
+            + `may be looping.`,
+          );
+        }
+        const verData = await rel.vsoClient.getVersioningData(
+          RELEASE_DEFINITIONS_API_VERSION,
+          'Release',
+          RELEASE_DEFINITIONS_LOCATION_ID,
+          { project: args.project },
+          { $expand: ReleaseDefinitionExpands.Artifacts, continuationToken },
+        );
+        const options = rel.createRequestOptions('application/json', verData.apiVersion);
+        const res = await rel.rest.get(verData.requestUrl ?? '', options);
+        // typed-rest-client resolves `{ result: null }` on a 404 instead of rejecting — treat a
+        // null page as "no more results".
+        if (res.result === null) {
+          break;
+        }
+        const page = rel.formatResponse(
+          res.result,
+          ReleaseTypeInfo.ReleaseDefinition,
+          true,
+        ) as ReleaseDefinition[];
+        all.push(...page);
+        continuationToken = continuationTokenFromHeaders(res.headers);
+      } while (continuationToken);
+      return all;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      const mapped = mapSdkError(err);
+      // Same "classic releases not enabled" hint as listReleaseDefinitions above — this call
+      // hits the same endpoint family and 404s for the same reasons. Only covers a real
+      // thrown/rejected not-found error: typed-rest-client's 404-as-`{ result: null }` case is
+      // handled above and never reaches this catch.
+      if (mapped instanceof AdoNotFoundError) {
+        throw new AdoNotFoundError(
+          `Release API unavailable — this collection may not have classic releases enabled, `
+          + `or the project name is wrong. ${
+            mapped.message.replace(/^.*Details:\s*/, 'Details: ')}`,
+        );
+      }
+      throw mapped;
+    }
+  }
+
   async listReleases(args: {
     project: string;
     definitionId?: number;
@@ -761,6 +886,7 @@ export class SdkAdoClient implements AdoClient {
   async listPipelines(args: {
     project: string;
     repositoryId?: string;
+    repositoryType?: string;
   }): Promise<BuildDefinition[]> {
     try {
       const build = await this.api.getBuildApi();
@@ -770,7 +896,7 @@ export class SdkAdoClient implements AdoClient {
         args.project,
         undefined, // name
         args.repositoryId,
-        undefined, // repositoryType
+        args.repositoryType,
         undefined, // queryOrder
         undefined, // top
         undefined, // continuationToken
@@ -781,9 +907,14 @@ export class SdkAdoClient implements AdoClient {
         undefined, // notBuiltAfter
         true, // includeAllProperties
       );
-      return defs as BuildDefinition[];
+      // typed-rest-client resolves `{ result: null }` on a 404 instead of rejecting (see
+      // getBranch/updateRefs). For a list query "nothing there" is a valid answer, so map it to [].
+      return (defs ?? []) as BuildDefinition[];
     }
     catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
       throw mapSdkError(err);
     }
   }
@@ -881,6 +1012,35 @@ export class SdkAdoClient implements AdoClient {
         throw new AdoNotFoundError(`Build ${args.buildId} not found`);
       }
       return result;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  async listBuildLeases(args: { project: string; buildId: number }): Promise<RetentionLease[]> {
+    try {
+      const build = await this.api.getBuildApi();
+      const leases = await build.getRetentionLeasesForBuild(args.project, args.buildId);
+      // typed-rest-client resolves `{ result: null }` on a 404 instead of rejecting — a bad
+      // project/buildId resolves `null` here despite the `RetentionLease[]` return type.
+      return leases ?? [];
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  async deleteRetentionLeases(args: { project: string; leaseIds: number[] }): Promise<void> {
+    try {
+      const build = await this.api.getBuildApi();
+      await build.deleteRetentionLeasesById(args.project, args.leaseIds);
     }
     catch (err) {
       if (err instanceof AdoError) {
@@ -994,7 +1154,15 @@ export class SdkAdoClient implements AdoClient {
   }): Promise<BuildDefinition> {
     try {
       const build = await this.api.getBuildApi();
-      return await build.updateDefinition(args.definition, args.project, args.definitionId);
+      const updated = await build.updateDefinition(args.definition, args.project, args.definitionId);
+      // typed-rest-client resolves `{ result: null }` on a 404 (see getBranch) — a missing
+      // definition must not read as a successful update.
+      if (!updated) {
+        throw new AdoNotFoundError(
+          `Pipeline definition ${args.definitionId} not found in project '${args.project}'`,
+        );
+      }
+      return updated;
     }
     catch (err) {
       if (err instanceof AdoError) {
@@ -1283,6 +1451,98 @@ export class SdkAdoClient implements AdoClient {
         descriptors.base,
         descriptors.target,
       );
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  /**
+   * Statistics for one branch. Null when the branch does not exist.
+   *
+   * The SDK's `rest.get` intercepts HTTP 404 itself and resolves `{ result: null }` instead
+   * of rejecting (see typed-rest-client's RestClient.processResponse), so `git.getBranch`
+   * resolves `undefined`/`null` for a missing branch rather than throwing. ADO Server, however,
+   * rejects a missing branch with HTTP 400 ArgumentException "... does not exist ..." (verified
+   * live 2026-10-02) — see `isMissingBranchError`; that also means null. The `AdoNotFoundError`
+   * check in the catch below is defensive, in case a server variant throws a 404 instead.
+   */
+  async getBranch(args: {
+    project: string;
+    repository: string;
+    branch: string;
+  }): Promise<GitBranchStats | null> {
+    try {
+      const git = await this.api.getGitApi();
+      return (await git.getBranch(args.repository, args.branch, args.project)) ?? null;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      if (isMissingBranchError(err)) {
+        return null;
+      }
+      const mapped = mapSdkError(err);
+      if (mapped instanceof AdoNotFoundError) {
+        return null;
+      }
+      throw mapped;
+    }
+  }
+
+  async updateRefs(args: {
+    project: string;
+    repository: string;
+    updates: GitRefUpdate[];
+  }): Promise<GitRefUpdateResult[]> {
+    try {
+      const git = await this.api.getGitApi();
+      const results = await git.updateRefs(args.updates, args.repository, args.project);
+      // The same typed-rest-client 404 handling documented on getBranch above applies here:
+      // `rest.create` resolves `{ result: null }` instead of rejecting for a 404 (e.g. a
+      // wrong project/repository, TF401019), so a bad repository silently resolves `null`
+      // here despite the `GitRefUpdateResult[]` return type.
+      if (!results) {
+        throw new AdoNotFoundError(`repository '${args.repository}' not found in project '${args.project}'`);
+      }
+      return results;
+    }
+    catch (err) {
+      if (err instanceof AdoError) {
+        throw err;
+      }
+      throw mapSdkError(err);
+    }
+  }
+
+  /**
+   * Sets a repository's default branch. `GitApi.updateRepository` sends the body via
+   * typed-rest-client's `RestClient.update()`, which issues an HTTP PATCH (`HttpClient.patch`)
+   * to the repository's own route (routeValues: `{ project, repositoryId }`) — see
+   * `test/unit/ado/updateRepository.wire.test.ts`. The same null-on-404 behavior documented on
+   * `getBranch`/`updateRefs` above applies: a bad repository/project resolves `null` rather than
+   * rejecting.
+   */
+  async updateRepositoryDefaultBranch(args: {
+    project: string;
+    repositoryId: string;
+    defaultBranch: string;
+  }): Promise<GitRepository> {
+    try {
+      const git = await this.api.getGitApi();
+      const updated = await git.updateRepository(
+        { defaultBranch: args.defaultBranch },
+        args.repositoryId,
+        args.project,
+      );
+      if (!updated) {
+        throw new AdoNotFoundError(`repository '${args.repositoryId}' not found in project '${args.project}'`);
+      }
+      return updated;
     }
     catch (err) {
       if (err instanceof AdoError) {

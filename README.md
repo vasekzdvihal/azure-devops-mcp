@@ -34,9 +34,9 @@ Env vars are a complete, exclusive config source: if any of them is set, all req
 | Mode | Required scopes |
 | --- | --- |
 | Read-only (read tools only) | **Code (read)**, **Identity (read)**, **Build (read)**, **Release (read)**, **Work Items (read)** |
-| Full (default — read + write tools) | **Code (read & write)**, **Pull Request (read & write)**, **Identity (read)**, **Build (read & execute)**, **Release (read, write, execute, & manage)**, **Work Items (read & write)** |
+| Full (default — read + write tools) | **Code (read, write, & manage)**, **Pull Request (read & write)**, **Identity (read)**, **Build (read & execute)**, **Release (read, write, execute, & manage)**, **Work Items (read & write)** |
 
-The "manage" tier of Release is needed only by `delete_release_definition`; every other release tool works with "read, write, & execute".
+The "manage" tier of Release is needed only by `delete_release_definition`; every other release tool works with "read, write, & execute". The "manage" tier of Code is needed only by `set_default_branch`; every other repo/branch tool works with "read & write".
 
 A read-only PAT is the actual security guarantee — ADO enforces scope at the API regardless of what the MCP server exposes. The read-only mode env var (below) is an additional layer for users who can't or don't want to scope down their PAT.
 
@@ -105,6 +105,8 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `list_commits` | Commits on a branch. Filter by fromDate, toDate, author, `notInBranch` (commit range), top. Each commit includes `author.email`. Auto-detects repo from cwd. |
 | `compare_branches` | Ahead/behind commit counts between `base` and `target`, plus merge-base commit and file change counts on `target` since the merge base. `includeCommits: true` also returns the commits themselves (capped by `top`; `commitsTruncated` flags a partial list). Auto-detects repo from cwd. |
 | `list_pending_approvals` | List pending release approvals; companion to `approve_release_gate`. |
+| `list_build_leases` | Lists the retention leases on a build — why it cannot be deleted. `ownerType`: RM (a classic release), Pipeline (pipeline retention), Branch (branch retention policy), User (manual "retain"), other. `protectPipeline: true` also blocks deleting the pipeline definition. Remove a lease with `delete_build_lease`. |
+| `find_build_retainers` | Finds classic release definitions that still use a build definition as a Build artifact — they keep its builds retained. Scans every release definition in the project. |
 | `list_work_items` | Lists work items with convenience filters: `myActive`, `linkedToPr`, `currentIteration`, `tag`. |
 | `get_work_item` | Full work item detail: all fields, relations, and recent comments (with ids). |
 
@@ -145,6 +147,10 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `delete_pipeline` | Soft-delete a pipeline definition (recycle bin, 30 days). Confirms before calling. |
 | `create_release_definition` | Clone an existing release definition under a new name; optional folder, variables, and artifact rebinding. Confirms before calling. |
 | `delete_release_definition` | Soft-delete a release definition; `forceDelete` cancels in-flight deployments. Confirms before calling. Needs Release "manage" scope. |
+| `create_branch` | Creates a new branch pointing at `from` (a branch name or a 40-char commit sha) without cloning. Fails if the branch already exists or a policy blocks it. Project and repository auto-detect from cwd if omitted. There is intentionally no `delete_branch` tool — deleting a branch stays a human action behind branch policy. |
+| `set_default_branch` | Sets the default branch of one repository. The branch must already exist. Returns previous and current values. Confirms before calling — changes what every future PR/clone targets. Needs Code "manage" scope. |
+| `set_pipeline_default_branch` | Bulk-sets the default branch on pipeline definitions. Targets all pipelines for `repository`, or explicit `definitionIds`; `fromBranch` limits to pipelines currently on that branch. `dryRun: true` by default — always run it first and show the user the change list. Applies one definition at a time and reports updated/skipped/failed; one failure does not stop the rest. Secret variables are preserved. Confirms before calling with `dryRun: false`. |
+| `delete_build_lease` | Removes one retention lease (from `list_build_leases`) so the build can be cleaned up or its pipeline deleted. Refuses leases with `protectPipeline: true` unless `force: true`. Returns the deleted lease. Confirms before calling — deletion is irreversible. |
 
 ## Troubleshooting
 

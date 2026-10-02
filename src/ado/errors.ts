@@ -10,7 +10,7 @@ export class AdoAuthError extends AdoError {
       + `The PAT may be expired, revoked, or missing required scopes. `
       + `Check that your PAT is valid and has the required scopes: `
       + `read access needs Code (read), Identity (read), Build (read), Release (read), Work Items (read); `
-      + `write access also needs Code (write), Pull Request (write), Build (read & execute), Release (read, write, execute, & manage), Work Items (read & write). `
+      + `write access also needs Code (read, write, & manage), Pull Request (write), Build (read & execute), Release (read, write, execute, & manage), Work Items (read & write). `
       + `Re-run setup with a new PAT.${
         detail ? ` Details: ${detail}` : ''}`,
     );
@@ -111,6 +111,9 @@ function detectMissingScope(shape: { message?: string }): MissingScope | null {
   // Unambiguous: the vso.* token names only appear when ADO is telling you the scope is missing.
   if (message.includes('vso.build_execute')) {
     return { scope: 'Build (read & execute)' };
+  }
+  if (message.includes('vso.code_manage')) {
+    return { scope: 'Code (read, write, & manage)' };
   }
   if (message.includes('vso.release_manage')) {
     return { scope: 'Release (read, write, execute, & manage)' };

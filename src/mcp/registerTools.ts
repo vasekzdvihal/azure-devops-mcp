@@ -2,6 +2,8 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AdoClient } from '../ado/client.js';
 import { CommitsReadService } from '../domains/commits/readService.js';
 import { buildCommitsReadTools } from '../domains/commits/readTools.js';
+import { CommitsWriteService } from '../domains/commits/writeService.js';
+import { buildCommitsWriteTools } from '../domains/commits/writeTools.js';
 import { IdentityService } from '../domains/identity/service.js';
 import { buildIdentityTools } from '../domains/identity/tools.js';
 import { PipelinesReadService } from '../domains/pipelines/readService.js';
@@ -18,8 +20,14 @@ import { ReleasesReadService } from '../domains/releases/readService.js';
 import { buildReleasesReadTools } from '../domains/releases/readTools.js';
 import { ReleasesWriteService } from '../domains/releases/writeService.js';
 import { buildReleaseWriteTools } from '../domains/releases/writeTools.js';
-import { RepositoriesService } from '../domains/repositories/service.js';
-import { buildRepositoriesTools } from '../domains/repositories/tools.js';
+import { RepositoriesReadService } from '../domains/repositories/readService.js';
+import { buildRepositoriesReadTools } from '../domains/repositories/readTools.js';
+import { RepositoriesWriteService } from '../domains/repositories/writeService.js';
+import { buildRepositoriesWriteTools } from '../domains/repositories/writeTools.js';
+import { RetentionReadService } from '../domains/retention/readService.js';
+import { buildRetentionReadTools } from '../domains/retention/readTools.js';
+import { RetentionWriteService } from '../domains/retention/writeService.js';
+import { buildRetentionWriteTools } from '../domains/retention/writeTools.js';
 import { WorkItemsReadService } from '../domains/workItems/readService.js';
 import { buildWorkItemsReadTools } from '../domains/workItems/readTools.js';
 import { WorkItemsWriteService } from '../domains/workItems/writeService.js';
@@ -49,12 +57,13 @@ export function registerAllTools(
   const readTools = [
     ...buildIdentityTools(new IdentityService(client)),
     ...buildProjectsTools(new ProjectsService(client)),
-    ...buildRepositoriesTools(new RepositoriesService(client)),
+    ...buildRepositoriesReadTools(new RepositoriesReadService(client)),
     ...buildPullRequestReadTools(new PullRequestsReadService(client)),
     ...buildReleasesReadTools(new ReleasesReadService(client)),
     ...buildPipelinesReadTools(new PipelinesReadService(client)),
     ...buildCommitsReadTools(new CommitsReadService(client)),
     ...buildWorkItemsReadTools(new WorkItemsReadService(client)),
+    ...buildRetentionReadTools(new RetentionReadService(client)),
   ];
 
   const writeTools = options.readOnly
@@ -64,6 +73,9 @@ export function registerAllTools(
         ...buildPipelineWriteTools(new PipelinesWriteService(client)),
         ...buildReleaseWriteTools(new ReleasesWriteService(client)),
         ...buildWorkItemsWriteTools(new WorkItemsWriteService(client)),
+        ...buildCommitsWriteTools(new CommitsWriteService(client)),
+        ...buildRepositoriesWriteTools(new RepositoriesWriteService(client)),
+        ...buildRetentionWriteTools(new RetentionWriteService(client)),
       ];
 
   for (const tool of [...readTools, ...writeTools]) {

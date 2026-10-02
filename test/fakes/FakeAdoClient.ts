@@ -17,6 +17,8 @@ import type {
   GitPullRequestCompletionOptions,
   GitPullRequestIteration,
   GitPullRequestMergeStrategy,
+  GitRefUpdate,
+  GitRefUpdateResult,
   GitRepository,
   Identity,
   IdentityRefWithVote,
@@ -29,6 +31,7 @@ import type {
   ReleaseEnvironmentUpdateMetadata,
   ReleaseStartMetadata,
   ReleaseStatus,
+  RetentionLease,
   Run,
   TeamProjectReference,
   Timeline,
@@ -259,6 +262,13 @@ export class FakeAdoClient implements AdoClient {
   private releaseDetails = new Map<string, Release>(); // `${project} ${releaseId}`
   private deployments = new Map<string, Deployment[]>(); // project
   private pipelines = new Map<string, BuildDefinition[]>(); // project
+  private pipelineDefUpdateErrors = new Map<number, Error>(); // definitionId
+
+  // ---- phase-7b task-11 state (retention) ----
+  private buildLeases = new Map<string, RetentionLease[]>(); // `${project} ${buildId}`
+  private deletedLeaseIds: number[] = []; // phase-7b task-12 (retention delete)
+  private releaseDefsWithArtifacts = new Map<string, ReleaseDefinition[]>(); // project
+  private listPipelinesCalls: Array<{ project: string; repositoryId?: string; repositoryType?: string }> = [];
   private pipelineRuns = new Map<string, Build[]>(); // project
   private pipelineRunDetails = new Map<
     string,
@@ -268,10 +278,14 @@ export class FakeAdoClient implements AdoClient {
   private pipelineDefDetails = new Map<string, BuildDefinition>(); // `${project} ${definitionId}`
   private releaseDefDetails = new Map<string, ReleaseDefinition>(); // `${project} ${definitionId}`
   private branches = new Map<string, GitBranchStats[]>(); // `${project} ${repo}`
+  private branchLookups: Array<{ project: string; repository: string; branch: string }> = [];
   private commits = new Map<string, GitCommitRef[]>(); // `${project} ${repo}`
   private commitDiffs = new Map<string, GitCommitDiffs>(); // `${project} ${repo}`
   private listBranchesCalls: Array<{ project: string; repository: string; baseBranch?: string }> = [];
   private listCommitsCalls: Array<Parameters<AdoClient['listCommits']>[0]> = [];
+  private nextRefUpdateResults?: GitRefUpdateResult[];
+  private refUpdateCalls: Array<{ project: string; repository: string; updates: GitRefUpdate[] }> = [];
+  private repositoryUpdates: Array<{ project: string; repositoryId: string; defaultBranch: string }> = [];
 
   getListBranchesCalls() {
     return this.listBranchesCalls;
@@ -279,6 +293,14 @@ export class FakeAdoClient implements AdoClient {
 
   getListCommitsCalls() {
     return this.listCommitsCalls;
+  }
+
+  getRefUpdateCalls() {
+    return this.refUpdateCalls;
+  }
+
+  getRepositoryUpdates() {
+    return this.repositoryUpdates;
   }
 
   // ---- phase-3 setup helpers ----
@@ -296,6 +318,19 @@ export class FakeAdoClient implements AdoClient {
 
   setDeployments(project: string, deployments: Deployment[]): void {
     this.deployments.set(project, deployments);
+  }
+
+  // ---- phase-7b task-11 setup helpers (retention) ----
+  setBuildLeases(project: string, buildId: number, leases: RetentionLease[]): void {
+    this.buildLeases.set(`${project} ${buildId}`, leases);
+  }
+
+  setReleaseDefinitionsWithArtifacts(project: string, defs: ReleaseDefinition[]): void {
+    this.releaseDefsWithArtifacts.set(project, defs);
+  }
+
+  getListPipelinesCalls() {
+    return this.listPipelinesCalls;
   }
 
   setPipelines(project: string, pipelines: BuildDefinition[]): void {
@@ -324,6 +359,14 @@ export class FakeAdoClient implements AdoClient {
 
   setBranches(project: string, repository: string, branches: GitBranchStats[]): void {
     this.branches.set(`${project} ${repository}`, branches);
+  }
+
+  getBranchCalls(): ReadonlyArray<{ project: string; repository: string; branch: string }> {
+    return this.branchLookups;
+  }
+
+  setNextRefUpdateResults(results: GitRefUpdateResult[]): void {
+    this.nextRefUpdateResults = results;
   }
 
   setCommits(project: string, repository: string, commits: GitCommitRef[]): void {
@@ -602,8 +645,10 @@ export class FakeAdoClient implements AdoClient {
   async listPipelines(args: {
     project: string;
     repositoryId?: string;
+    repositoryType?: string;
   }): Promise<BuildDefinition[]> {
     this.throwIfInjected('listPipelines');
+    this.listPipelinesCalls.push(args);
     return this.pipelines.get(args.project) ?? [];
   }
 
@@ -697,6 +742,50 @@ export class FakeAdoClient implements AdoClient {
       );
     }
     return diffs;
+  }
+
+  async getBranch(args: {
+    project: string;
+    repository: string;
+    branch: string;
+  }): Promise<GitBranchStats | null> {
+    this.throwIfInjected('getBranch');
+    this.branchLookups.push({ project: args.project, repository: args.repository, branch: args.branch });
+    const branches = this.branches.get(`${args.project} ${args.repository}`) ?? [];
+    return branches.find(branch => (branch.name ?? '').replace(/^refs\/heads\//, '') === args.branch) ?? null;
+  }
+
+  async updateRefs(args: {
+    project: string;
+    repository: string;
+    updates: GitRefUpdate[];
+  }): Promise<GitRefUpdateResult[]> {
+    this.throwIfInjected('updateRefs');
+    this.refUpdateCalls.push(args);
+    if (!this.nextRefUpdateResults) {
+      throw new Error('FakeAdoClient.updateRefs: no results configured (setNextRefUpdateResults not called)');
+    }
+    const results = this.nextRefUpdateResults;
+    this.nextRefUpdateResults = undefined;
+    return results;
+  }
+
+  async updateRepositoryDefaultBranch(args: {
+    project: string;
+    repositoryId: string;
+    defaultBranch: string;
+  }): Promise<GitRepository> {
+    this.throwIfInjected('updateRepositoryDefaultBranch');
+    this.repositoryUpdates.push(args);
+    for (const repos of this.repos.values()) {
+      const repo = repos.find(candidate => candidate.id === args.repositoryId);
+      if (repo) {
+        return { ...repo, defaultBranch: args.defaultBranch };
+      }
+    }
+    throw new Error(
+      `FakeAdoClient.updateRepositoryDefaultBranch: no repository configured for id '${args.repositoryId}'`,
+    );
   }
 
   async createPullRequest(args: {
@@ -1020,6 +1109,11 @@ export class FakeAdoClient implements AdoClient {
     this.nextUpdatedPipelineDef = def;
   }
 
+  // Fail updatePipelineDefinition for one definition only (bulk failure-isolation tests).
+  injectPipelineDefUpdateError(definitionId: number, err: Error): void {
+    this.pipelineDefUpdateErrors.set(definitionId, err);
+  }
+
   getPipelineDefUpdates() {
     return this.pipelineDefUpdates;
   }
@@ -1040,6 +1134,10 @@ export class FakeAdoClient implements AdoClient {
     definition: BuildDefinition;
   }): Promise<BuildDefinition> {
     this.throwIfInjected('updatePipelineDefinition');
+    const perDefErr = this.pipelineDefUpdateErrors.get(args.definitionId);
+    if (perDefErr) {
+      throw perDefErr;
+    }
     this.pipelineDefUpdates.push(args);
     return this.nextUpdatedPipelineDef ?? args.definition;
   }
@@ -1210,6 +1308,10 @@ export class FakeAdoClient implements AdoClient {
     return this.deletedWorkItemComments;
   }
 
+  getDeletedLeaseIds(): readonly number[] {
+    return this.deletedLeaseIds;
+  }
+
   async updateReleaseDefinition(args: {
     project: string;
     definition: ReleaseDefinition;
@@ -1288,5 +1390,22 @@ export class FakeAdoClient implements AdoClient {
   }): Promise<void> {
     this.throwIfInjected('deleteWorkItemComment');
     this.deletedWorkItemComments.push(args);
+  }
+
+  // ---- phase-7b task-11 (retention) ----
+  async listBuildLeases(args: { project: string; buildId: number }): Promise<RetentionLease[]> {
+    this.throwIfInjected('listBuildLeases');
+    return this.buildLeases.get(`${args.project} ${args.buildId}`) ?? [];
+  }
+
+  async listReleaseDefinitionsWithArtifacts(args: { project: string }): Promise<ReleaseDefinition[]> {
+    this.throwIfInjected('listReleaseDefinitionsWithArtifacts');
+    return this.releaseDefsWithArtifacts.get(args.project) ?? [];
+  }
+
+  // ---- phase-7b task-12 (retention delete) ----
+  async deleteRetentionLeases(args: { project: string; leaseIds: number[] }): Promise<void> {
+    this.throwIfInjected('deleteRetentionLeases');
+    this.deletedLeaseIds.push(...args.leaseIds);
   }
 }

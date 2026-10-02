@@ -1,9 +1,9 @@
 import type { GitRepository } from '../../../../src/ado/types.js';
 import { describe, expect, it } from 'vitest';
-import { RepositoriesService } from '../../../../src/domains/repositories/service.js';
+import { RepositoriesReadService } from '../../../../src/domains/repositories/readService.js';
 import { FakeAdoClient } from '../../../fakes/FakeAdoClient.js';
 
-describe('repositoriesService.list', () => {
+describe('repositoriesReadService.list', () => {
   it('returns shaped repos from the client for the given project', async () => {
     const fake = new FakeAdoClient();
     const repos: GitRepository[] = [
@@ -12,7 +12,7 @@ describe('repositoriesService.list', () => {
     ];
     fake.setRepositories('MyProject', repos);
 
-    const svc = new RepositoriesService(fake);
+    const svc = new RepositoriesReadService(fake);
     const result = await svc.list({ project: 'MyProject' });
     expect(result).toEqual([
       { id: 'r1', name: 'RepoOne', defaultBranch: 'main', webUrl: 'https://x/r1' },
@@ -22,7 +22,7 @@ describe('repositoriesService.list', () => {
 
   it('returns empty array when project has no repos configured', async () => {
     const fake = new FakeAdoClient();
-    const svc = new RepositoriesService(fake);
+    const svc = new RepositoriesReadService(fake);
     expect(await svc.list({ project: 'Empty' })).toEqual([]);
   });
 
@@ -31,7 +31,7 @@ describe('repositoriesService.list', () => {
     fake.setRepositories('P', [
       { id: 'r', name: 'Repo', defaultBranch: 'refs/heads/develop' },
     ]);
-    const svc = new RepositoriesService(fake);
+    const svc = new RepositoriesReadService(fake);
     const result = await svc.list({ project: 'P' });
     expect(result[0]?.defaultBranch).toBe('develop');
   });
@@ -39,7 +39,7 @@ describe('repositoriesService.list', () => {
   it('handles missing defaultBranch gracefully', async () => {
     const fake = new FakeAdoClient();
     fake.setRepositories('P', [{ id: 'r', name: 'Repo' }]);
-    const svc = new RepositoriesService(fake);
+    const svc = new RepositoriesReadService(fake);
     const result = await svc.list({ project: 'P' });
     expect(result[0]?.defaultBranch).toBeUndefined();
   });
@@ -57,7 +57,7 @@ describe('repositoriesService.list', () => {
       },
     ];
     fake.setRepositories('P', repos);
-    const svc = new RepositoriesService(fake);
+    const svc = new RepositoriesReadService(fake);
     const result = await svc.list({ project: 'P' });
     expect(result).toEqual([
       { id: 'r3', name: 'Dead', isDisabled: true, size: 0 },

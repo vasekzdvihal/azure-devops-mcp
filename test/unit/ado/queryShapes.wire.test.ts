@@ -1,22 +1,18 @@
-import { GitApi } from 'azure-devops-node-api/GitApi.js';
 import { GitVersionType } from 'azure-devops-node-api/interfaces/GitInterfaces.js';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { branchDiffDescriptors, commitQueryCriteria } from '../../../src/ado/queryShapes.js';
-
-const STOP = 'captured';
+import { captureVersioningArgs } from '../../helpers/sdkWire.js';
 
 /**
- * Runs a real SDK GitApi method with `getVersioningData` stubbed, returning the query
- * values the SDK derived from our arguments — i.e. what would actually go on the wire.
+ * Runs a real SDK GitApi method (shared harness, test/helpers/sdkWire.ts) stopped at
+ * `getVersioningData`, returning the query values the SDK derived from our arguments — i.e. what
+ * would actually go on the wire.
  */
 async function captureQueryValues(
-  invoke: (git: GitApi) => Promise<unknown>,
+  invoke: Parameters<typeof captureVersioningArgs<'git'>>[1],
 ): Promise<Record<string, unknown>> {
-  const git = new GitApi('https://ado.example.test/tfs/Collection', []);
-  // Stop right after the SDK has built its query values — no network is touched.
-  const spy = vi.spyOn(git.vsoClient, 'getVersioningData').mockRejectedValue(new Error(STOP));
-  await expect(invoke(git)).rejects.toThrow(STOP);
-  const queryParams: unknown = spy.mock.calls[0]?.at(-1);
+  const args = await captureVersioningArgs('git', invoke);
+  const queryParams: unknown = args.at(-1);
   if (typeof queryParams !== 'object' || queryParams === null) {
     throw new Error('query values were not captured');
   }

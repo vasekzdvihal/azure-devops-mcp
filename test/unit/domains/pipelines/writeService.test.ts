@@ -1,4 +1,4 @@
-import type { Build, BuildDefinition, Run } from '../../../../src/ado/types.js';
+import type { Build, BuildDefinition, GitBranchStats, Run } from '../../../../src/ado/types.js';
 import { describe, expect, it } from 'vitest';
 import { AdoConflictError } from '../../../../src/ado/errors.js';
 import { CreatePipelineInput } from '../../../../src/domains/pipelines/schemas.js';
@@ -402,5 +402,262 @@ describe('pipelinesWriteService.deletePipeline', () => {
     const { svc, fake } = makeSvc();
     fake.injectError('deletePipelineDefinition', new Error('boom'));
     await expect(svc.deletePipeline({ project: 'Proj', pipelineId: 12 })).rejects.toThrow('boom');
+  });
+});
+
+describe('pipelinesWriteService.setDefaultBranch', () => {
+  function seed(fake: FakeAdoClient): void {
+    fake.setPipelineDefinition('P', 1, {
+      id: 1,
+      name: 'api-ci',
+      revision: 7,
+      repository: { id: 'rid', name: 'R', type: 'TfsGit', defaultBranch: 'refs/heads/master' },
+      variables: { token: { isSecret: true, value: undefined }, env: { value: 'x' } },
+    } as BuildDefinition);
+    fake.setPipelineDefinition('P', 2, {
+      id: 2,
+      name: 'web-ci',
+      repository: { id: 'rid', name: 'R', type: 'TfsGit', defaultBranch: 'refs/heads/main' },
+    } as BuildDefinition);
+    fake.setPipelineDefinition('P', 3, { id: 3, name: 'no-repo' } as BuildDefinition);
+    fake.setBranches('P', 'rid', [{ name: 'main' }, { name: 'master' }] as GitBranchStats[]);
+  }
+
+  it('is a dry run by default and reports changes + skips without writing', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    const result = await svc.setDefaultBranch({ project: 'P', definitionIds: [1, 2, 3], toBranch: 'main' });
+    expect(result.dryRun).toBe(true);
+    if (!result.dryRun) {
+      throw new Error('expected dry run');
+    }
+    expect(result.changes).toEqual([{ id: 1, name: 'api-ci', current: 'master', next: 'main' }]);
+    expect(result.skipped).toEqual([
+      { id: 2, name: 'web-ci', current: 'main', reason: 'already on main' },
+      { id: 3, name: 'no-repo', reason: 'definition has no repository' },
+    ]);
+    expect(fake.getPipelineDefUpdates()).toEqual([]);
+  });
+
+  it('reads repository.defaultBranch, not a top-level defaultBranch field', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition('P', 4, {
+      id: 4,
+      name: 'decoy',
+      defaultBranch: 'master',
+      repository: { id: 'rid', name: 'R', type: 'TfsGit', defaultBranch: 'refs/heads/main' },
+    } as unknown as BuildDefinition);
+    const result = await svc.setDefaultBranch({ project: 'P', definitionIds: [4], toBranch: 'main' });
+    if (!result.dryRun) {
+      throw new Error('expected dry run');
+    }
+    expect(result.changes).toEqual([]);
+    expect(result.skipped).toEqual([{ id: 4, name: 'decoy', current: 'main', reason: 'already on main' }]);
+  });
+
+  it('skips definitions not on fromBranch and notes the current values when nothing changes', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    const result = await svc.setDefaultBranch({
+      project: 'P',
+      definitionIds: [1, 2],
+      fromBranch: 'develop',
+      toBranch: 'main',
+    });
+    if (!result.dryRun) {
+      throw new Error('expected dry run');
+    }
+    expect(result.skipped).toContainEqual({
+      id: 1,
+      name: 'api-ci',
+      current: 'master',
+      reason: 'defaultBranch is \'master\', not \'develop\'',
+    });
+    expect(result.note).toMatch(/0 definitions to change.*current values: master, main/);
+  });
+
+  it('puts the whole definition back with revision + secrets when dryRun is false', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    const result = await svc.setDefaultBranch({
+      project: 'P',
+      definitionIds: [1, 2, 3],
+      toBranch: 'main',
+      dryRun: false,
+    });
+    const updates = fake.getPipelineDefUpdates();
+    expect(updates).toHaveLength(1);
+    const sent = updates[0]?.definition;
+    expect(updates[0]?.definitionId).toBe(1);
+    expect(sent?.repository?.defaultBranch).toBe('refs/heads/main');
+    expect(sent?.revision).toBe(7);
+    expect(sent?.variables?.token).toEqual({ isSecret: true, value: undefined });
+    expect(sent?.variables?.env).toEqual({ value: 'x' });
+    expect(result).toEqual({
+      dryRun: false,
+      updated: [{ id: 1, name: 'api-ci', current: 'master', next: 'main' }],
+      skipped: [
+        { id: 2, name: 'web-ci', current: 'main', reason: 'already on main' },
+        { id: 3, name: 'no-repo', reason: 'definition has no repository' },
+      ],
+      failed: [],
+    });
+  });
+
+  it('collects per-definition update failures instead of throwing', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    fake.injectError('updatePipelineDefinition', new AdoConflictError('stale'));
+    const result = await svc.setDefaultBranch({
+      project: 'P',
+      definitionIds: [1],
+      toBranch: 'main',
+      dryRun: false,
+    });
+    if (result.dryRun) {
+      throw new Error('expected apply');
+    }
+    expect(result.updated).toEqual([]);
+    expect(result.failed).toHaveLength(1);
+    expect(result.failed[0]).toMatchObject({ id: 1, name: 'api-ci' });
+    expect(result.failed[0]?.error).toMatch(/stale/);
+  });
+
+  it('dedupes repeated definitionIds so each definition is put exactly once', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    const dry = await svc.setDefaultBranch({ project: 'P', definitionIds: [1, 1], toBranch: 'main' });
+    if (!dry.dryRun) {
+      throw new Error('expected dry run');
+    }
+    expect(dry.changes.map(change => change.id)).toEqual([1]);
+
+    const applied = await svc.setDefaultBranch({ project: 'P', definitionIds: [1, 1], toBranch: 'main', dryRun: false });
+    if (applied.dryRun) {
+      throw new Error('expected apply');
+    }
+    expect(fake.getPipelineDefUpdates()).toHaveLength(1);
+    expect(applied.updated.map(change => change.id)).toEqual([1]);
+    expect(applied.failed).toEqual([]);
+  });
+
+  it('keeps updating the remaining definitions after one update fails', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    fake.setPipelineDefinition('P', 2, {
+      id: 2,
+      name: 'web-ci',
+      repository: { id: 'rid', name: 'R', type: 'TfsGit', defaultBranch: 'refs/heads/master' },
+    } as BuildDefinition);
+    fake.injectPipelineDefUpdateError(1, new AdoConflictError('stale'));
+    const result = await svc.setDefaultBranch({ project: 'P', definitionIds: [1, 2], toBranch: 'main', dryRun: false });
+    if (result.dryRun) {
+      throw new Error('expected apply');
+    }
+    expect(result.updated).toEqual([{ id: 2, name: 'web-ci', current: 'master', next: 'main' }]);
+    expect(result.failed).toHaveLength(1);
+    expect(result.failed[0]).toMatchObject({ id: 1, name: 'api-ci' });
+    expect(result.failed[0]?.error).toMatch(/stale/);
+    expect(fake.getPipelineDefUpdates().map(update => update.definitionId)).toEqual([2]);
+  });
+
+  it('refuses a project-wide sweep when neither repository nor definitionIds is given', async () => {
+    const { svc } = makeSvc();
+    await expect(svc.setDefaultBranch({ project: 'P', toBranch: 'main' }))
+      .rejects
+      .toThrow(/provide `repository` or `definitionIds`/);
+  });
+
+  it('resolves repository by name, lists its TfsGit pipelines, then fetches each definition', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    fake.setRepositories('P', [{ id: 'rid', name: 'R' }]);
+    fake.setPipelines('P', [{ id: 1 }, { id: 2 }] as BuildDefinition[]);
+    const result = await svc.setDefaultBranch({ project: 'P', repository: 'r', toBranch: 'main' });
+    expect(fake.getListPipelinesCalls()).toEqual([
+      { project: 'P', repositoryId: 'rid', repositoryType: 'TfsGit' },
+    ]);
+    if (!result.dryRun) {
+      throw new Error('expected dry run');
+    }
+    expect(result.changes.map(change => change.id)).toEqual([1]);
+    expect(result.skipped.map(skip => skip.id)).toEqual([2]);
+  });
+
+  it('treats a fully-qualified toBranch the same as the short name', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    const short = await svc.setDefaultBranch({ project: 'P', definitionIds: [1, 2, 3], toBranch: 'main' });
+    const full = await svc.setDefaultBranch({ project: 'P', definitionIds: [1, 2, 3], toBranch: 'refs/heads/main' });
+    expect(full).toEqual(short);
+  });
+
+  it('skips definitions whose repository lacks toBranch and never puts them', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    const dry = await svc.setDefaultBranch({ project: 'P', definitionIds: [1], toBranch: 'mian' });
+    if (!dry.dryRun) {
+      throw new Error('expected dry run');
+    }
+    expect(dry.changes).toEqual([]);
+    expect(dry.skipped).toEqual([
+      { id: 1, name: 'api-ci', current: 'master', reason: 'toBranch \'mian\' does not exist in R' },
+    ]);
+    expect(dry.note).toMatch(/0 definitions to change out of 1/);
+
+    const applied = await svc.setDefaultBranch({ project: 'P', definitionIds: [1], toBranch: 'mian', dryRun: false });
+    if (applied.dryRun) {
+      throw new Error('expected apply');
+    }
+    expect(applied.updated).toEqual([]);
+    expect(applied.skipped.map(skip => skip.id)).toEqual([1]);
+    expect(fake.getPipelineDefUpdates()).toEqual([]);
+  });
+
+  it('looks toBranch up once per repository even across several definitions', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    fake.setPipelineDefinition('P', 2, {
+      id: 2,
+      name: 'web-ci',
+      repository: { id: 'rid', name: 'R', type: 'TfsGit', defaultBranch: 'refs/heads/master' },
+    } as BuildDefinition);
+    await svc.setDefaultBranch({ project: 'P', definitionIds: [1, 2], toBranch: 'main' });
+    expect(fake.getBranchCalls()).toEqual([{ project: 'P', repository: 'rid', branch: 'main' }]);
+  });
+
+  it('rejects a non-branch ref for toBranch or fromBranch', async () => {
+    const { svc, fake } = makeSvc();
+    seed(fake);
+    await expect(svc.setDefaultBranch({ project: 'P', definitionIds: [1], toBranch: 'refs/tags/v1' }))
+      .rejects
+      .toThrow(/toBranch.*refs\/tags\/v1.*branch/);
+    await expect(svc.setDefaultBranch({
+      project: 'P',
+      definitionIds: [1],
+      fromBranch: 'refs/pull/1/merge',
+      toBranch: 'main',
+    }))
+      .rejects
+      .toThrow(/fromBranch.*refs\/pull\/1\/merge.*branch/);
+    expect(fake.getBranchCalls()).toEqual([]);
+  });
+
+  it('skips definitions whose repository is not Azure Repos Git', async () => {
+    const { svc, fake } = makeSvc();
+    fake.setPipelineDefinition('P', 5, {
+      id: 5,
+      name: 'gh-ci',
+      repository: { id: 'org/repo', name: 'org/repo', type: 'GitHub', defaultBranch: 'refs/heads/master' },
+    } as BuildDefinition);
+    const result = await svc.setDefaultBranch({ project: 'P', definitionIds: [5], toBranch: 'main', dryRun: false });
+    if (result.dryRun) {
+      throw new Error('expected apply');
+    }
+    expect(result.skipped).toEqual([
+      { id: 5, name: 'gh-ci', current: 'master', reason: 'repository type \'GitHub\' is not Azure Repos Git; not changed' },
+    ]);
+    expect(fake.getBranchCalls()).toEqual([]);
+    expect(fake.getPipelineDefUpdates()).toEqual([]);
   });
 });
