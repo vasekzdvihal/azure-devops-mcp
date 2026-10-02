@@ -78,6 +78,28 @@ function continuationTokenFromHeaders(headers: object): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
+const HTTP_BAD_REQUEST = 400;
+const DOES_NOT_EXIST_RE = /does not exist/i;
+
+/**
+ * ADO Server answers `GET .../refs` stats for a missing branch with HTTP 400
+ * `System.ArgumentException` ("Branch \"x\" does not exist in the <id> repository.") rather than
+ * 404 — verified live 2026-10-02. typed-rest-client rejects with `{ statusCode, message, result }`.
+ */
+function isMissingBranchError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+  const { statusCode, message, result } = err as { statusCode?: unknown; message?: unknown; result?: unknown };
+  if (statusCode !== HTTP_BAD_REQUEST) {
+    return false;
+  }
+  const resultMessage = typeof result === 'object' && result !== null
+    ? (result as { message?: unknown }).message
+    : undefined;
+  return [message, resultMessage].some(text => typeof text === 'string' && DOES_NOT_EXIST_RE.test(text));
+}
+
 export interface SdkAdoClientOptions {
   baseUrl: string;
   pat: string;
@@ -1443,8 +1465,10 @@ export class SdkAdoClient implements AdoClient {
    *
    * The SDK's `rest.get` intercepts HTTP 404 itself and resolves `{ result: null }` instead
    * of rejecting (see typed-rest-client's RestClient.processResponse), so `git.getBranch`
-   * resolves `undefined`/`null` for a missing branch rather than throwing. The `AdoNotFoundError`
-   * check in the catch below is defensive, in case a server variant throws instead.
+   * resolves `undefined`/`null` for a missing branch rather than throwing. ADO Server, however,
+   * rejects a missing branch with HTTP 400 ArgumentException "... does not exist ..." (verified
+   * live 2026-10-02) — see `isMissingBranchError`; that also means null. The `AdoNotFoundError`
+   * check in the catch below is defensive, in case a server variant throws a 404 instead.
    */
   async getBranch(args: {
     project: string;
@@ -1458,6 +1482,9 @@ export class SdkAdoClient implements AdoClient {
     catch (err) {
       if (err instanceof AdoError) {
         throw err;
+      }
+      if (isMissingBranchError(err)) {
+        return null;
       }
       const mapped = mapSdkError(err);
       if (mapped instanceof AdoNotFoundError) {

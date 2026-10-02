@@ -123,6 +123,7 @@ describe('release definitions sdk drift check', () => {
     const args = await captureVersioningArgs('release', async release => release.getReleaseDefinitions('p'));
 
     expect(args[0]).toBe(RELEASE_DEFINITIONS_API_VERSION);
+    expect(args[1]).toBe('Release');
     expect(args[2]).toBe(RELEASE_DEFINITIONS_LOCATION_ID);
   });
 });
