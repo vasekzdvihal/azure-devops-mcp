@@ -45,7 +45,10 @@ export class CommitsWriteService {
     const branch = await this.client.getBranch({ project, repository, branch: shortBranch(from) });
     const sha = branch?.commit?.commitId;
     if (!sha) {
-      throw new Error(`create_branch: source branch '${shortBranch(from)}' not found in ${repository}.`);
+      throw new Error(
+        `create_branch: source branch '${shortBranch(from)}' not found in ${repository} `
+        + `(or the repository does not exist).`,
+      );
     }
     return sha;
   }

@@ -266,6 +266,7 @@ export class FakeAdoClient implements AdoClient {
 
   // ---- phase-7b task-11 state (retention) ----
   private buildLeases = new Map<string, RetentionLease[]>(); // `${project} ${buildId}`
+  private deletedLeaseIds: number[] = []; // phase-7b task-12 (retention delete)
   private releaseDefsWithArtifacts = new Map<string, ReleaseDefinition[]>(); // project
   private listPipelinesCalls: Array<{ project: string; repositoryId?: string; repositoryType?: string }> = [];
   private pipelineRuns = new Map<string, Build[]>(); // project
@@ -1154,8 +1155,6 @@ export class FakeAdoClient implements AdoClient {
   private nextUpdatedWorkItem?: WorkItem;
   private addedWorkItemComments: Array<{ project: string; id: number; text: string }> = [];
   private deletedWorkItemComments: Array<{ project: string; id: number; commentId: number }> = [];
-  // ---- phase-7b task-12 state (retention delete) ----
-  private deletedLeaseIds: number[] = [];
   private nextAddedComment?: WorkItemComment;
 
   // ---- phase-4.2 release write state ----

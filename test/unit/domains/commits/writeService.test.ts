@@ -43,9 +43,11 @@ describe('commitsWriteService.createBranch', () => {
     expect(fake.getRefUpdateCalls()[0]?.updates[0]?.newObjectId).toBe(SHA);
   });
 
-  it('throws when the source branch does not exist', async () => {
+  it('throws when the source branch does not exist, hinting the repository may be wrong too', async () => {
     const svc = new CommitsWriteService(new FakeAdoClient(), async () => REPO);
-    await expect(svc.createBranch({ name: 'main', from: 'nope' })).rejects.toThrow(/source branch 'nope' not found/);
+    await expect(svc.createBranch({ name: 'main', from: 'nope' }))
+      .rejects
+      .toThrow(/source branch 'nope' not found in .+ \(or the repository does not exist\)/);
   });
 
   it('throws when updateRefs reports success:false with HTTP 200', async () => {

@@ -1,4 +1,5 @@
 import type { AdoClient } from '../../ado/client.js';
+import { findRepositoryByName } from '../../ado/repositories.js';
 
 export interface SetDefaultBranchResult {
   repository: string;
@@ -15,7 +16,7 @@ export class RepositoriesWriteService {
     branch: string;
   }): Promise<SetDefaultBranchResult> {
     const repos = await this.client.listRepositories({ project: args.project });
-    const repo = repos.find(candidate => candidate.name?.toLowerCase() === args.repository.toLowerCase());
+    const repo = findRepositoryByName(repos, args.repository);
     if (!repo?.id) {
       throw new Error(`set_default_branch: repository '${args.repository}' not found in project '${args.project}'.`);
     }

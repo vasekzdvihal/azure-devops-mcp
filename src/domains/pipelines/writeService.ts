@@ -1,5 +1,6 @@
 import type { AdoClient } from '../../ado/client.js';
 import type { BuildDefinition, BuildDefinitionVariable, BuildStatus } from '../../ado/types.js';
+import { findRepositoryByName } from '../../ado/repositories.js';
 
 const BUILD_STATUS_FROM_ENUM: Record<number, string> = {
   0: 'none',
@@ -352,7 +353,7 @@ export class PipelinesWriteService {
     folder?: string;
   }): Promise<CreatePipelineResult> {
     const repos = await this.client.listRepositories({ project: args.project });
-    const repo = repos.find(candidate => candidate.name?.toLowerCase() === args.repository.toLowerCase());
+    const repo = findRepositoryByName(repos, args.repository);
     if (!repo?.id || !repo.name) {
       // Domain-level input validation (like findDefinitionEnvironment / findArtifactByAlias):
       // a plain Error, not an AdoError — nothing was asked of ADO that failed.
@@ -495,9 +496,8 @@ export class PipelinesWriteService {
     if (!args.repository) {
       throw new Error('set_pipeline_default_branch: provide `repository` or `definitionIds` (no project-wide sweeps).');
     }
-    const wanted = args.repository.toLowerCase();
     const repos = await this.client.listRepositories({ project: args.project });
-    const repo = repos.find(candidate => candidate.name?.toLowerCase() === wanted);
+    const repo = findRepositoryByName(repos, args.repository);
     if (!repo?.id) {
       throw new Error(
         `set_pipeline_default_branch: repository '${args.repository}' not found in project '${args.project}'.`,
