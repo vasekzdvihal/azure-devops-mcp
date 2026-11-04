@@ -175,6 +175,14 @@ npm run setup       # run setup wizard from source
 
 Architecture and design decisions live in `docs/superpowers/specs/2026-04-21-azure-devops-mcp-design.md`. Per-phase implementation plans in `docs/superpowers/plans/`. Roadmap in `docs/ROADMAP.md`.
 
+## Official distribution
+
+This project is free and open source. The only official sources are this
+GitHub repository and the `@vasekzdvihal/azure-devops-mcp` package on npm.
+
+I don't sell this project or any skill built around it, and I don't endorse
+paid listings of it. If you paid for it, you can get it here for free.
+
 ## License
 
 MIT
