@@ -405,6 +405,19 @@ Released as v0.4.0.
 
 ---
 
+## ✅ v0.15.0 — PR head commit in `get_pull_request`
+
+**Status:** shipped 2026-11-25 in v0.15.0 (Linear NM-251).
+
+`get_pull_request` now returns `lastMergeSourceCommit`, `lastMergeTargetCommit` and `lastMergeCommit` as `{ commitId, url? }`. `lastMergeSourceCommit.commitId` is the full 40-char head SHA. Agents that work in a fixed checkout (Elder Brain `n2-finish`) read the head SHA from the tool instead of fetching the PR branch.
+
+- **ADO field names kept.** Callers and skill text use ADO's names as documented.
+- **Only `commitId` + `url`.** ADO's commit refs can carry author/comment/change counts; those are dropped to keep the output small.
+- **Absent, not null.** ADO fills these after merge processing. Until then the keys are omitted; `mergeStatus` (`queued`) says why.
+- **`list_pull_requests` unchanged.** List output stays small.
+
+---
+
 ## Out of scope (and likely to stay that way)
 
 - **Wiki, artifacts, test plans, dashboards, packaging, audit, security scanning, repo settings.** Each could be its own phase, but each is a niche compared to the PR/pipeline/release/work-item core. We'd add them only if a specific colleague asks for one.

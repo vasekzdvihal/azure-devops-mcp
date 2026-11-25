@@ -29,7 +29,10 @@ export function buildPullRequestReadTools(svc: PullRequestsReadService): ToolDef
           'Returns full metadata for one pull request: title, description, status, author, '
           + 'reviewers, branches, draft state, merge status. Use `list_pull_request_changes` to '
           + 'see what files changed and `get_pull_request_diff` to see one file\'s actual diff. '
-          + '`webUrl` is the clickable browser link; `url` is the REST API URL.',
+          + '`webUrl` is the clickable browser link; `url` is the REST API URL. '
+          + '`lastMergeSourceCommit.commitId` is the full SHA of the PR head (source branch tip); '
+          + '`lastMergeTargetCommit` and `lastMergeCommit` are the target tip and the test merge '
+          + 'commit. All three are absent until ADO finishes merge processing.',
         inputSchema: PullRequestId,
       },
       handler: async args => svc.get(args as Parameters<typeof svc.get>[0]),

@@ -87,7 +87,7 @@ The pull-request tools auto-detect the current `project` and `repository` from y
 | `list_projects` | Lists ADO projects in the configured collection / org. |
 | `list_repositories` | Lists git repositories in a given project, incl. `isDisabled`, `isInMaintenance`, and `size` (no `defaultBranch` + `size: 0` = never pushed to). |
 | `list_pull_requests` | Lists PRs in a repo (default: active). Filters: status, creator, reviewer, target branch. Includes `webUrl`. |
-| `get_pull_request` | Full PR metadata: title, description, status, reviewers, branches, draft state, merge status, `webUrl`. |
+| `get_pull_request` | Full PR metadata: title, description, status, reviewers, branches, draft state, merge status, `webUrl`, and the merge commits — `lastMergeSourceCommit.commitId` is the full head SHA (also `lastMergeTargetCommit`, `lastMergeCommit`; absent until ADO finishes merge processing). |
 | `list_pull_request_changes` | Lists files changed in a PR with change types. Cheap; no diff content. |
 | `get_pull_request_diff` | Returns unified diff text for a single file in a PR (truncatable). |
 | `list_pull_request_comments` | Returns comment threads on a PR (with line anchors). |

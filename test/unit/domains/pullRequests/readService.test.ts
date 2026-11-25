@@ -88,6 +88,51 @@ describe('pullRequestsReadService.get', () => {
     const result = await svc.get({ pullRequestId: 9013 });
     expect(result.webUrl).toBe('https://tfs/c/P/_git/N2/pullrequest/9013');
   });
+
+  it('returns the merge commits (head sha = lastMergeSourceCommit.commitId)', async () => {
+    const fake = makeFake();
+    const head = 'a'.repeat(40);
+    const base = 'b'.repeat(40);
+    const merge = 'c'.repeat(40);
+    fake.setPullRequest({
+      ...REPO,
+      repository: REPO.repo,
+      pullRequestId: 251,
+      pr: {
+        pullRequestId: 251,
+        title: 'Head commit',
+        status: 1,
+        lastMergeSourceCommit: { commitId: head, url: 'https://tfs/_apis/git/commits/a' },
+        lastMergeTargetCommit: { commitId: base },
+        lastMergeCommit: { commitId: merge, author: { name: 'Alice' }, comment: 'Merge' },
+      },
+    });
+    const svc = new PullRequestsReadService(fake, async () => REPO);
+    const result = await svc.get({ pullRequestId: 251 });
+    expect(result.lastMergeSourceCommit).toEqual({
+      commitId: head,
+      url: 'https://tfs/_apis/git/commits/a',
+    });
+    expect(result.lastMergeTargetCommit).toEqual({ commitId: base });
+    // Only commitId + url are kept — no author/comment noise.
+    expect(result.lastMergeCommit).toEqual({ commitId: merge });
+  });
+
+  it('omits the merge commits when ADO has not computed them yet', async () => {
+    const fake = makeFake();
+    fake.setPullRequest({
+      ...REPO,
+      repository: REPO.repo,
+      pullRequestId: 252,
+      pr: { pullRequestId: 252, title: 'Queued', status: 1, mergeStatus: 1 },
+    });
+    const svc = new PullRequestsReadService(fake, async () => REPO);
+    const result = await svc.get({ pullRequestId: 252 });
+    expect(result).not.toHaveProperty('lastMergeSourceCommit');
+    expect(result).not.toHaveProperty('lastMergeTargetCommit');
+    expect(result).not.toHaveProperty('lastMergeCommit');
+    expect(result.mergeStatus).toBe('queued');
+  });
 });
 
 describe('pullRequestsReadService.getDiff', () => {

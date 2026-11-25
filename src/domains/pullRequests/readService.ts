@@ -1,5 +1,6 @@
 import type { AdoClient } from '../../ado/client.js';
 import type {
+  GitCommitRef,
   GitPullRequest,
   GitPullRequestChange,
   GitPullRequestCommentThread,
@@ -78,11 +79,24 @@ export interface PrSummary {
   webUrl?: string;
 }
 
+export interface PrCommitRef {
+  commitId: string;
+  url?: string;
+}
+
 export interface PrDetail extends PrSummary {
   description?: string;
   isDraft?: boolean;
   reviewers: Array<{ name?: string; vote: number }>;
   mergeStatus?: string;
+  // Field names follow ADO so callers can read them as ADO documents them.
+  // `lastMergeSourceCommit.commitId` is the PR head (source branch tip),
+  // `lastMergeTargetCommit.commitId` the target branch tip it was merged
+  // against, `lastMergeCommit.commitId` the test merge commit. ADO fills
+  // them after merge processing; absent until then.
+  lastMergeSourceCommit?: PrCommitRef;
+  lastMergeTargetCommit?: PrCommitRef;
+  lastMergeCommit?: PrCommitRef;
 }
 
 export interface PrChange {
@@ -269,7 +283,24 @@ function shapePrDetail(pr: GitPullRequest): PrDetail {
       pr.mergeStatus !== undefined
         ? (MERGE_STATUS_FROM_ENUM[pr.mergeStatus] ?? 'unknown')
         : undefined,
+    ...commitField('lastMergeSourceCommit', pr.lastMergeSourceCommit),
+    ...commitField('lastMergeTargetCommit', pr.lastMergeTargetCommit),
+    ...commitField('lastMergeCommit', pr.lastMergeCommit),
   };
+}
+
+function commitField<K extends string>(
+  key: K,
+  commit: GitCommitRef | undefined,
+): Partial<Record<K, PrCommitRef>> {
+  if (!commit?.commitId) {
+    return {};
+  }
+  const ref: PrCommitRef = { commitId: commit.commitId };
+  if (commit.url) {
+    ref.url = commit.url;
+  }
+  return { [key]: ref } as Partial<Record<K, PrCommitRef>>;
 }
 
 function shapeChange(change: GitPullRequestChange): PrChange {
